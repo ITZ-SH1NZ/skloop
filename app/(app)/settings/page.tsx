@@ -139,7 +139,7 @@ function GeneralSettings({ toast }: { toast: any }) {
                 });
 
             if (error) {
-                toast("Failed to update profile", "error");
+                toast(`Failed to update profile: ${error.message}`, "error");
             } else {
                 toast("Profile updated!", "success");
             }

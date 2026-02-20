@@ -123,7 +123,7 @@ export function GamifiedHeader() {
                 setIsEditModalOpen(false);
                 toast("Profile updated successfully!", "success");
             } else {
-                toast("Failed to update profile.", "error");
+                toast(`Failed to update profile: ${error.message}`, "error");
             }
         }
         setIsSaving(false);
