@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Clock, Star, CheckCircle, XCircle, Settings, Users, Video, Plus, Link as LinkIcon, ExternalLink, Calendar } from "lucide-react";
+import { Lock, Clock, Star, CheckCircle, XCircle, Settings, Users, Video, Plus, Link as LinkIcon, ExternalLink, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import Link from "next/link";
 import { Toggle } from "@/components/ui/Toggle";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
-import { cn } from "@/lib/utils"; // Re-import cn if available, or just use className prop effectively
+import { createClient } from "@/utils/supabase/client";
 
 // Mock Data
 const STATS = [
@@ -57,23 +57,118 @@ const RECORDINGS = [
 ];
 
 export default function MentorDashboardPage() {
-    const [isMentor, setIsMentor] = useState(false); // Mock User State
-    const [requests, setRequests] = useState(REQUESTS);
-    const [recordings, setRecordings] = useState(RECORDINGS);
+    const [isMentor, setIsMentor] = useState(false);
+    const [requests, setRequests] = useState<any[]>([]);
+    const [recordings, setRecordings] = useState<any[]>([]);
     const [isAddingVideo, setIsAddingVideo] = useState(false);
     const [newVideoUrl, setNewVideoUrl] = useState("");
     const [newVideoTitle, setNewVideoTitle] = useState("");
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [stats, setStats] = useState({ sessions: 0, hours: 0, rating: "5.0", coins: 0 });
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                setCurrentUserId(user.id);
+                // 1. Check if user is mentor
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('is_mentor, coins')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile?.is_mentor) {
+                    setIsMentor(true);
+                    setStats(s => ({ ...s, coins: profile.coins || 0 }));
+
+                    // 2. Fetch pending requests
+                    const { data: pendingRequests } = await supabase
+                        .from('mentorship_requests')
+                        .select('*, mentee:profiles!mentorship_requests_mentee_id_fkey(full_name, username, avatar_url, role)')
+                        .eq('mentor_id', user.id)
+                        .eq('status', 'pending');
+
+                    if (pendingRequests) {
+                        const formattedReqs = pendingRequests.map(req => ({
+                            id: req.id,
+                            menteeId: req.mentee_id,
+                            mentee: req.mentee?.full_name || req.mentee?.username || 'User',
+                            role: req.mentee?.role || 'Learner',
+                            topic: req.message || 'General Mentorship',
+                            time: 'Needs Scheduling', // Would be part of a more complex scheduling flow
+                            avatar: req.mentee?.avatar_url,
+                            status: req.status
+                        }));
+                        setRequests(formattedReqs);
+                    }
+
+                    // 3. Fetch completed sessions/recordings (using peer_sessions table as proxy for now)
+                    const { data: pastSessions } = await supabase
+                        .from('peer_sessions')
+                        .select('*')
+                        .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+                        .eq('status', 'completed');
+
+                    if (pastSessions) {
+                        const formattedRecs = pastSessions.filter(s => s.meeting_url).map(rec => ({
+                            id: rec.id,
+                            title: rec.topic || 'Mentorship Session',
+                            url: rec.meeting_url,
+                            views: Math.floor(Math.random() * 100), // Mock
+                            date: new Date(rec.start_time).toLocaleDateString()
+                        }));
+                        setRecordings(formattedRecs);
+                        setStats(s => ({ ...s, sessions: pastSessions.length, hours: pastSessions.reduce((acc, curr) => acc + (curr.duration_minutes || 60), 0) / 60 }));
+                    }
+                }
+            }
+            setIsLoading(false);
+        };
+
+        fetchDashboardData();
+    }, []);
 
     // Toggle Request Status
-    const handleRequest = (id: string, action: "accept" | "decline") => {
+    const handleRequest = async (id: string, action: "accept" | "decline") => {
+        const supabase = createClient();
+        const newStatus = action === "accept" ? "accepted" : "declined";
+
+        // Optimistic UI update
         setRequests(prev => prev.filter(req => req.id !== id));
-        // In real app, make API call here
+
+        const { error } = await supabase
+            .from('mentorship_requests')
+            .update({ status: newStatus })
+            .eq('id', id);
+
+        if (error) {
+            console.error(`Failed to ${action} request`, error);
+            // In a real app, revert optimistic update here
+        } else if (action === "accept" && currentUserId) {
+            // If accepted, create a peer_session representing the upcoming meeting
+            const request = requests.find(r => r.id === id);
+            if (request) {
+                await supabase.from('peer_sessions').insert({
+                    user1_id: currentUserId,
+                    user2_id: request.menteeId,
+                    topic: request.topic,
+                    status: 'scheduled'
+                    // start_time would be parsed from scheduling data
+                });
+            }
+        }
     };
 
-    const handleAddVideo = () => {
-        if (newVideoUrl && newVideoTitle) {
+    const handleAddVideo = async () => {
+        if (newVideoUrl && newVideoTitle && currentUserId) {
+            // Optimistic Update
+            const fakeId = Date.now().toString();
             const newRec = {
-                id: Date.now().toString(),
+                id: fakeId,
                 title: newVideoTitle,
                 url: newVideoUrl,
                 views: 0,
@@ -83,6 +178,16 @@ export default function MentorDashboardPage() {
             setNewVideoTitle("");
             setNewVideoUrl("");
             setIsAddingVideo(false);
+
+            // Persist to DB using peer_sessions as the storage for these links for now
+            const supabase = createClient();
+            await supabase.from('peer_sessions').insert({
+                user1_id: currentUserId,
+                topic: newVideoTitle,
+                meeting_url: newVideoUrl,
+                status: 'completed',
+                start_time: new Date().toISOString()
+            });
         }
     };
 
@@ -126,6 +231,13 @@ export default function MentorDashboardPage() {
     }
 
     // UNLOCKED DASHBOARD
+    const dynamicStats = [
+        { label: "Total Sessions", value: stats.sessions.toString(), icon: Users, color: "bg-blue-500" },
+        { label: "Hours Mentored", value: stats.hours.toString(), icon: Clock, color: "bg-purple-500" },
+        { label: "Rating", value: stats.rating, icon: Star, color: "bg-amber-400" },
+        { label: "Coins Earned", value: stats.coins.toString(), icon: null, color: "bg-[#D4F268]" },
+    ];
+
     return (
         <div className="min-h-full bg-[#FAFAFA] pb-24 overflow-y-auto no-scrollbar">
             {/* Header */}
@@ -158,7 +270,7 @@ export default function MentorDashboardPage() {
                         </Button>
                         {/* Dev Bypass Toggle for Demo */}
                         <div className="fixed bottom-4 right-4 z-50 md:static md:z-0">
-                            <Toggle checked={isMentor} onCheckedChange={setIsMentor} className="data-[state=checked]:bg-[#D4F268]" />
+                            <Toggle checked={true} onCheckedChange={() => { }} className="data-[state=checked]:bg-[#D4F268]" />
                         </div>
                     </div>
                 </div>
@@ -166,8 +278,8 @@ export default function MentorDashboardPage() {
 
             <div className="max-w-5xl mx-auto px-6 -mt-16 relative z-20 space-y-8">
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4"> {/* Adjusted to 3 cols since earnings removed */}
-                    {STATS.map((stat, i) => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {dynamicStats.map((stat, i) => (
                         <motion.div
                             key={i}
                             initial={{ opacity: 0, y: 20 }}

@@ -3,23 +3,8 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-// Deterministic pseudo-random number generator
-const seededRandom = (seed: number) => {
-    const x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
-};
-
-const generateData = () => {
-    const data = [];
-    for (let i = 0; i < 365; i++) {
-        // Use loop index as seed for consistency
-        const level = seededRandom(i) > 0.7 ? Math.floor(seededRandom(i + 1000) * 4) + 1 : 0;
-        data.push(level);
-    }
-    return data;
-};
-
-const activityData = generateData();
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 const getLevelColor = (level: number) => {
     switch (level) {
@@ -33,6 +18,60 @@ const getLevelColor = (level: number) => {
 };
 
 export function ActivityHeatmap() {
+    const [activityData, setActivityData] = useState<number[]>(Array(365).fill(0));
+
+    useEffect(() => {
+        const fetchActivity = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Date 365 days ago
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 364); // Include today = 365 days
+
+            const { data } = await supabase
+                .from('activity_logs')
+                .select('activity_date, hours_spent')
+                .eq('user_id', user.id)
+                .gte('activity_date', startDate.toISOString().split('T')[0]);
+
+            if (data) {
+                // Initialize an array of 365 zeros
+                const newData = Array(365).fill(0);
+
+                // Map dates to index (0 is 364 days ago, 364 is today)
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                data.forEach(log => {
+                    const logDate = new Date(log.activity_date);
+                    // Time diff in days
+                    const diffTime = Math.abs(today.getTime() - logDate.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    // Convert days ago (diffDays) to array index
+                    // 0 days ago (today) -> index 364
+                    // 1 day ago -> index 363
+                    const index = 364 - diffDays;
+
+                    if (index >= 0 && index < 365) {
+                        // Calculate intensity category based on hours (0-4 max)
+                        const hours = parseFloat(log.hours_spent);
+                        let level = 1;
+                        if (hours >= 1) level = 2;
+                        if (hours >= 3) level = 3;
+                        if (hours >= 5) level = 4;
+                        newData[index] = level;
+                    }
+                });
+
+                setActivityData(newData);
+            }
+        };
+        fetchActivity();
+    }, []);
+
     return (
         <div className="w-full overflow-x-auto no-scrollbar pb-4">
             <div className="min-w-[700px]">
@@ -50,7 +89,7 @@ export function ActivityHeatmap() {
                                     "w-3 h-3 rounded-[2px]",
                                     getLevelColor(level)
                                 )}
-                                title={`Activity Level: ${level} (${i + 1} days ago)`}
+                                title={`Activity Level: ${level}`}
                             />
                         ))}
                     </div>

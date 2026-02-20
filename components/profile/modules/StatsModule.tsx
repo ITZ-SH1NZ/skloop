@@ -3,8 +3,46 @@
 import { ActivityHeatmap } from "../charts/ActivityHeatmap";
 import { DSARadar } from "../charts/DSARadar"; // Reusing existing
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 export function StatsModule() {
+    const [courses, setCourses] = useState<{ name: string, progress: number, color: string }[]>([
+        { name: "No courses started", progress: 0, color: "bg-gray-300" }
+    ]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchCourses = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                const { data, error } = await supabase
+                    .from('user_courses')
+                    .select('completed_lessons, courses(title, total_lessons)')
+                    .eq('user_id', user.id)
+                    .order('last_accessed', { ascending: false })
+                    .limit(3);
+
+                if (data && !error && data.length > 0) {
+                    const colors = ["bg-blue-500", "bg-purple-500", "bg-orange-500"];
+                    const formattedCourses = data.map((uc: any, index: number) => {
+                        const total = uc.courses.total_lessons || 1; // Prevent div by 0
+                        const progress = Math.round((uc.completed_lessons / total) * 100);
+                        return {
+                            name: uc.courses.title,
+                            progress: progress > 100 ? 100 : progress, // clamp
+                            color: colors[index % colors.length]
+                        };
+                    });
+                    setCourses(formattedCourses);
+                }
+            }
+            setIsLoading(false);
+        };
+        fetchCourses();
+    }, []);
     return (
         <div className="space-y-8">
             <h2 className="text-2xl font-bold tracking-tight">Skill Breakdown</h2>
@@ -21,25 +59,32 @@ export function StatsModule() {
                 {/* Module Progress */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-6">
                     <h3 className="font-bold">Course Progression</h3>
-                    {[
-                        { name: "Web Development Bootcamp", progress: 75, color: "bg-blue-500" },
-                        { name: "Data Structures & Algos", progress: 40, color: "bg-purple-500" },
-                        { name: "System Design", progress: 10, color: "bg-orange-500" }
-                    ].map((course) => (
-                        <div key={course.name} className="space-y-2">
-                            <div className="flex justify-between text-sm font-medium">
-                                <span>{course.name}</span>
-                                <span>{course.progress}%</span>
-                            </div>
-                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    whileInView={{ width: `${course.progress}%` }}
-                                    className={`h-full rounded-full ${course.color}`}
-                                />
-                            </div>
+                    {isLoading ? (
+                        <div className="animate-pulse space-y-4">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="space-y-2">
+                                    <div className="w-1/2 h-4 bg-gray-200 rounded"></div>
+                                    <div className="w-full h-2 bg-gray-100 rounded-full"></div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    ) : (
+                        courses.map((course, i) => (
+                            <div key={i} className="space-y-2">
+                                <div className="flex justify-between text-sm font-medium">
+                                    <span>{course.name}</span>
+                                    <span>{course.progress}%</span>
+                                </div>
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        whileInView={{ width: `${course.progress}%` }}
+                                        className={`h-full rounded-full ${course.color}`}
+                                    />
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 

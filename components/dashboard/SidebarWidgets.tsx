@@ -2,15 +2,65 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Trophy, Target, Zap, Calendar, Clock, MapPin, ExternalLink, ArrowRight } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import confetti from "canvas-confetti";
 
 export function ActivityChart() {
     const [isReportOpen, setIsReportOpen] = useState(false);
-    // TODO: Fetch activity data from backend
-    const data: any[] = [];
+    const [data, setData] = useState<any[]>([]);
+    const [totalTime, setTotalTime] = useState(0);
+
+    useEffect(() => {
+        const fetchActivity = async () => {
+            const { createClient } = await import('@/utils/supabase/client');
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                // Determine start date (7 days ago)
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 7);
+                const dateStr = startDate.toISOString().split('T')[0];
+
+                const { data: logs, error } = await supabase
+                    .from('activity_logs')
+                    .select('activity_date, hours_spent')
+                    .eq('user_id', user.id)
+                    .gte('activity_date', dateStr)
+                    .order('activity_date', { ascending: true });
+
+                if (logs && !error) {
+                    // Aggregate logs by day to match recharts format
+                    const aggregated: Record<string, number> = {};
+                    let total = 0;
+
+                    // Initialize last 7 days with 0
+                    for (let i = 6; i >= 0; i--) {
+                        const d = new Date();
+                        d.setDate(d.getDate() - i);
+                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                        aggregated[dayName] = 0;
+                    }
+
+                    logs.forEach(log => {
+                        const date = new Date(log.activity_date);
+                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                        if (aggregated[dayName] !== undefined) {
+                            aggregated[dayName] += Number(log.hours_spent);
+                            total += Number(log.hours_spent);
+                        }
+                    });
+
+                    const chartData = Object.entries(aggregated).map(([day, hours]) => ({ day, hours }));
+                    setData(chartData);
+                    setTotalTime(total);
+                }
+            }
+        };
+        fetchActivity();
+    }, []);
 
     return (
         <>
@@ -65,7 +115,7 @@ export function ActivityChart() {
                 <div className="flex justify-between items-center px-2 mt-2">
                     <div className="flex flex-col">
                         <span className="text-xs text-slate-400 font-medium">Total Time</span>
-                        <span className="text-lg font-black text-slate-900">0h 0m</span>
+                        <span className="text-lg font-black text-slate-900">{totalTime.toFixed(1)}h</span>
                     </div>
                     <div className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
                         -- vs last week
@@ -132,8 +182,32 @@ export function ActivityChart() {
 
 export function LeaderboardWidget() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
-    // TODO: Fetch leaderboard data from backend
-    const users: any[] = [];
+    const [users, setUsers] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchLeaderboard = async () => {
+            const { createClient } = await import('@/utils/supabase/client');
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('username, full_name, xp, avatar_url')
+                .order('xp', { ascending: false })
+                .limit(5);
+
+            if (data && !error) {
+                const formattedUsers = data.map((u, i) => ({
+                    name: u.full_name || u.username || `Pilot_${i + 1}`,
+                    xp: u.xp || 0,
+                    rank: i + 1,
+                    avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.full_name || u.username || 'P')}&background=random`,
+                    title: 'Skloop Pilot',
+                    badges: ['🔥', '✨', '💻']
+                }));
+                setUsers(formattedUsers);
+            }
+        };
+        fetchLeaderboard();
+    }, []);
 
     return (
         <>
@@ -214,30 +288,70 @@ export function LeaderboardWidget() {
 export function UpcomingWorkshop() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isRegistered, setIsRegistered] = useState(false);
+    const [workshop, setWorkshop] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchWorkshop = async () => {
+            const { createClient } = await import('@/utils/supabase/client');
+            const supabase = createClient();
+
+            // Fetch next upcoming workshop
+            const { data, error } = await supabase
+                .from('workshops')
+                .select('*')
+                .gte('start_time', new Date().toISOString())
+                .order('start_time', { ascending: true })
+                .limit(1)
+                .single();
+
+            if (data && !error) {
+                setWorkshop(data);
+            }
+        };
+        fetchWorkshop();
+    }, []);
 
     const handleRegister = (e: React.MouseEvent | null) => {
         if (e) e.stopPropagation();
         if (!isRegistered) {
-            confetti({
-                particleCount: 50,
-                spread: 60,
-                origin: { x: 0.8, y: 0.7 },
-                colors: ['#D4F268', '#1A1C1E']
+            import("canvas-confetti").then((confetti) => {
+                confetti.default({
+                    particleCount: 50,
+                    spread: 60,
+                    origin: { x: 0.8, y: 0.7 },
+                    colors: ['#D4F268', '#1A1C1E']
+                });
             });
             setIsRegistered(true);
         }
     };
 
-    return (
-        <>
+    if (!workshop) {
+        return (
             <div className="bg-[#F7F7F5] p-6 rounded-[2rem] border border-[#E5E5E0] opacity-50 pointer-events-none grayscale">
                 <div className="flex items-center gap-2 mb-4">
                     <span className="w-2 h-2 rounded-full bg-slate-400" />
                     <h3 className="font-bold text-slate-800 text-sm">Upcoming Workshop</h3>
                 </div>
-
                 <div className="bg-white p-4 rounded-xl shadow-sm text-center">
                     <p className="text-xs text-slate-400 font-bold">No workshops scheduled</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-[2rem] border border-indigo-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setIsDetailsOpen(true)}>
+                <div className="flex items-center gap-2 mb-4">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                    <h3 className="font-bold text-slate-800 text-sm">Upcoming Workshop</h3>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl shadow-sm relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-indigo-600/5 group-hover:bg-indigo-600/10 transition-colors" />
+                    <h4 className="font-bold text-slate-900 mb-1 line-clamp-1">{workshop.title}</h4>
+                    <p className="text-xs text-slate-500 font-medium">{new Date(workshop.start_time).toLocaleDateString()} @ {new Date(workshop.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
             </div>
 
@@ -268,7 +382,7 @@ export function UpcomingWorkshop() {
                             <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg border border-white/20 inline-block mb-2">
                                 <span className="text-[#D4F268] font-bold text-xs uppercase tracking-widest">Live Event</span>
                             </div>
-                            <h2 className="text-2xl font-black text-white px-8">System Design Interviews</h2>
+                            <h2 className="text-2xl font-black text-white px-8">{workshop.title}</h2>
                         </div>
                     </div>
 
@@ -279,7 +393,7 @@ export function UpcomingWorkshop() {
                             </div>
                             <div>
                                 <div className="text-xs text-slate-500 font-bold uppercase">Date</div>
-                                <div className="text-sm font-bold text-slate-900">Tomorrow</div>
+                                <div className="text-sm font-bold text-slate-900">{new Date(workshop.start_time).toLocaleDateString()}</div>
                             </div>
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
@@ -288,7 +402,7 @@ export function UpcomingWorkshop() {
                             </div>
                             <div>
                                 <div className="text-xs text-slate-500 font-bold uppercase">Time</div>
-                                <div className="text-sm font-bold text-slate-900">5:00 PM EST</div>
+                                <div className="text-sm font-bold text-slate-900">{new Date(workshop.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                             </div>
                         </div>
                     </div>
@@ -296,12 +410,10 @@ export function UpcomingWorkshop() {
                     <div className="space-y-2">
                         <h4 className="font-bold text-slate-800">What we'll cover:</h4>
                         <ul className="space-y-2">
-                            {["Load Balancing Strategies", "Database Sharding", "Caching Patterns", "Mock Interview Session"].map((item, i) => (
-                                <li key={i} className="flex items-center gap-2 text-sm text-slate-600">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#D4F268]" />
-                                    {item}
-                                </li>
-                            ))}
+                            <li className="flex items-center gap-2 text-sm text-slate-600">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#D4F268]" />
+                                {workshop.description}
+                            </li>
                         </ul>
                     </div>
                 </div>

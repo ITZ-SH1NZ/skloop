@@ -1,61 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { StudyCircle, StudyCircleCard } from "@/components/peer/StudyCircleCard";
 import { CreateCircleModal } from "@/components/peer/CreateCircleModal";
-import { Search, Plus, Sparkles } from "lucide-react";
+import { Search, Plus, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
-
-// Mock Data
-// TODO: Fetch circles from backend
-const MOCK_CIRCLES: StudyCircle[] = [];
+import { createClient } from "@/utils/supabase/client";
 
 export default function StudyCirclesPage() {
     const [searchTerm, setSearchTerm] = useState("");
-    const [circles, setCircles] = useState(MOCK_CIRCLES);
+    const [circles, setCircles] = useState<StudyCircle[]>([]);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-    const filteredCircles = circles.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     const router = useRouter();
 
-    const handleJoin = (id: string) => {
-        // Toggle local state (mock DB update)
+    useEffect(() => {
+        const fetchCircles = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            setCurrentUserId(user.id);
+
+            // Fetch public group conversations
+            const { data: convos } = await supabase
+                .from('conversations')
+                .select(`
+                    id,
+                    title,
+                    description,
+                    tags,
+                    conversation_participants(user_id)
+                `)
+                .eq('type', 'group')
+                .order('created_at', { ascending: false });
+
+            if (convos) {
+                const formatted: StudyCircle[] = convos.map(c => {
+                    const participants = c.conversation_participants || [];
+                    const isJoined = participants.some((p: any) => p.user_id === user.id);
+                    return {
+                        id: c.id,
+                        name: c.title || 'Unnamed Circle',
+                        topic: c.tags?.[0] || 'General',
+                        description: c.description || 'A study circle for eager learners.',
+                        memberCount: participants.length,
+                        maxMembers: 50, // Hardcoded for now unless added to schema
+                        tags: c.tags || [],
+                        isJoined
+                    };
+                });
+                setCircles(formatted);
+            }
+            setIsLoading(false);
+        };
+        fetchCircles();
+    }, []);
+
+    const filteredCircles = circles.filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        c.topic.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleJoin = async (id: string) => {
+        const circle = circles.find(c => c.id === id);
+        if (!circle) return;
+
+        if (circle.isJoined) {
+            // Already joined, navigate
+            router.push(`/peer/chat?circleId=${id}`);
+            return;
+        }
+
+        if (!currentUserId) return;
+
+        const supabase = createClient();
+
+        // Optimistic UI update
         setCircles(prev => prev.map(c =>
-            c.id === id ? { ...c, isJoined: !c.isJoined, memberCount: c.isJoined ? c.memberCount - 1 : c.memberCount + 1 } : c
+            c.id === id ? { ...c, isJoined: true, memberCount: c.memberCount + 1 } : c
         ));
 
-        // Navigate to chat
-        // In a real app, this would happen after a successful API call
-        if (!circles.find(c => c.id === id)?.isJoined) {
+        // Insert participant
+        const { error } = await supabase.from('conversation_participants').insert({
+            conversation_id: id,
+            user_id: currentUserId
+        });
+
+        if (!error) {
             router.push(`/peer/chat?circleId=${id}`);
+        } else {
+            // Revert on error
+            setCircles(prev => prev.map(c =>
+                c.id === id ? { ...c, isJoined: false, memberCount: c.memberCount - 1 } : c
+            ));
         }
     };
 
-    const handleCreateCircle = (newCircle: Omit<StudyCircle, "id" | "memberCount" | "isJoined">) => {
+    const handleCreateCircle = async (newCircle: Omit<StudyCircle, "id" | "memberCount" | "isJoined">) => {
+        if (!currentUserId) return;
+        const supabase = createClient();
+
+        // 1. Create Conversation
+        const { data: convoData, error: convoError } = await supabase.from('conversations').insert({
+            type: 'group',
+            title: newCircle.name,
+            description: newCircle.description,
+            tags: [newCircle.topic, ...newCircle.tags.filter(t => t !== newCircle.topic)] // Ensure topic is first tag
+        }).select().single();
+
+        if (convoError || !convoData) return;
+
+        // 2. Add creator as participant
+        await supabase.from('conversation_participants').insert({
+            conversation_id: convoData.id,
+            user_id: currentUserId
+        });
+
         const circle: StudyCircle = {
             ...newCircle,
-            id: Date.now().toString(),
+            id: convoData.id,
             memberCount: 1,
             isJoined: true,
         };
 
         setCircles(prev => [circle, ...prev]);
 
-        // Confetti celebration!
         confetti({
             particleCount: 100,
             spread: 70,
             origin: { y: 0.6 }
         });
 
-        // Navigate to the new circle's chat
         setTimeout(() => {
             router.push(`/peer/chat?circleId=${circle.id}`);
         }, 1000);
@@ -99,7 +180,11 @@ export default function StudyCirclesPage() {
             {/* Grid Content */}
             <div className="flex-1 overflow-y-auto px-6 py-8 md:px-10">
                 <div className="max-w-6xl mx-auto">
-                    {filteredCircles.length > 0 ? (
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-20">
+                            <Loader2 className="w-8 h-8 animate-spin text-zinc-900" />
+                        </div>
+                    ) : filteredCircles.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {filteredCircles.map((circle, index) => (
                                 <motion.div

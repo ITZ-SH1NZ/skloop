@@ -46,14 +46,25 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                     .eq('id', user.id)
                     .single();
 
+                const meta = user.user_metadata || {};
+
                 if (data && !error) {
                     setUserProfile({
-                        name: data.full_name || data.username || "Pilot",
+                        name: data.full_name || data.username || meta.full_name || meta.username || "Pilot",
                         xp: data.xp || 0,
                         coins: data.coins || 0,
                         level: data.level || 1,
                         streak: data.streak || 0,
-                        avatar_url: data.avatar_url || ""
+                        avatar_url: data.avatar_url || meta.avatar_url || ""
+                    });
+                } else {
+                    setUserProfile({
+                        name: meta.full_name || meta.username || "Pilot",
+                        xp: 0,
+                        coins: 0,
+                        level: 1,
+                        streak: 0,
+                        avatar_url: meta.avatar_url || ""
                     });
                 }
             }
@@ -116,11 +127,11 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                                 strokeWidth="3"
                                 fill="none"
                                 strokeDasharray="88"
-                                strokeDashoffset="22"
+                                strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 1000) / 1000))}
                                 strokeLinecap="round"
                             />
                         </svg>
-                        <span className="absolute text-[10px] font-black text-slate-900">12</span>
+                        <span className="absolute text-[10px] font-black text-slate-900">{userProfile?.level || 1}</span>
                     </div>
 
                     <div className="flex flex-col leading-none">

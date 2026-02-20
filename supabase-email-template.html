@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Your Skloop Pilot Account</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            /* zinc-50 / off-white matching the Holodeck theme */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .bg-wrapper {
+            background-color: #f8f9fa;
+            /* The Holodeck Grid Floor */
+            background-image:
+                linear-gradient(to right, #e5e5e5 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e5e5 1px, transparent 1px);
+            background-size: 40px 40px;
+            padding: 60px 20px;
+            min-height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative Floating Elements Background */
+        .decorative-shape-1 {
+            position: absolute;
+            top: 50px;
+            left: -20px;
+            width: 100px;
+            height: 100px;
+            background-color: #d9f99d;
+            /* lime-200 */
+            border-radius: 20px;
+            border: 4px solid #ffffff;
+            box-shadow: 0 10px 20px rgba(163, 230, 53, 0.2);
+            transform: rotate(15deg);
+            z-index: 1;
+        }
+
+        .decorative-shape-2 {
+            position: absolute;
+            bottom: 80px;
+            right: -30px;
+            width: 120px;
+            height: 120px;
+            background-color: #18181b;
+            /* zinc-900 */
+            border-radius: 50%;
+            transform: rotate(-10deg);
+            z-index: 1;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 0 0 8px rgba(255, 255, 255, 0.5);
+            border: 4px solid #f4f4f5;
+            position: relative;
+            z-index: 10;
+        }
+
+        .header {
+            background: repeating-linear-gradient(45deg,
+                    #f4f4f5,
+                    #f4f4f5 10px,
+                    #ffffff 10px,
+                    #ffffff 20px);
+            padding: 48px 20px;
+            text-align: center;
+            border-bottom: 4px solid #f4f4f5;
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 15px;
+            background-color: #f4f4f5;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+        }
+
+        .logo-placeholder {
+            width: 80px;
+            height: 80px;
+            background-color: #a3e635;
+            /* lime-400 */
+            border-radius: 24px;
+            margin: 0 auto 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.1), 0 10px 20px -5px rgba(163, 230, 53, 0.4);
+            transform: rotate(-5deg);
+        }
+
+        .logo-text {
+            font-size: 42px;
+            font-weight: 900;
+            color: #18181b;
+            /* zinc-900 */
+            margin: 0;
+            letter-spacing: -2px;
+            text-shadow: 2px 2px 0px #e4e4e7;
+        }
+
+        .content {
+            padding: 48px 40px;
+            text-align: center;
+            background-color: #ffffff;
+            position: relative;
+        }
+
+        /* Decorative crosshairs */
+        .crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+        }
+
+        .crosshair::before,
+        .crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: #d4d4d8;
+        }
+
+        .crosshair::before {
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+
+        .crosshair::after {
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            transform: translateX(-50%);
+        }
+
+        .ch-1 {
+            top: 20px;
+            left: 20px;
+        }
+
+        .ch-2 {
+            top: 20px;
+            right: 20px;
+        }
+
+        .title {
+            font-size: 32px;
+            font-weight: 900;
+            color: #18181b;
+            /* zinc-900 */
+            margin-top: 0;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .title::before {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: -10px;
+            right: -10px;
+            height: 12px;
+            background-color: #d9f99d;
+            /* lime-200 */
+            z-index: -1;
+            border-radius: 6px;
+            transform: rotate(-1deg);
+        }
+
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #71717a;
+            /* zinc-500 */
+            margin-bottom: 40px;
+            font-weight: 600;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .highlight {
+            color: #18181b;
+            /* zinc-900 */
+            font-weight: 900;
+            background-color: #f4f4f5;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .button-container {
+            margin-bottom: 40px;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: #a3e635;
+            /* lime-400 */
+            color: #18181b;
+            /* zinc-900 */
+            font-size: 18px;
+            font-weight: 900;
+            text-decoration: none;
+            padding: 24px 48px;
+            border-radius: 20px;
+            border: 2px solid #18181b;
+            box-shadow: 4px 6px 0 #18181b;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        /* Fallback hover state since many email clients ignore pseudo-classes */
+        .button:hover {
+            background-color: #bef264;
+            /* lime-300 */
+        }
+
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .badge {
+            background-color: #f4f4f5;
+            border: 1px solid #e4e4e7;
+            color: #52525b;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 6px 12px;
+            border-radius: 99px;
+            letter-spacing: 1px;
+        }
+
+        .footer {
+            background-color: #18181b;
+            /* zinc-900 */
+            color: #ffffff;
+            padding: 40px 32px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: repeating-linear-gradient(90deg,
+                    #a3e635,
+                    #a3e635 20px,
+                    #18181b 20px,
+                    #18181b 40px);
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #a1a1aa;
+            /* zinc-400 */
+            margin: 0;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .raw-link-container {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid #3f3f46;
+            /* zinc-700 */
+        }
+
+        .raw-link-text {
+            font-size: 10px;
+            color: #71717a;
+            /* zinc-500 */
+            margin-bottom: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .raw-link {
+            font-size: 11px;
+            color: #d9f99d;
+            /* lime-200 */
+            word-break: break-all;
+            font-family: monospace;
+            background-color: #27272a;
+            /* zinc-800 */
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: inline-block;
+            border: 1px solid #3f3f46;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-wrapper">
+        <!-- Decorative background elements -->
+        <!-- Note: these use absolute positioning which works in many modern email clients (Apple Mail, iOS) 
+         but may gracefully degrade in others (Outlook, Gmail) -->
+        <div class="decorative-shape-1"></div>
+        <div class="decorative-shape-2"></div>
+
+        <div class="container">
+            <div class="header">
+                <div class="logo-placeholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none"
+                        stroke="#18181b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
+                    </svg>
+                </div>
+                <h1 class="logo-text">SKLOOP</h1>
+            </div>
+
+            <div class="content">
+                <!-- Target-like crosshairs in corners -->
+                <div class="crosshair ch-1"></div>
+                <div class="crosshair ch-2"></div>
+
+                <h2 class="title">Ready to level up?</h2>
+
+                <div class="badge-container">
+                    <span class="badge">Registration</span>
+                    <span class="badge">Auth Required</span>
+                </div>
+
+                <p class="message">
+                    You've requested access to the <span class="highlight">Skloop Network</span>. To complete your pilot
+                    registration and initialize your dashboard, authorize your account by clicking the button below.
+                </p>
+
+                <div class="button-container">
+                    <!-- 
+            IMPORTANT: 
+            If you use a custom callback URL, make sure the link is:
+            {{ .SiteURL }}/auth/callback?code={{ .TokenHash }}
+            Otherwise the default is:
+            {{ .ConfirmationURL }}
+          -->
+                    <a href="{{ .SiteURL }}/auth/callback?code={{ .TokenHash }}" class="button">Authorize Account</a>
+                </div>
+
+            </div>
+
+            <div class="footer">
+                <p class="footer-text">SECURE TRANSMISSION • SKLOOP NETWORK TERMINAL</p>
+
+                <div class="raw-link-container">
+                    <p class="raw-link-text">Manual Override Link</p>
+                    <a href="{{ .SiteURL }}/auth/callback?code={{ .TokenHash }}" class="raw-link">{{ .SiteURL
+                        }}/auth/callback?code={{ .TokenHash }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

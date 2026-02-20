@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CheckCircle, AlertCircle, ChevronRight, Calculator, Code, Users, Timer } from "lucide-react";
+import { ArrowLeft, CheckCircle, AlertCircle, ChevronRight, Calculator, Code, Users, Timer, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { createClient } from "@/utils/supabase/client";
 
 // Mock Questions
 const QUESTIONS = [
@@ -90,7 +91,7 @@ function MentorTestContent() {
         }
     };
 
-    const submitTest = (finalAnswers: number[]) => {
+    const submitTest = async (finalAnswers: number[]) => {
         setIsSubmitting(true);
         setCurrentStep(prev => prev + 1); // Loading state
 
@@ -100,15 +101,33 @@ function MentorTestContent() {
             if (ans === QUESTIONS[idx].correct) score++;
         });
 
-        // Mock API Call
-        setTimeout(() => {
-            setIsSubmitting(false);
-            if (score >= 3) { // Pass if 3/4 correct
-                setResult("pass");
-            } else {
-                setResult("fail");
+        // Backend Update
+        if (score >= 3) {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                // Update profile to be a mentor
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        is_mentor: true,
+                        role: 'Mentor'
+                    })
+                    .eq('id', user.id);
+
+                if (error) {
+                    console.error("Failed to update mentor status:", error);
+                    setResult("fail");
+                    setIsSubmitting(false);
+                    return;
+                }
             }
-        }, 2000);
+            setResult("pass");
+        } else {
+            setResult("fail");
+        }
+        setIsSubmitting(false);
     };
 
     // Render Vouch Entry Screen (Step -1)
@@ -265,7 +284,7 @@ function MentorTestContent() {
         return (
             <div className="min-h-full bg-zinc-50 flex items-center justify-center">
                 <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 border-4 border-[#D4F268] border-t-transparent rounded-full animate-spin mb-4" />
+                    <Loader2 className="w-12 h-12 animate-spin text-zinc-900 mb-4" />
                     <p className="text-zinc-500 font-bold animate-pulse">Analyzing results...</p>
                 </div>
             </div>

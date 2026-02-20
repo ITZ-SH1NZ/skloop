@@ -35,6 +35,7 @@ export default function SignupPage() {
     const [mentorDream, setMentorDream] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
 
     const updateForm = (field: string, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -46,7 +47,7 @@ export default function SignupPage() {
         );
     };
 
-    const validateStep = () => {
+    const validateStepAsync = async () => {
         if (step === 1) {
             if (!authMethod) {
                 return "Choose an authentication method.";
@@ -58,6 +59,9 @@ export default function SignupPage() {
                 if (!formData.email.includes("@")) {
                     return "Signal weak — enter a valid email.";
                 }
+                if (formData.password.length < 6) {
+                    return "Access key must be at least 6 characters.";
+                }
                 if (formData.password !== formData.confirmPassword) {
                     return "Access keys don't match.";
                 }
@@ -66,6 +70,17 @@ export default function SignupPage() {
         if (step === 2) {
             if (!formData.name.trim() || !formData.handle.trim()) {
                 return "Complete all fields to lock in your pilot.";
+            }
+
+            // Check if handle is taken
+            const { data: existingProcess } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('username', formData.handle.trim())
+                .single();
+
+            if (existingProcess) {
+                return "Handle already in use. Please select another.";
             }
         }
         if (step === 3) {
@@ -82,12 +97,21 @@ export default function SignupPage() {
     };
 
     const isStepValid = () => {
-        const validationError = validateStep();
-        return !validationError;
+        // Basic synchronous checks to enable/disable button before async click
+        if (step === 1) {
+            return authMethod === "google" || (formData.email.trim() && formData.password.trim() && formData.password === formData.confirmPassword);
+        }
+        if (step === 2) return formData.name.trim() && formData.handle.trim();
+        if (step === 3) return tracks.length > 0;
+        if (step === 4) return !!difficulty;
+        return true;
     };
 
-    const handleNext = () => {
-        const validationError = validateStep();
+    const handleNext = async () => {
+        setIsChecking(true);
+        const validationError = await validateStepAsync();
+        setIsChecking(false);
+
         if (validationError) {
             setError(validationError);
             return;
@@ -114,10 +138,12 @@ export default function SignupPage() {
                         mentor_dream: mentorDream
                     }
                 }
-            }).then(({ error }) => {
+            }).then(({ data, error }) => {
                 if (error) {
                     setError(error.message);
                     setIsSubmitting(false);
+                } else if (data.user && !data.session) {
+                    router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
                 } else {
                     router.push("/dashboard");
                 }
@@ -340,8 +366,8 @@ export default function SignupPage() {
                                     type="button"
                                     onClick={() => toggleTrack("web-dev")}
                                     className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-dev")
-                                            ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
-                                            : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
+                                        ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
+                                        : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                         }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
@@ -370,8 +396,8 @@ export default function SignupPage() {
                                     type="button"
                                     onClick={() => toggleTrack("dsa")}
                                     className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("dsa")
-                                            ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
-                                            : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
+                                        ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
+                                        : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                         }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
@@ -427,8 +453,8 @@ export default function SignupPage() {
                                         type="button"
                                         onClick={() => setDifficulty(opt.id as DifficultyChoice)}
                                         className={`flex flex-col items-center justify-center px-3 py-3 rounded-2xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${difficulty === opt.id
-                                                ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
-                                                : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
+                                            ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
+                                            : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                             }`}
                                     >
                                         <span>{opt.label}</span>
@@ -456,8 +482,8 @@ export default function SignupPage() {
                                                 )
                                             }
                                             className={`px-3 py-2 rounded-full border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${timeCommitment === label
-                                                    ? "border-zinc-900 bg-zinc-900 text-white"
-                                                    : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
+                                                ? "border-zinc-900 bg-zinc-900 text-white"
+                                                : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                                 }`}
                                         >
                                             {label}
@@ -496,8 +522,8 @@ export default function SignupPage() {
                                         type="button"
                                         onClick={() => setMentorIntent(opt.id as MentorIntent)}
                                         className={`flex-1 px-3 py-3 rounded-2xl border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${mentorIntent === opt.id
-                                                ? "border-zinc-900 bg-zinc-900 text-white"
-                                                : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
+                                            ? "border-zinc-900 bg-zinc-900 text-white"
+                                            : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                             }`}
                                     >
                                         {opt.label}
@@ -601,16 +627,18 @@ export default function SignupPage() {
                     )}
                     <AuthButton
                         onClick={handleNext}
-                        disabled={(!isStepValid() && step < 6) || isSubmitting}
+                        disabled={(!isStepValid() && step < 6) || isSubmitting || isChecking}
                         className="flex-1"
                     >
                         {step === 6
                             ? isSubmitting
                                 ? "Calibrating..."
                                 : "Begin First Run"
-                            : step === 1 && authMethod === null
-                                ? "Continue with Email"
-                                : "Continue"}
+                            : isChecking
+                                ? "Verifying..."
+                                : step === 1 && authMethod === null
+                                    ? "Continue with Email"
+                                    : "Continue"}
                     </AuthButton>
                 </div>
             </div>

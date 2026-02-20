@@ -108,15 +108,15 @@ export function GamifiedHeader() {
             // For now, we update the simple text fields
             const { error } = await supabase
                 .from('profiles')
-                .upsert({
-                    id: authUser.id,
+                .update({
                     full_name: formData.name,
                     username: formData.username,
                     bio: formData.bio,
                     avatar_url: formData.avatar,
                     banner_url: formData.banner,
                     updated_at: new Date().toISOString()
-                });
+                })
+                .eq('id', authUser.id);
 
             if (!error) {
                 setUser(formData);
@@ -297,12 +297,10 @@ export function GamifiedHeader() {
                                 <label className="text-xs font-bold uppercase text-gray-500">Handle</label>
                                 <Input
                                     value={formData.username === "user" ? formData.username : `@${formData.username}`}
-                                    disabled={formData.username !== "user"}
-                                    className={cn("bg-gray-50", formData.username !== "user" && "cursor-not-allowed opacity-70")}
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                                        if (formData.username === "user") {
-                                            setFormData({ ...formData, username: e.target.value.replace("@", "") });
-                                        }
+                                        let val = e.target.value;
+                                        if (val.startsWith('@')) val = val.substring(1);
+                                        setFormData({ ...formData, username: val });
                                     }}
                                 />
                             </div>

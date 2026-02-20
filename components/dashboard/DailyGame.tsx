@@ -31,10 +31,46 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
     const [errorMessage, setErrorMessage] = useState("");
     const [letterStatuses, setLetterStatuses] = useState<Record<string, "correct" | "present" | "absent">>({});
 
+    const [puzzleId, setPuzzleId] = useState<string | null>(null);
+
     useEffect(() => {
-        // TODO: Fetch daily word from backend
-        // setSolution(WORDS[Math.floor(Math.random() * WORDS.length)]);
-        setSolution("BUILD"); // Default fallback until backend is connected
+        const fetchDailyPuzzle = async () => {
+            const { createClient } = await import('@/utils/supabase/client');
+            const supabase = createClient();
+
+            // Get today's date in YYYY-MM-DD
+            const today = new Date().toISOString().split('T')[0];
+
+            const { data: puzzle, error: puzzleError } = await supabase
+                .from('daily_puzzles')
+                .select('id, word')
+                .eq('puzzle_date', today)
+                .single();
+
+            if (puzzle && !puzzleError) {
+                setSolution(puzzle.word.toUpperCase());
+                setPuzzleId(puzzle.id);
+
+                // Also check if user has already played today
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: attempt } = await supabase
+                        .from('user_puzzle_attempts')
+                        .select('status, attempts, last_guess')
+                        .eq('user_id', user.id)
+                        .eq('puzzle_id', puzzle.id)
+                        .single();
+
+                    if (attempt && attempt.status !== 'playing') {
+                        setGameState(attempt.status as "won" | "lost");
+                        // We don't have full guess history in schema, so we just show the game is over
+                    }
+                }
+            } else {
+                setSolution("BUILD"); // Fallback
+            }
+        };
+        fetchDailyPuzzle();
     }, []);
 
     useEffect(() => {
@@ -93,8 +129,42 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
         }
         setLetterStatuses(newStatuses);
 
+        const checkGameEnd = async (status: "won" | "lost", finalAttempts: number, finalGuess: string) => {
+            const { createClient } = await import('@/utils/supabase/client');
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && puzzleId) {
+                // Upsert attempt
+                await supabase.from('user_puzzle_attempts').upsert({
+                    user_id: user.id,
+                    puzzle_id: puzzleId,
+                    attempts: finalAttempts,
+                    status: status,
+                    last_guess: finalGuess
+                });
+
+                if (status === "won") {
+                    // Update XP and Coins
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('xp, coins, streak')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (profile) {
+                        await supabase.from('profiles').update({
+                            xp: (profile.xp || 0) + 50,
+                            coins: (profile.coins || 0) + 10,
+                            streak: (profile.streak || 0) + 1
+                        }).eq('id', user.id);
+                    }
+                }
+            }
+        };
+
         if (currentGuess === solution) {
             setGameState("won");
+            checkGameEnd("won", currentRow + 1, currentGuess);
             confetti({
                 particleCount: 100,
                 spread: 70,
@@ -103,6 +173,7 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
             });
         } else if (currentRow === 5) {
             setGameState("lost");
+            checkGameEnd("lost", 6, currentGuess);
         } else {
             setCurrentRow((prev) => prev + 1);
             setCurrentGuess("");

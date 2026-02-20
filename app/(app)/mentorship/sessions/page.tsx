@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, Video, Star, User, PlayCircle, Clock, CheckCircle2, MoreHorizontal, FileText, Sparkles, TrendingUp, Zap, Award } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar, Video, Star, User, PlayCircle, Clock, CheckCircle2, MoreHorizontal, FileText, Sparkles, TrendingUp, Zap, Award, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/utils/supabase/client";
 
 // Types
 interface Session {
@@ -22,17 +23,78 @@ interface Session {
     description: string;
     videoDuration?: string;
     rating?: number | null;
+    videoUrl?: string; // Add url for videos
 }
-
-// Mock Data
-// TODO: Fetch pending requests from backend
-const PENDING_REQUESTS: Session[] = [];
-
-// TODO: Fetch completed sessions from backend
-const COMPLETED_SESSIONS: Session[] = [];
 
 export default function MySessionsPage() {
     const [activeTab, setActiveTab] = useState<"requests" | "library">("requests");
+    const [pendingRequests, setPendingRequests] = useState<Session[]>([]);
+    const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSessions = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                // Fetch Pending/In-Progress Requests
+                const { data: requests } = await supabase
+                    .from('mentorship_requests')
+                    .select('*, mentor:profiles!mentorship_requests_mentor_id_fkey(full_name, username, avatar_url, role, company)')
+                    .eq('mentee_id', user.id)
+                    .neq('status', 'declined') // Show pending and maybe accepted (in_progress)
+                    .order('created_at', { ascending: false });
+
+                if (requests) {
+                    setPendingRequests(requests.map(r => ({
+                        id: r.id,
+                        mentor: {
+                            name: r.mentor?.full_name || r.mentor?.username || 'Mentor',
+                            role: r.mentor?.role || 'Expert',
+                            company: r.mentor?.company || 'Skloop',
+                            avatarUrl: r.mentor?.avatar_url
+                        },
+                        submittedDate: new Date(r.created_at).toLocaleDateString(),
+                        status: r.status === 'accepted' ? 'IN_PROGRESS' : 'PENDING',
+                        topic: 'Mentorship Session',
+                        description: r.message || 'Waiting for mentor review.'
+                    })));
+                }
+
+                // Fetch Completed Video Library (peer_sessions where they are mentee and video exists)
+                const { data: pastSessions } = await supabase
+                    .from('peer_sessions')
+                    .select('*, mentor:profiles!peer_sessions_user1_id_fkey(full_name, username, avatar_url, role, company)') // Assuming user1 is mentor who created it
+                    .eq('user2_id', user.id)
+                    .eq('status', 'completed')
+                    .not('meeting_url', 'is', null) // Must have a video link
+                    .order('start_time', { ascending: false });
+
+                if (pastSessions) {
+                    setCompletedSessions(pastSessions.map(s => ({
+                        id: s.id,
+                        mentor: {
+                            name: s.mentor?.full_name || s.mentor?.username || 'Mentor',
+                            role: s.mentor?.role || 'Expert',
+                            company: s.mentor?.company || 'Skloop',
+                            avatarUrl: s.mentor?.avatar_url
+                        },
+                        submittedDate: new Date(s.start_time).toLocaleDateString(),
+                        status: 'COMPLETED',
+                        topic: s.topic || 'Mentoship Session',
+                        description: 'Completed video session.',
+                        videoDuration: `${s.duration_minutes || 60}m`,
+                        rating: null,
+                        videoUrl: s.meeting_url
+                    })));
+                }
+            }
+            setIsLoading(false);
+        };
+
+        fetchSessions();
+    }, []);
 
     return (
         <div className="h-full bg-[#FAFAFA] overflow-y-auto no-scrollbar">
@@ -133,7 +195,7 @@ export default function MySessionsPage() {
                                 )}
                                 <span className="relative z-10 flex items-center gap-2">
                                     In Progress
-                                    {PENDING_REQUESTS.length > 0 && <span className="bg-black text-[#D4F268] text-[10px] px-1.5 py-0.5 rounded-full">{PENDING_REQUESTS.length}</span>}
+                                    {pendingRequests.length > 0 && <span className="bg-black text-[#D4F268] text-[10px] px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}
                                 </span>
                             </button>
                             <button
@@ -164,7 +226,13 @@ export default function MySessionsPage() {
                                 transition={{ duration: 0.2, ease: "easeOut" }}
                                 className="space-y-4"
                             >
-                                {PENDING_REQUESTS.map(session => (
+                                {isLoading ? (
+                                    <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-zinc-900" /></div>
+                                ) : pendingRequests.length === 0 ? (
+                                    <div className="text-center py-20 bg-white rounded-[2rem] border border-zinc-100">
+                                        <p className="text-zinc-500 font-medium">No active requests.</p>
+                                    </div>
+                                ) : pendingRequests.map(session => (
                                     <div key={session.id} className="bg-white rounded-[2rem] p-8 border border-zinc-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
                                         {/* Status Accent Line */}
                                         <div className={`absolute left-0 top-0 bottom-0 w-2 ${session.status === "IN_PROGRESS" ? "bg-[#D4F268]" : "bg-zinc-100"
@@ -238,7 +306,13 @@ export default function MySessionsPage() {
                                 transition={{ duration: 0.2, ease: "easeOut" }}
                                 className="grid grid-cols-1 md:grid-cols-2 gap-6"
                             >
-                                {COMPLETED_SESSIONS.map(session => (
+                                {isLoading ? (
+                                    <div className="flex justify-center py-20 col-span-2"><Loader2 className="w-8 h-8 animate-spin text-zinc-900" /></div>
+                                ) : completedSessions.length === 0 ? (
+                                    <div className="text-center py-20 bg-white col-span-2 rounded-[2rem] border border-zinc-100">
+                                        <p className="text-zinc-500 font-medium">No videos in your library yet.</p>
+                                    </div>
+                                ) : completedSessions.map(session => (
                                     <div key={session.id} className="bg-white rounded-[2rem] p-3 border border-zinc-100 shadow-sm hover:shadow-2xl hover:shadow-zinc-900/5 transition-all group flex flex-col">
                                         {/* Thumbnail Area */}
                                         <div className="bg-zinc-900 aspect-video rounded-3xl relative flex items-center justify-center overflow-hidden">
@@ -279,9 +353,11 @@ export default function MySessionsPage() {
                                             </p>
 
                                             <div className="flex items-center gap-3 mt-auto">
-                                                <Button className="flex-1 rounded-xl font-bold bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-black transition-colors">
-                                                    Watch Video
-                                                </Button>
+                                                <a href={session.videoUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
+                                                    <Button className="w-full rounded-xl font-bold bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-black transition-colors">
+                                                        Watch Video
+                                                    </Button>
+                                                </a>
                                                 {!session.rating && (
                                                     <Button variant="outline" className="rounded-xl font-bold border-zinc-200">
                                                         Rate

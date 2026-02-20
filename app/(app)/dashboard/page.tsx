@@ -9,6 +9,7 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import HeroCourseCard from "@/components/dashboard/HeroCourseCard";
 import TaskCard from "@/components/dashboard/TaskCard";
 import { ActivityChart, LeaderboardWidget, UpcomingWorkshop } from "@/components/dashboard/SidebarWidgets";
+import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
 import DailyGame from "@/components/dashboard/DailyGame";
 import { Modal } from "@/components/ui/Modal";
 
@@ -286,6 +287,10 @@ export default function DashboardPage() {
 
                     {/* RIGHT COLUMN (Sidebar) - Spans 4 cols */}
                     <div className="lg:col-span-4 space-y-6">
+                        <motion.div variants={itemVariants}>
+                            <DailyQuestsWidget onOpenCodele={() => setIsGameOpen(true)} />
+                        </motion.div>
+
                         <motion.div variants={itemVariants}>
                             <ActivityChart />
                         </motion.div>

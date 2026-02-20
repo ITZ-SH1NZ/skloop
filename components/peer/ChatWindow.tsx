@@ -7,6 +7,7 @@ import { CircleInfoPanel } from "./CircleInfoPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
+import { createClient } from "@/utils/supabase/client";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 
@@ -24,11 +25,11 @@ interface Message {
     timestamp: Date;
 }
 
-// TODO: Fetch messages from backend
-const MOCK_MESSAGES: Message[] = [];
+// Removed MOCK_MESSAGES completely
 
 export function ChatWindow({ peer, onBack }: ChatWindowProps) {
-    const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState("");
     const [showAttachments, setShowAttachments] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -53,6 +54,67 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
     }, [messages, peer, isSearching]);
 
     useEffect(() => {
+        if (!peer) return;
+        const supabase = createClient();
+
+        const fetchMessages = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            setCurrentUserId(user.id);
+
+            const { data: dbMessages } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('conversation_id', peer.id)
+                .order('created_at', { ascending: true });
+
+            if (dbMessages) {
+                const formatted: Message[] = dbMessages.map(m => ({
+                    id: m.id,
+                    senderId: m.user_id,
+                    text: m.content,
+                    type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
+                        : m.content.startsWith('https://') ? 'image'
+                            : 'text',
+                    mediaUrl: m.content.startsWith('https://') ? m.content : undefined,
+                    timestamp: new Date(m.created_at)
+                }));
+                // We overwrite type heuristic if we want to support true media attachments later,
+                // but for now simple checks work for the mock UI
+                setMessages(formatted);
+            }
+        };
+
+        fetchMessages();
+
+        // Subscribe to real-time additions
+        const channel = supabase.channel(`public:messages:conversation_id=eq.${peer.id}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${peer.id}` },
+                (payload) => {
+                    const m = payload.new;
+                    const newMessage: Message = {
+                        id: m.id,
+                        senderId: m.user_id,
+                        text: m.content,
+                        type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
+                            : m.content.startsWith('https://') ? 'image'
+                                : 'text',
+                        mediaUrl: m.content.startsWith('https://') ? m.content : undefined,
+                        timestamp: new Date(m.created_at)
+                    };
+                    setMessages(prev => [...prev, newMessage]);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [peer]);
+
+    useEffect(() => {
         if (!showGifPicker) return;
         const fetchGifs = async () => {
             setIsLoadingGifs(true);
@@ -71,19 +133,34 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
         return () => clearTimeout(timeoutId);
     }, [showGifPicker, gifSearch]);
 
-    const handleSend = (text: string = inputValue, type: "text" | "image" | "sticker" | "gif" = "text", mediaUrl?: string) => {
-        if (!text && !mediaUrl) return;
-        const newMessage: Message = { id: Date.now().toString(), senderId: "me", text, type, mediaUrl, timestamp: new Date() };
+    const handleSend = async (text: string = inputValue, type: "text" | "image" | "sticker" | "gif" = "text", mediaUrl?: string) => {
+        if ((!text && !mediaUrl) || !peer || !currentUserId) return;
+
+        const content = mediaUrl || text; // Simply dumping media URL into content for this MVP
+
+        // Optimistic update
+        const fakeId = Date.now().toString();
+        const newMessage: Message = { id: fakeId, senderId: currentUserId, text: type === 'text' ? content : "", type, mediaUrl: type !== 'text' ? content : undefined, timestamp: new Date() };
         setMessages(prev => [...prev, newMessage]);
         setInputValue("");
         setShowEmojiPicker(false);
         setShowAttachments(false);
         setShowGifPicker(false);
-        if (type === "text") {
-            setTimeout(() => {
-                const reply: Message = { id: (Date.now() + 1).toString(), senderId: "peer", text: "That sounds awesome! Keep it up! 🚀", type: "text", timestamp: new Date() };
-                setMessages(prev => [...prev, reply]);
-            }, 1000);
+
+        const supabase = createClient();
+        const { data, error } = await supabase.from('messages').insert({
+            conversation_id: peer.id,
+            user_id: currentUserId,
+            content: content
+        }).select().single();
+
+        if (error) {
+            console.error("Failed to send message", error);
+            // Revert on error
+            setMessages(prev => prev.filter(m => m.id !== fakeId));
+        } else {
+            // Replace fake id with real id
+            setMessages(prev => prev.map(m => m.id === fakeId ? { ...m, id: data.id } : m));
         }
     };
 
@@ -233,7 +310,7 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                     {/* Messages List */}
                     <div className="flex-1 overflow-y-auto px-3 md:px-8 py-4 md:py-6 space-y-4 md:space-y-6 scroll-smooth pb-20 md:pb-6">
                         {filteredMessages.map((msg, index) => {
-                            const isMe = msg.senderId === "me";
+                            const isMe = msg.senderId === currentUserId;
                             const showAvatar = !isMe && (index === filteredMessages.length - 1 || filteredMessages[index + 1]?.senderId !== msg.senderId);
 
                             return (

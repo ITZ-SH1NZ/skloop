@@ -1,31 +1,147 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, UserPlus, Users, Inbox, Sparkles, Check } from "lucide-react";
+import { Search, UserPlus, Users, Inbox, Sparkles, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PeerCard, PeerProfile } from "@/components/peer/PeerCard";
 import { PeerProfileModal } from "@/components/peer/PeerProfileModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-
-// Mock Data
-// TODO: Fetch peers from backend
-const MOCK_PEERS: PeerProfile[] = [];
+import { createClient } from "@/utils/supabase/client";
 
 export default function MyPeersPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<"friends" | "explore" | "requests">("friends");
     const [searchQuery, setSearchQuery] = useState("");
-    const [peers, setPeers] = useState(MOCK_PEERS);
+    const [peers, setPeers] = useState<PeerProfile[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     // Add Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [addModalQuery, setAddModalQuery] = useState("");
+    const [foundUsers, setFoundUsers] = useState<PeerProfile[]>([]);
+    const [isSearchingUsers, setIsSearchingUsers] = useState(false);
     const [selectedPeers, setSelectedPeers] = useState<string[]>([]);
 
     // Profile Modal State
     const [selectedProfile, setSelectedProfile] = useState<PeerProfile | null>(null);
+
+    useEffect(() => {
+        const fetchPeers = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            setCurrentUserId(user.id);
+
+            // Fetch Connections
+            const { data: connections } = await supabase
+                .from('connections')
+                .select('*')
+                .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
+
+            if (!connections) {
+                setIsLoading(false);
+                return;
+            }
+
+            // Get all unique user IDs from connections (excluding self)
+            const peerIds = new Set<string>();
+            connections.forEach(conn => {
+                if (conn.requester_id !== user.id) peerIds.add(conn.requester_id);
+                if (conn.recipient_id !== user.id) peerIds.add(conn.recipient_id);
+            });
+
+            if (peerIds.size === 0) {
+                setIsLoading(false);
+                return;
+            }
+
+            // Fetch Profiles for those connections
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('*')
+                .in('id', Array.from(peerIds));
+
+            if (profiles) {
+                const formattedPeers: PeerProfile[] = profiles.map(p => {
+                    // Find the connection relationship
+                    const conn = connections.find(c =>
+                        (c.requester_id === user.id && c.recipient_id === p.id) ||
+                        (c.recipient_id === user.id && c.requester_id === p.id)
+                    );
+
+                    let status: PeerProfile["status"] = "none";
+                    if (conn) {
+                        if (conn.status === 'accepted') status = "friend";
+                        else if (conn.status === 'pending') {
+                            if (conn.requester_id === user.id) status = "pending_outgoing";
+                            else status = "pending_incoming";
+                        }
+                    }
+
+                    return {
+                        id: p.id,
+                        name: p.full_name || p.username || 'Unknown',
+                        username: p.username || `user_${p.id.substring(0, 5)}`,
+                        avatarUrl: p.avatar_url || undefined,
+                        track: p.role || "Learner",
+                        level: p.level || 1,
+                        xp: p.xp || 0,
+                        streak: p.streak || 0,
+                        status,
+                        isOnline: false // Mocked for now until websocket presence
+                    };
+                });
+                setPeers(formattedPeers);
+            }
+            setIsLoading(false);
+        };
+        fetchPeers();
+    }, []);
+
+    // Also search users globally when typing in the add modal (exact handle matches)
+    useEffect(() => {
+        const searchGlobalUsers = async () => {
+            if (addModalQuery.length < 3) {
+                setFoundUsers([]);
+                return;
+            }
+            const supabase = createClient();
+            setIsSearchingUsers(true);
+
+            // Search by username containing the query (allow partials for better UX, but handle strictness can be enforced if explicitly requested)
+            const { data } = await supabase
+                .from('profiles')
+                .select('*')
+                .ilike('username', `%${addModalQuery.replace('@', '')}%`)
+                .neq('id', currentUserId)
+                .limit(10);
+
+            if (data) {
+                // Filter out existing connections so we only show "none"
+                const existingIds = peers.map(p => p.id);
+                const results: PeerProfile[] = data
+                    .filter(p => !existingIds.includes(p.id))
+                    .map(p => ({
+                        id: p.id,
+                        name: p.full_name || p.username || 'Unknown',
+                        username: p.username || `user_${p.id.substring(0, 5)}`,
+                        avatarUrl: p.avatar_url || undefined,
+                        track: p.role || "Learner",
+                        level: p.level || 1,
+                        xp: p.xp || 0,
+                        streak: p.streak || 0,
+                        status: "none"
+                    }));
+                setFoundUsers(results);
+            }
+            setIsSearchingUsers(false);
+        };
+        const debounce = setTimeout(searchGlobalUsers, 400);
+        return () => clearTimeout(debounce);
+    }, [addModalQuery, currentUserId, peers]);
 
     // Filter Logic
     const filteredPeers = peers.filter(peer => {
@@ -35,27 +151,36 @@ export default function MyPeersPage() {
         if (!matchesSearch) return false;
 
         if (activeTab === "friends") return peer.status === "friend";
+        // Let explore tab show global users later, for now we just show suggestions or empty
         if (activeTab === "explore") return peer.status === "none" || peer.status === "pending_outgoing";
         if (activeTab === "requests") return peer.status === "pending_incoming";
         return false;
     });
 
-    const handleAction = (id: string, action: string) => {
+    const handleAction = async (id: string, action: string) => {
         if (action === "message") {
-            // Navigate to dedicated Chat Page
             router.push(`/peer/chat?userId=${id}`);
             return;
         }
 
-        // Mock State Update
-        setPeers(prev => prev.map(p => {
-            if (p.id !== id) return p;
-            if (action === "add") return { ...p, status: "pending_outgoing" };
-            if (action === "accept") return { ...p, status: "friend" };
-            if (action === "reject") return { ...p, status: "none" };
-            if (action === "remove") return { ...p, status: "none" };
-            return p;
-        }));
+        const supabase = createClient();
+
+        if (action === "accept") {
+            // We are the recipient, update status to accepted
+            await supabase.from('connections')
+                .update({ status: 'accepted' })
+                .eq('requester_id', id)
+                .eq('recipient_id', currentUserId);
+
+            setPeers(prev => prev.map(p => p.id === id ? { ...p, status: "friend" } : p));
+        } else if (action === "reject") {
+            await supabase.from('connections')
+                .delete()
+                .eq('requester_id', id)
+                .eq('recipient_id', currentUserId);
+
+            setPeers(prev => prev.map(p => p.id === id ? { ...p, status: "none" } : p));
+        }
     };
 
     return (
@@ -135,7 +260,11 @@ export default function MyPeersPage() {
                     transition={{ duration: 0.3 }}
                     className="flex flex-col gap-3 pb-20 md:pb-0"
                 >
-                    {filteredPeers.length > 0 ? (
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-20">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+                        </div>
+                    ) : filteredPeers.length > 0 ? (
                         filteredPeers.map((peer) => (
                             <PeerCard
                                 key={peer.id}
@@ -202,15 +331,27 @@ export default function MyPeersPage() {
                         className="w-full bg-zinc-900 text-white"
                         size="lg"
                         disabled={selectedPeers.length === 0}
-                        onClick={() => {
-                            // Add selected peers
-                            setPeers(prev => prev.map(p => selectedPeers.includes(p.id) ? { ...p, status: "pending_outgoing" } : p));
+                        onClick={async () => {
+                            const supabase = createClient();
+                            if (currentUserId) {
+                                // Insert all connection requests
+                                const inserts = selectedPeers.map(peerId => ({
+                                    requester_id: currentUserId,
+                                    recipient_id: peerId,
+                                    status: 'pending'
+                                }));
+                                await supabase.from('connections').insert(inserts);
+
+                                // Add to local state
+                                const newlyAdded = foundUsers.filter(u => selectedPeers.includes(u.id)).map(u => ({ ...u, status: "pending_outgoing" as const }));
+                                setPeers(prev => [...prev, ...newlyAdded]);
+                            }
                             setIsAddModalOpen(false);
                             setSelectedPeers([]);
                             setAddModalQuery("");
                         }}
                     >
-                        Add Selected ({selectedPeers.length})
+                        Send Requests ({selectedPeers.length})
                     </Button>
                 }
             >
@@ -228,29 +369,37 @@ export default function MyPeersPage() {
                     </div>
 
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                        {peers
-                            .filter(p => p.status === "none" && (p.name.toLowerCase().includes(addModalQuery.toLowerCase()) || p.username.toLowerCase().includes(addModalQuery.toLowerCase())))
-                            .map(peer => (
-                                <div
-                                    key={peer.id}
-                                    onClick={() => setSelectedPeers(prev => prev.includes(peer.id) ? prev.filter(id => id !== peer.id) : [...prev, peer.id])}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedPeers.includes(peer.id) ? "border-lime-500 bg-lime-50" : "border-zinc-100 hover:bg-zinc-50"}`}
-                                >
-                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedPeers.includes(peer.id) ? "bg-lime-500 border-lime-500" : "border-zinc-300 bg-white"}`}>
-                                        {selectedPeers.includes(peer.id) && <Check size={12} className="text-white" />}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-sm text-zinc-900">{peer.name}</h4>
-                                        <p className="text-xs text-zinc-500">@{peer.username}</p>
-                                    </div>
-                                    <div className="ml-auto">
-                                        <div className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500">L{peer.level}</div>
-                                    </div>
+                        {isSearchingUsers ? (
+                            <div className="text-center py-8 text-zinc-400 text-sm flex flex-col items-center gap-2">
+                                <Loader2 className="animate-spin" size={20} />
+                                Searching handles...
+                            </div>
+                        ) : foundUsers.map(peer => (
+                            <div
+                                key={peer.id}
+                                onClick={() => setSelectedPeers(prev => prev.includes(peer.id) ? prev.filter(id => id !== peer.id) : [...prev, peer.id])}
+                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedPeers.includes(peer.id) ? "border-lime-500 bg-lime-50" : "border-zinc-100 hover:bg-zinc-50"}`}
+                            >
+                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedPeers.includes(peer.id) ? "bg-lime-500 border-lime-500" : "border-zinc-300 bg-white"}`}>
+                                    {selectedPeers.includes(peer.id) && <Check size={12} className="text-white" />}
                                 </div>
-                            ))}
-                        {addModalQuery && peers.filter(p => p.status === "none" && (p.name.toLowerCase().includes(addModalQuery.toLowerCase()) || p.username.toLowerCase().includes(addModalQuery.toLowerCase()))).length === 0 && (
+                                <div>
+                                    <h4 className="font-bold text-sm text-zinc-900">{peer.name}</h4>
+                                    <p className="text-xs text-zinc-500">@{peer.username}</p>
+                                </div>
+                                <div className="ml-auto">
+                                    <div className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500">L{peer.level}</div>
+                                </div>
+                            </div>
+                        ))}
+                        {!isSearchingUsers && addModalQuery.length >= 3 && foundUsers.length === 0 && (
                             <div className="text-center py-8 text-zinc-400 text-sm">
-                                No new peers found.
+                                No users found matching `@{addModalQuery}`.
+                            </div>
+                        )}
+                        {!isSearchingUsers && addModalQuery.length < 3 && (
+                            <div className="text-center py-8 text-zinc-400 text-sm">
+                                Type at least 3 characters of their @handle to search.
                             </div>
                         )}
                     </div>

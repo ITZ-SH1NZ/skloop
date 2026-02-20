@@ -6,6 +6,7 @@ import { Zap, Target, BookOpen, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
 
 export function OverviewModule() {
     const supabase = createClient();
@@ -15,21 +16,45 @@ export function OverviewModule() {
         const fetchStats = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
+                // Streak
                 const { data } = await supabase
                     .from('profiles')
                     .select('streak')
                     .eq('id', user.id)
                     .single();
 
-                if (data) {
-                    setStats(prev => ({ ...prev, streak: data.streak || 0 }));
-                    // For problems and lessons, we would fetch from another relation (e.g. `user_tasks` grouped by type).
-                    // As a placeholder, let's keep it static.
-                }
+                // Problems Solved (Quizzes + Codele Wins)
+                const { count: dsaCount } = await supabase
+                    .from('user_quiz_attempts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .eq('passed', true);
+
+                const { count: codeleCount } = await supabase
+                    .from('user_puzzle_attempts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .eq('status', 'won');
+
+                const problemsSolved = (dsaCount || 0) + (codeleCount || 0);
+
+                // Lessons Completed
+                const { data: coursesData } = await supabase
+                    .from('user_courses')
+                    .select('completed_lessons')
+                    .eq('user_id', user.id);
+
+                const lessonsCompleted = coursesData ? coursesData.reduce((acc, curr) => acc + (curr.completed_lessons || 0), 0) : 0;
+
+                setStats({
+                    streak: data?.streak || 0,
+                    problemsSolved,
+                    lessonsCompleted
+                });
             }
         };
         fetchStats();
-    }, [supabase]);
+    }, []);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -57,6 +82,9 @@ export function OverviewModule() {
                         Find a Quest <ArrowRight size={16} className="ml-2" />
                     </Button>
                 </div>
+
+                {/* Daily Quests */}
+                <DailyQuestsWidget />
 
                 {/* Badges Section */}
                 <div>
