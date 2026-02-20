@@ -6,11 +6,23 @@ import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import Link from "next/link";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
+import { createClient } from "@/utils/supabase/client";
 
-export default function DashboardHeader({ user }: { user: any }) {
+export default function DashboardHeader({ initialUser }: { initialUser?: any }) {
     const { toast } = useToast();
     const [activeDropdown, setActiveDropdown] = useState<'notifications' | 'profile' | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const supabase = createClient();
+
+    // Real Data State
+    const [userProfile, setUserProfile] = useState<{
+        name: string;
+        xp: number;
+        coins: number;
+        level: number;
+        streak: number;
+        avatar_url: string;
+    } | null>(null);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -22,6 +34,32 @@ export default function DashboardHeader({ user }: { user: any }) {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Fetch User Profile
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('full_name, username, xp, coins, level, streak, avatar_url')
+                    .eq('id', user.id)
+                    .single();
+
+                if (data && !error) {
+                    setUserProfile({
+                        name: data.full_name || data.username || "Pilot",
+                        xp: data.xp || 0,
+                        coins: data.coins || 0,
+                        level: data.level || 1,
+                        streak: data.streak || 0,
+                        avatar_url: data.avatar_url || ""
+                    });
+                }
+            }
+        };
+        fetchProfile();
+    }, [supabase]);
 
     const toggleDropdown = (type: 'notifications' | 'profile') => {
         setActiveDropdown(activeDropdown === type ? null : type);
@@ -45,7 +83,7 @@ export default function DashboardHeader({ user }: { user: any }) {
                     transition={{ delay: 0.2 }}
                     className="text-slate-500 text-sm"
                 >
-                    Welcome back, {user.name}!
+                    Welcome back, {userProfile?.name || "Loading..."}!
                 </motion.p>
             </div>
 
@@ -86,8 +124,8 @@ export default function DashboardHeader({ user }: { user: any }) {
                     </div>
 
                     <div className="flex flex-col leading-none">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lvl 12</span>
-                        <span className="text-sm font-black text-slate-900">{user.xp.toLocaleString()} XP</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lvl {userProfile?.level || 1}</span>
+                        <span className="text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()} XP</span>
                     </div>
                 </motion.div>
 
@@ -99,7 +137,7 @@ export default function DashboardHeader({ user }: { user: any }) {
                     <div className="w-8 h-8 relative flex items-center justify-center">
                         <CurrencyCoin size="sm" />
                     </div>
-                    <span className="text-sm font-black text-slate-900">2,450</span>
+                    <span className="text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
                 </motion.div>
 
                 {/* Streak Pill */}
@@ -108,7 +146,7 @@ export default function DashboardHeader({ user }: { user: any }) {
                     className="flex items-center gap-2 bg-[#D4F268] px-4 py-2.5 rounded-2xl shadow-[0_4px_10px_-2px_rgba(212,242,104,0.5)] cursor-pointer"
                     onClick={() => toast("Streak protected! Keep it up!", "success")}
                 >
-                    <span className="text-slate-900 font-bold">🔥 {user.streak}</span>
+                    <span className="text-slate-900 font-bold">🔥 {userProfile?.streak || 0}</span>
                     <span className="text-xs font-bold text-slate-900/60 uppercase tracking-wider">Day Streak</span>
                 </motion.div>
 
@@ -157,9 +195,8 @@ export default function DashboardHeader({ user }: { user: any }) {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors"
-                        onClick={() => {
-                            // In a real app, this would trigger signOut()
-                            console.log("Signing out...");
+                        onClick={async () => {
+                            await supabase.auth.signOut();
                             window.location.href = "/login";
                         }}
                     >

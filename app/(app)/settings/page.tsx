@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Bell, User, CreditCard, Shield, Moon, Monitor, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
+import { createClient } from "@/utils/supabase/client";
 
 const tabs = [
     { id: "general", label: "General", icon: User },
@@ -71,10 +72,94 @@ export default function SettingsPage() {
 }
 
 function GeneralSettings({ toast }: { toast: any }) {
+    const supabase = createClient();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const [formData, setFormData] = useState({
+        full_name: "",
+        username: "",
+        email: "",
+        bio: "",
+        avatar_url: ""
+    });
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('full_name, username, bio, avatar_url')
+                    .eq('id', user.id)
+                    .single();
+
+                const meta = user.user_metadata || {};
+                let profileData = {
+                    full_name: meta.full_name || "",
+                    username: meta.username || "",
+                    bio: "",
+                    avatar_url: meta.avatar_url || ""
+                };
+
+                if (data && !error) {
+                    profileData = {
+                        full_name: data.full_name || profileData.full_name,
+                        username: data.username || profileData.username,
+                        bio: data.bio || "",
+                        avatar_url: data.avatar_url || profileData.avatar_url
+                    };
+                }
+
+                setFormData({
+                    full_name: profileData.full_name,
+                    username: profileData.username,
+                    email: user.email || "",
+                    bio: profileData.bio,
+                    avatar_url: profileData.avatar_url
+                });
+            }
+            setIsLoading(false);
+        };
+        fetchProfile();
+    }, [supabase]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    full_name: formData.full_name,
+                    username: formData.username,
+                    bio: formData.bio,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (error) {
+                toast("Failed to update profile", "error");
+            } else {
+                toast("Profile updated!", "success");
+            }
+        }
+        setIsSaving(false);
+    };
+
+    if (isLoading) {
+        return <div className="py-12 flex justify-center"><div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-800 animate-spin"></div></div>;
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-6 mb-8">
-                <div className="h-24 w-24 rounded-full bg-gray-100 relative overflow-hidden group cursor-pointer">
+                <div className="h-24 w-24 rounded-full bg-gray-100 border-2 border-gray-200 relative overflow-hidden group cursor-pointer flex items-center justify-center">
+                    {formData.avatar_url ? (
+                        <img src={formData.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                        <User className="text-gray-400 w-10 h-10" />
+                    )}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity">
                         Change
                     </div>
@@ -88,21 +173,51 @@ function GeneralSettings({ toast }: { toast: any }) {
             <div className="grid gap-6">
                 <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700">Display Name</label>
-                    <input type="text" placeholder="Your Name" className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-primary/20" />
+                    <input
+                        type="text"
+                        value={formData.full_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                        placeholder="Your Name"
+                        className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Handle (Username)</label>
+                    <input
+                        type="text"
+                        value={formData.username ? (formData.username === "" ? "" : `@${formData.username}`) : ""}
+                        disabled={!!formData.username}
+                        onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value.replace("@", "") }))}
+                        className={cn("w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none", !!formData.username && "cursor-not-allowed opacity-70 text-gray-500")}
+                    />
+                    <p className="text-xs text-slate-400 font-medium">Your handle is unique and cannot be changed.</p>
                 </div>
                 <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700">Email Address</label>
-                    <input type="email" placeholder="you@example.com" className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-primary/20" />
+                    <input
+                        type="email"
+                        value={formData.email}
+                        disabled
+                        placeholder="you@example.com"
+                        className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none opacity-60 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-slate-400 font-medium">Email changes require identity verification.</p>
                 </div>
                 <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700">Bio</label>
-                    <textarea rows={3} placeholder="Tell us about yourself..." className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-primary/20 resize-none" />
+                    <textarea
+                        rows={3}
+                        value={formData.bio}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                        placeholder="Tell us about yourself..."
+                        className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                    />
                 </div>
             </div>
 
             <div className="pt-4 flex justify-end">
-                <Button onClick={() => toast("Profile updated!", "success")} className="bg-primary text-black font-bold rounded-xl px-8">
-                    Save Changes
+                <Button disabled={isSaving} onClick={handleSave} className="bg-primary text-black font-bold rounded-xl px-8">
+                    {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
             </div>
         </div>

@@ -2,10 +2,35 @@
 
 import { BadgeGrid } from "../gamification/BadgeGrid";
 import { ActivityHeatmap } from "../charts/ActivityHeatmap";
-import { Zap, Target, BookOpen, Star, ArrowRight } from "lucide-react";
+import { Zap, Target, BookOpen, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
 
 export function OverviewModule() {
+    const supabase = createClient();
+    const [stats, setStats] = useState({ streak: 0, lessonsCompleted: 0, problemsSolved: 0 });
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('streak')
+                    .eq('id', user.id)
+                    .single();
+
+                if (data) {
+                    setStats(prev => ({ ...prev, streak: data.streak || 0 }));
+                    // For problems and lessons, we would fetch from another relation (e.g. `user_tasks` grouped by type).
+                    // As a placeholder, let's keep it static.
+                }
+            }
+        };
+        fetchStats();
+    }, [supabase]);
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column (Main Content) */}
@@ -62,7 +87,7 @@ export function OverviewModule() {
                             <Zap size={24} />
                         </div>
                         <div>
-                            <p className="text-2xl font-black text-indigo-900">--</p>
+                            <p className="text-2xl font-black text-indigo-900">{stats.streak}</p>
                             <p className="text-xs font-bold text-gray-400 uppercase">Current Streak</p>
                         </div>
                     </div>
@@ -72,7 +97,7 @@ export function OverviewModule() {
                             <Target size={24} />
                         </div>
                         <div>
-                            <p className="text-2xl font-black text-emerald-900">--</p>
+                            <p className="text-2xl font-black text-emerald-900">{stats.problemsSolved}</p>
                             <p className="text-xs font-bold text-gray-400 uppercase">Problems Solved</p>
                         </div>
                     </div>
@@ -82,7 +107,7 @@ export function OverviewModule() {
                             <BookOpen size={24} />
                         </div>
                         <div>
-                            <p className="text-2xl font-black text-amber-900">--</p>
+                            <p className="text-2xl font-black text-amber-900">{stats.lessonsCompleted}</p>
                             <p className="text-xs font-bold text-gray-400 uppercase">Lessons Completed</p>
                         </div>
                     </div>

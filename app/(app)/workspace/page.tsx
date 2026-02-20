@@ -8,6 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/utils/supabase/client";
 
 const INITIAL_PROJECTS = [
     {
@@ -53,7 +54,9 @@ const INITIAL_PROJECTS = [
 ];
 
 export default function WorkspacePage() {
-    const [projects, setProjects] = useState(INITIAL_PROJECTS);
+    const supabase = createClient();
+    const [projects, setProjects] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -70,19 +73,44 @@ export default function WorkspacePage() {
         ? projects.filter(p => p.title.toLowerCase().includes(searchQuery))
         : projects;
 
-    const handleCreateProject = () => {
+    const handleCreateProject = async () => {
         if (newProjectName.trim()) {
-            const newProject = {
-                id: Date.now(),
-                title: newProjectName,
-                status: newProjectStatus,
-                members: 1,
-                deadline: "7 days",
-                color: "bg-gray-50 text-gray-600 border-gray-200",
-                description: "New project created from dashboard",
-                tasks: ["Initial setup", "Team briefing"]
-            };
-            setProjects([newProject, ...projects]);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // 1. Insert into projects
+            const { data: projectData, error: projectError } = await supabase
+                .from('projects')
+                .insert([{
+                    title: newProjectName,
+                    description: "New project created from dashboard",
+                    status: newProjectStatus,
+                    color: "bg-gray-50 text-gray-600 border-gray-200"
+                }])
+                .select()
+                .single();
+
+            if (projectError) {
+                toast(`Failed to create project: ${projectError.message}`, "error");
+                return;
+            }
+
+            // 2. Insert into project_members
+            const { error: memberError } = await supabase
+                .from('project_members')
+                .insert([{
+                    project_id: projectData.id,
+                    user_id: user.id,
+                    role: 'owner'
+                }]);
+
+            if (memberError) {
+                toast(`Failed to set owner role: ${memberError.message}`, "error");
+                return;
+            }
+
+            // Refresh project state
+            setProjects([{ ...projectData, members: 1 }, ...projects]);
             toast(`"${newProjectName}" has been added to your workspace.`, "success");
 
             setIsModalOpen(false);
@@ -92,17 +120,47 @@ export default function WorkspacePage() {
     };
 
     useEffect(() => {
+        const fetchWorkspace = async () => {
+            setIsLoading(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Fetch projects the user is a member of
+                const { data, error } = await supabase
+                    .from('project_members')
+                    .select(`
+                        project_id,
+                        projects (
+                            id,
+                            title,
+                            description,
+                            status,
+                            color,
+                            created_at
+                        )
+                    `)
+                    .eq('user_id', user.id);
+
+                if (data && !error) {
+                    // Normalize the nested query result
+                    const normalizedProjects = data.map((item: any) => ({
+                        ...item.projects,
+                        members: 1, // Placeholder until a member count aggregation is performed
+                        deadline: "7 days" // Local UI placeholder
+                    }));
+                    setProjects(normalizedProjects);
+                }
+            }
+            setIsLoading(false);
+        };
+        fetchWorkspace();
+
         if (searchParams.get("action") === "new") {
             setIsModalOpen(true);
             const params = new URLSearchParams(searchParams.toString());
             params.delete("action");
             router.replace(`/workspace${params.toString() ? `?${params.toString()}` : ""}`);
         }
-    }, []); // Run once on mount
-
-
-
-    return (
+    }, [supabase, router, searchParams]); return (
         <div className="p-4 md:p-6 xl:p-8 max-w-7xl mx-auto min-h-screen">
             <div className="flex flex-wrap items-center justify-between mb-6 md:mb-12 gap-6">
                 <div>
@@ -151,92 +209,95 @@ export default function WorkspacePage() {
             </div>
 
             {/* Project List/Grid */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={viewMode}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className={cn("gap-6 xl:gap-8", viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col")}
-                >
-                    {filteredProjects.map((project, i) => (
-                        <motion.div
-                            key={project.id}
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.03, duration: 0.2, ease: "easeOut" }}
-                            style={{ backfaceVisibility: "hidden" }}
-                            className={cn(
-                                "bg-white shadow-sm hover:shadow-md transition-all border border-gray-100 group relative cursor-pointer will-change-transform",
-                                viewMode === "grid"
-                                    ? "rounded-[2.5rem] p-8 flex flex-col justify-between min-h-[280px]"
-                                    : "rounded-[2rem] p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6"
-                            )}
-                            onClick={() => {
-                                setSelectedProject(project);
-                                setIsDetailModalOpen(true);
-                            }}
-                        >
-                            <div className={cn("flex items-start", viewMode === "grid" ? "justify-between mb-6 w-full" : "gap-4 md:gap-6 items-center w-full md:w-auto")}>
-                                <div className={`h-14 w-14 rounded-2xl ${project.color} border flex items-center justify-center shadow-sm shrink-0`}>
-                                    <Folder size={24} />
+            {isLoading ? (
+                <div className="py-24 flex justify-center w-full">
+                    <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-slate-800 animate-spin"></div>
+                </div>
+            ) : (
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={viewMode}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className={cn("gap-6 xl:gap-8", viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col")}
+                    >
+                        {filteredProjects.map((project, i) => (
+                            <motion.div
+                                key={project.id}
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: i * 0.03, duration: 0.2, ease: "easeOut" }}
+                                style={{ backfaceVisibility: "hidden" }}
+                                className={cn(
+                                    "bg-white shadow-sm hover:shadow-md transition-all border border-gray-100 group relative cursor-pointer will-change-transform",
+                                    viewMode === "grid"
+                                        ? "rounded-[2.5rem] p-8 flex flex-col justify-between min-h-[280px]"
+                                        : "rounded-[2rem] p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6"
+                                )}
+                                onClick={() => router.push(`/workspace/${project.id}`)}
+                            >
+                                <div className={cn("flex items-start", viewMode === "grid" ? "justify-between mb-6 w-full" : "gap-4 md:gap-6 items-center w-full md:w-auto")}>
+                                    <div className={`h-14 w-14 rounded-2xl ${project.color} border flex items-center justify-center shadow-sm shrink-0`}>
+                                        <Folder size={24} />
+                                    </div>
+
+                                    {viewMode === "list" && (
+                                        <div className="flex-1 md:min-w-[200px]">
+                                            <h3 className="font-bold text-lg md:text-xl mb-1 group-hover:text-primary transition-colors leading-tight line-clamp-1">{project.title}</h3>
+                                            <p className="text-xs font-bold text-gray-400">Last updated: 2 hours ago</p>
+                                        </div>
+                                    )}
+
+                                    <div className={cn("px-3 py-1 rounded-full bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider border border-gray-100 shrink-0 ml-auto md:ml-0", viewMode === "list" && "order-first md:order-last")}>
+                                        {project.status}
+                                    </div>
                                 </div>
 
-                                {viewMode === "list" && (
-                                    <div className="flex-1 md:min-w-[200px]">
-                                        <h3 className="font-bold text-lg md:text-xl mb-1 group-hover:text-primary transition-colors leading-tight line-clamp-1">{project.title}</h3>
+                                {viewMode === "grid" && (
+                                    <div>
+                                        <h3 className="font-bold text-2xl mb-2 group-hover:text-primary transition-colors leading-tight">{project.title}</h3>
                                         <p className="text-xs font-bold text-gray-400">Last updated: 2 hours ago</p>
                                     </div>
                                 )}
 
-                                <div className={cn("px-3 py-1 rounded-full bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider border border-gray-100 shrink-0 ml-auto md:ml-0", viewMode === "list" && "order-first md:order-last")}>
-                                    {project.status}
-                                </div>
-                            </div>
-
-                            {viewMode === "grid" && (
-                                <div>
-                                    <h3 className="font-bold text-2xl mb-2 group-hover:text-primary transition-colors leading-tight">{project.title}</h3>
-                                    <p className="text-xs font-bold text-gray-400">Last updated: 2 hours ago</p>
-                                </div>
-                            )}
-
-                            <div className={cn("flex items-center justify-between", viewMode === "grid" ? "pt-8 mt-auto border-t border-gray-50 bg-white w-full" : "gap-4 md:gap-8 w-full md:w-auto mt-2 md:mt-0")}>
-                                <div className="flex -space-x-3 hover:space-x-1 transition-all">
-                                    {[...Array(project.members)].map((_, i) => (
-                                        <div key={i} className="h-10 w-10 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-500 shadow-sm relative z-0 hover:z-10 transition-all">
-                                            U{i + 1}
+                                <div className={cn("flex items-center justify-between", viewMode === "grid" ? "pt-8 mt-auto border-t border-gray-50 bg-white w-full" : "gap-4 md:gap-8 w-full md:w-auto mt-2 md:mt-0")}>
+                                    <div className="flex -space-x-3 hover:space-x-1 transition-all">
+                                        {[...Array(project.members)].map((_, i) => (
+                                            <div key={i} className="h-10 w-10 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-gray-500 shadow-sm relative z-0 hover:z-10 transition-all">
+                                                U{i + 1}
+                                            </div>
+                                        ))}
+                                        <div className="h-10 w-10 rounded-full bg-black text-white border-2 border-white flex items-center justify-center shadow-sm z-10">
+                                            <Plus size={14} />
                                         </div>
-                                    ))}
-                                    <div className="h-10 w-10 rounded-full bg-black text-white border-2 border-white flex items-center justify-center shadow-sm z-10">
-                                        <Plus size={14} />
+                                    </div>
+                                    <div className="h-10 w-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors ml-auto md:ml-0">
+                                        <ArrowRight size={18} />
                                     </div>
                                 </div>
-                                <div className="h-10 w-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors ml-auto md:ml-0">
-                                    <ArrowRight size={18} />
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
+                            </motion.div>
+                        ))}
 
-                    {/* Add New Card (Inline - Grid Only) */}
-                    {viewMode === "grid" && (
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.15 }}
-                            onClick={() => setIsModalOpen(true)}
-                            className="rounded-[2.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all gap-4 min-h-[280px] group"
-                        >
-                            <div className="h-16 w-16 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-white group-hover:shadow-md transition-all">
-                                <Plus size={32} className="group-hover:scale-110 transition-transform" />
-                            </div>
-                            <span className="font-bold text-lg">Create New Project</span>
-                        </motion.button>
-                    )}
-                </motion.div>
-            </AnimatePresence>
+                        {/* Add New Card (Inline - Grid Only) */}
+                        {viewMode === "grid" && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.15 }}
+                                onClick={() => setIsModalOpen(true)}
+                                className="rounded-[2.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all gap-4 min-h-[280px] group"
+                            >
+                                <div className="h-16 w-16 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-white group-hover:shadow-md transition-all">
+                                    <Plus size={32} className="group-hover:scale-110 transition-transform" />
+                                </div>
+                                <span className="font-bold text-lg">Create New Project</span>
+                            </motion.button>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            )}
 
             {/* Create Project Modal */}
             <Modal
@@ -276,70 +337,6 @@ export default function WorkspacePage() {
                         </select>
                     </div>
                 </div>
-            </Modal>
-
-            {/* Project Detail Modal */}
-            <Modal
-                isOpen={isDetailModalOpen}
-                onClose={() => setIsDetailModalOpen(false)}
-                title={selectedProject?.title || "Project Details"}
-                footer={
-                    <div className="flex justify-between items-center w-full">
-                        <div className="flex -space-x-3">
-                            {[...Array(selectedProject?.members || 1)].map((_, i) => (
-                                <div key={i} className="h-10 w-10 rounded-full bg-gray-200 border-4 border-white flex items-center justify-center text-[10px] font-bold text-gray-500 shadow-sm">
-                                    U{i + 1}
-                                </div>
-                            ))}
-                        </div>
-                        <Button onClick={() => setIsDetailModalOpen(false)} className="rounded-xl font-bold bg-black text-white px-8">Close</Button>
-                    </div>
-                }
-            >
-                {selectedProject && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex items-center gap-4">
-                            <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm", selectedProject.color)}>
-                                {selectedProject.status}
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-400 font-bold text-xs uppercase tracking-widest">
-                                <Clock size={14} />
-                                {selectedProject.deadline} remaining
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="font-black text-xs uppercase tracking-[0.2em] text-gray-300 mb-2">Description</h4>
-                            <p className="text-gray-600 font-medium leading-relaxed">
-                                {selectedProject.description || "No description provided for this project."}
-                            </p>
-                        </div>
-
-                        <div>
-                            <h4 className="font-black text-xs uppercase tracking-[0.2em] text-gray-300 mb-3">Key Milestones</h4>
-                            <div className="space-y-3">
-                                {(selectedProject.tasks || ["General Review", "Team Sync"]).map((task: string, i: number) => (
-                                    <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100/50 group hover:border-primary/20 transition-all">
-                                        <div className="h-6 w-6 rounded-lg bg-white border border-gray-200 flex items-center justify-center group-hover:bg-primary group-hover:border-primary transition-all">
-                                            {i === 0 ? <Users size={12} className="text-gray-400 group-hover:text-black" /> : <div className="h-1 w-1 rounded-full bg-gray-300" />}
-                                        </div>
-                                        <span className="font-bold text-sm text-gray-700">{task}</span>
-                                        <span className="ml-auto text-[10px] font-bold text-gray-300">TODO</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-black rounded-[2rem] text-white flex items-center justify-between shadow-2xl overflow-hidden relative group cursor-pointer">
-                            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <div className="relative z-10">
-                                <h5 className="font-black text-xs uppercase tracking-widest mb-1 text-primary">Active Sprint</h5>
-                                <p className="font-bold opacity-80">Phase 2: Execution</p>
-                            </div>
-                            <ArrowRight className="relative z-10 group-hover:translate-x-2 transition-transform" />
-                        </div>
-                    </div>
-                )}
             </Modal>
         </div>
     );

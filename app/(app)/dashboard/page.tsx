@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, Variants } from "framer-motion";
 import { Grid, List } from "lucide-react";
 import Link from "next/link";
+import { createClient } from "@/utils/supabase/client";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import HeroCourseCard from "@/components/dashboard/HeroCourseCard";
 import TaskCard from "@/components/dashboard/TaskCard";
@@ -32,24 +33,88 @@ export default function DashboardPage() {
     const [isGameOpen, setIsGameOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
     const [activeTab, setActiveTab] = useState("grid");
+    const [tasks, setTasks] = useState<any[]>([]);
+    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+    const supabase = createClient();
 
-    // Mock Data
-    // TODO: Fetch user data from backend
-    const user = { name: "Guest", streak: 0, xp: 0 };
+    // Fetch User Tasks
+    useEffect(() => {
+        const fetchTasks = async () => {
+            setIsLoadingTasks(true);
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Fetch pending user tasks joined with the task details
+                const { data, error } = await supabase
+                    .from('user_tasks')
+                    .select(`
+                        id,
+                        status,
+                        task_id,
+                        tasks (
+                            id,
+                            title,
+                            description,
+                            xp_reward,
+                            task_type,
+                            difficulty
+                        )
+                    `)
+                    .eq('user_id', user.id)
+                    .eq('status', 'pending');
+
+                if (data && !error) {
+                    setTasks(data);
+                }
+            }
+            setIsLoadingTasks(false);
+        };
+        fetchTasks();
+    }, [supabase]);
 
     const handleTaskClick = (task: any) => {
         setSelectedTask(task);
     };
 
-    const handleCompleteTask = () => {
-        import("canvas-confetti").then((confetti) => {
-            confetti.default({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 }
+    const handleCompleteTask = async () => {
+        if (!selectedTask) return;
+
+        // 1. Update user_tasks status
+        const { error: taskError } = await supabase
+            .from('user_tasks')
+            .update({ status: 'completed', completed_at: new Date().toISOString() })
+            .eq('id', selectedTask.id);
+
+        if (!taskError) {
+            // 2. Fetch current profile XP and update it
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('xp')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile) {
+                    await supabase
+                        .from('profiles')
+                        .update({ xp: profile.xp + selectedTask.tasks.xp_reward })
+                        .eq('id', user.id);
+                }
+            }
+
+            // Remove task from state
+            setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+
+            // Confetti and close modal
+            import("canvas-confetti").then((confetti) => {
+                confetti.default({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
             });
-        });
-        setSelectedTask(null);
+            setSelectedTask(null);
+        }
     };
 
     return (
@@ -60,7 +125,7 @@ export default function DashboardPage() {
             <Modal
                 isOpen={!!selectedTask}
                 onClose={() => setSelectedTask(null)}
-                title={selectedTask?.title || "Task Details"}
+                title={selectedTask?.tasks?.title || "Task Details"}
                 footer={
                     <div className="flex justify-end gap-3">
                         <button
@@ -73,28 +138,30 @@ export default function DashboardPage() {
                             onClick={handleCompleteTask}
                             className="px-6 py-2 bg-[#D4F268] text-slate-900 text-sm font-bold rounded-xl hover:shadow-[0_0_20px_rgba(212,242,104,0.4)] transition-all active:scale-95"
                         >
-                            Complete Task (+{selectedTask?.xp} XP)
+                            Complete Task (+{selectedTask?.tasks?.xp_reward} XP)
                         </button>
                     </div>
                 }
             >
                 <div className="space-y-6">
                     <div className="flex items-center gap-3 mb-4">
-                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${selectedTask?.type === 'code' ? 'bg-blue-100 text-blue-700' :
-                            selectedTask?.type === 'concept' ? 'bg-orange-100 text-orange-700' :
-                                selectedTask?.type === 'social' ? 'bg-purple-100 text-purple-700' :
+                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${selectedTask?.tasks?.task_type === 'code' ? 'bg-blue-100 text-blue-700' :
+                            selectedTask?.tasks?.task_type === 'concept' ? 'bg-orange-100 text-orange-700' :
+                                selectedTask?.tasks?.task_type === 'social' ? 'bg-purple-100 text-purple-700' :
                                     'bg-green-100 text-green-700'
                             }`}>
-                            {selectedTask?.type}
+                            {selectedTask?.tasks?.task_type || "practice"}
                         </span>
-                        <span className="text-sm text-slate-400 font-medium">Est. {selectedTask?.meta || "10 min"}</span>
+                        <span className="text-sm text-slate-400 font-medium capitalize">
+                            {selectedTask?.tasks?.difficulty || "Medium"} Difficulty
+                        </span>
                     </div>
 
                     <p className="text-slate-600 leading-relaxed text-lg">
-                        {selectedTask?.desc}
+                        {selectedTask?.tasks?.description}
                     </p>
 
-                    {selectedTask?.type === 'code' && (
+                    {selectedTask?.tasks?.task_type === 'code' && (
                         <div className="bg-slate-900 rounded-xl p-4 overflow-x-auto">
                             <pre className="text-sm text-blue-300 font-mono">
                                 <code>{`function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\n// TODO: Optimize this function using memoization.`}</code>
@@ -102,7 +169,7 @@ export default function DashboardPage() {
                         </div>
                     )}
 
-                    {selectedTask?.type === 'practice' && (
+                    {selectedTask?.tasks?.task_type === 'practice' && (
                         <div className="space-y-4">
                             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                                 <h4 className="font-bold text-slate-800 mb-2">Question 1/10</h4>
@@ -119,7 +186,7 @@ export default function DashboardPage() {
                         </div>
                     )}
 
-                    {selectedTask?.type === 'social' && (
+                    {selectedTask?.tasks?.task_type === 'social' && (
                         <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-xl">
                             <div className="w-10 h-10 rounded-full bg-purple-200 flex-shrink-0" />
                             <div>
@@ -141,7 +208,7 @@ export default function DashboardPage() {
             >
                 {/* Header */}
                 <motion.div variants={itemVariants}>
-                    <DashboardHeader user={user} />
+                    <DashboardHeader />
                 </motion.div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -180,24 +247,40 @@ export default function DashboardPage() {
                             </div>
                         </motion.div>
 
-                        {/* Task Grid - Now Loading from Backend (Empty State) */}
-                        {/* TODO: Fetch tasks from backend */}
+                        {/* Task Grid */}
                         <div className={`grid gap-6 ${activeTab === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-                            {/* Placeholder for empty state when backend is connected */}
-                            <div className="col-span-full py-12 text-center bg-slate-50 rounded-[2rem] border border-slate-100 border-dashed">
-                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                                    <List className="text-slate-300" size={24} />
+                            {isLoadingTasks ? (
+                                <div className="col-span-full py-12 text-center flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-800 animate-spin mx-auto"></div>
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-900">All caught up!</h3>
-                                <p className="text-slate-500 max-w-xs mx-auto mt-2">
-                                    You have no pending tasks for today. Take a break or explore the Daily Codele.
-                                </p>
-                                <Link href="/practice/daily-codele" className="inline-block mt-4">
-                                    <button className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:scale-105 transition-transform">
-                                        Play Daily Codele
-                                    </button>
-                                </Link>
-                            </div>
+                            ) : tasks.length > 0 ? (
+                                tasks.map((userTask) => (
+                                    <div key={userTask.id} onClick={() => handleTaskClick(userTask)}>
+                                        <TaskCard
+                                            type={userTask.tasks.task_type || "practice"}
+                                            title={userTask.tasks.title}
+                                            desc={userTask.tasks.description}
+                                            xp={userTask.tasks.xp_reward}
+                                            meta={`${userTask.tasks.difficulty} • pending`}
+                                        />
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="col-span-full py-12 text-center bg-slate-50 rounded-[2rem] border border-slate-100 border-dashed">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                                        <List className="text-slate-300" size={24} />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-slate-900">All caught up!</h3>
+                                    <p className="text-slate-500 max-w-xs mx-auto mt-2">
+                                        You have no pending tasks for today. Take a break or explore the Daily Codele.
+                                    </p>
+                                    <Link href="/practice/daily-codele" className="inline-block mt-4">
+                                        <button className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:scale-105 transition-transform">
+                                            Play Daily Codele
+                                        </button>
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     </div>
 

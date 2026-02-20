@@ -5,6 +5,7 @@ import { User, Mail, Lock, Check, AtSign, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
@@ -24,6 +25,8 @@ export default function SignupPage() {
         password: "",
         confirmPassword: "",
     });
+
+    const supabase = createClient();
 
     const [tracks, setTracks] = useState<TrackChoice[]>([]);
     const [difficulty, setDifficulty] = useState<DifficultyChoice | null>(null);
@@ -95,9 +98,30 @@ export default function SignupPage() {
             setStep(step + 1);
         } else {
             setIsSubmitting(true);
-            setTimeout(() => {
-                router.push("/dashboard");
-            }, 800);
+
+            // Execute Supabase Signup
+            supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        username: formData.handle,
+                        full_name: formData.name,
+                        tracks: tracks,
+                        difficulty: difficulty,
+                        time_commitment: timeCommitment,
+                        mentor_intent: mentorIntent,
+                        mentor_dream: mentorDream
+                    }
+                }
+            }).then(({ error }) => {
+                if (error) {
+                    setError(error.message);
+                    setIsSubmitting(false);
+                } else {
+                    router.push("/dashboard");
+                }
+            });
         }
     };
 
@@ -117,10 +141,10 @@ export default function SignupPage() {
         difficulty === "easy"
             ? "Gentle ramp-up with shorter dailies."
             : difficulty === "standard"
-            ? "Balanced mix of theory, practice, and reviews."
-            : difficulty === "challenge"
-            ? "Aggressive pacing, harder quests, mentor work earlier."
-            : "";
+                ? "Balanced mix of theory, practice, and reviews."
+                : difficulty === "challenge"
+                    ? "Aggressive pacing, harder quests, mentor work earlier."
+                    : "";
 
     const handleGoogleSignup = () => {
         setAuthMethod("google");
@@ -315,11 +339,10 @@ export default function SignupPage() {
                                 <button
                                     type="button"
                                     onClick={() => toggleTrack("web-dev")}
-                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${
-                                        tracks.includes("web-dev")
+                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-dev")
                                             ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
                                             : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-sm font-bold uppercase tracking-widest">
@@ -346,11 +369,10 @@ export default function SignupPage() {
                                 <button
                                     type="button"
                                     onClick={() => toggleTrack("dsa")}
-                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${
-                                        tracks.includes("dsa")
+                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("dsa")
                                             ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
                                             : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-sm font-bold uppercase tracking-widest">
@@ -404,11 +426,10 @@ export default function SignupPage() {
                                         key={opt.id}
                                         type="button"
                                         onClick={() => setDifficulty(opt.id as DifficultyChoice)}
-                                        className={`flex flex-col items-center justify-center px-3 py-3 rounded-2xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${
-                                            difficulty === opt.id
+                                        className={`flex flex-col items-center justify-center px-3 py-3 rounded-2xl border-2 text-xs font-bold uppercase tracking-widest transition-all ${difficulty === opt.id
                                                 ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
                                                 : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
-                                        }`}
+                                            }`}
                                     >
                                         <span>{opt.label}</span>
                                         <span className="mt-1 text-[9px] opacity-70">{opt.caption}</span>
@@ -434,11 +455,10 @@ export default function SignupPage() {
                                                     timeCommitment === label ? null : label
                                                 )
                                             }
-                                            className={`px-3 py-2 rounded-full border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${
-                                                timeCommitment === label
+                                            className={`px-3 py-2 rounded-full border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${timeCommitment === label
                                                     ? "border-zinc-900 bg-zinc-900 text-white"
                                                     : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
-                                            }`}
+                                                }`}
                                         >
                                             {label}
                                         </button>
@@ -475,11 +495,10 @@ export default function SignupPage() {
                                         key={opt.id}
                                         type="button"
                                         onClick={() => setMentorIntent(opt.id as MentorIntent)}
-                                        className={`flex-1 px-3 py-3 rounded-2xl border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${
-                                            mentorIntent === opt.id
+                                        className={`flex-1 px-3 py-3 rounded-2xl border-2 text-[11px] font-bold uppercase tracking-widest transition-all ${mentorIntent === opt.id
                                                 ? "border-zinc-900 bg-zinc-900 text-white"
                                                 : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
-                                        }`}
+                                            }`}
                                     >
                                         {opt.label}
                                     </button>
@@ -535,8 +554,8 @@ export default function SignupPage() {
                                         {tracks.length === 0
                                             ? "Not set"
                                             : tracks
-                                                  .map((t) => (t === "web-dev" ? "Web Dev" : "DSA"))
-                                                  .join(" • ")}
+                                                .map((t) => (t === "web-dev" ? "Web Dev" : "DSA"))
+                                                .join(" • ")}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -546,8 +565,8 @@ export default function SignupPage() {
                                             ? difficulty === "easy"
                                                 ? "Warmup"
                                                 : difficulty === "standard"
-                                                ? "Standard"
-                                                : "Challenge"
+                                                    ? "Standard"
+                                                    : "Challenge"
                                             : "Standard"}
                                     </span>
                                 </div>
@@ -590,8 +609,8 @@ export default function SignupPage() {
                                 ? "Calibrating..."
                                 : "Begin First Run"
                             : step === 1 && authMethod === null
-                            ? "Continue with Email"
-                            : "Continue"}
+                                ? "Continue with Email"
+                                : "Continue"}
                     </AuthButton>
                 </div>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, ChangeEvent } from "react";
+import { useState, useRef, ChangeEvent, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Edit2, MapPin, Link as LinkIcon, Calendar, Camera } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +11,8 @@ import { LevelRing } from "@/components/profile/gamification/LevelRing";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { ImageCropper } from "@/components/ui/ImageCropper";
+import { createClient } from "@/utils/supabase/client";
+import { useToast } from "@/components/ui/ToastProvider";
 
 // Theme Configuration (Fixed)
 const THEME = { name: "Gold", bg: "bg-amber-50", text: "text-amber-900", border: "border-amber-100", ring: "text-amber-500", solid: "bg-amber-500" };
@@ -19,7 +21,7 @@ const THEME = { name: "Gold", bg: "bg-amber-50", text: "text-amber-900", border:
 // TODO: Fetch user data from backend
 const DEFAULT_USER = {
     name: "User",
-    role: "Learning...",
+    username: "user",
     bio: "",
     location: "--",
     website: "",
@@ -33,7 +35,12 @@ const DEFAULT_USER = {
 };
 
 export function GamifiedHeader() {
+    const supabase = createClient();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(true);
+
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [user, setUser] = useState(DEFAULT_USER);
     const [formData, setFormData] = useState(DEFAULT_USER);
 
@@ -46,9 +53,80 @@ export function GamifiedHeader() {
 
     const theme = THEME;
 
-    const handleSave = () => {
-        setUser(formData);
-        setIsEditModalOpen(false);
+    // Fetch user profile on mount
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', authUser.id)
+                    .single();
+
+                let profileData;
+                const meta = authUser.user_metadata || {};
+
+                if (data && !error) {
+                    profileData = {
+                        name: data.full_name || meta.full_name || "User",
+                        username: data.username || meta.username || "user",
+                        bio: data.bio || "",
+                        location: "--",
+                        website: "--",
+                        joined: "Recently",
+                        level: data.level || 1,
+                        xp: data.xp || 0,
+                        nextLevelXp: (data.level || 1) * 100,
+                        coins: data.coins || 0,
+                        avatar: data.avatar_url || meta.avatar_url || "https://github.com/shadcn.png",
+                        banner: data.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
+                    };
+                } else {
+                    // Fallback if profile row is completely missing
+                    profileData = {
+                        ...DEFAULT_USER,
+                        name: meta.full_name || "User",
+                        username: meta.username || "user",
+                        avatar: meta.avatar_url || DEFAULT_USER.avatar
+                    };
+                }
+
+                setUser(profileData as any);
+                setFormData(profileData as any);
+            }
+            setIsLoading(false);
+        };
+        fetchProfile();
+    }, [supabase]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+            // Note: Uploading images via Supabase Storage comes next
+            // For now, we update the simple text fields
+            const { error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: authUser.id,
+                    full_name: formData.name,
+                    username: formData.username,
+                    bio: formData.bio,
+                    avatar_url: formData.avatar,
+                    banner_url: formData.banner,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (!error) {
+                setUser(formData);
+                setIsEditModalOpen(false);
+                toast("Profile updated successfully!", "success");
+            } else {
+                toast("Failed to update profile.", "error");
+            }
+        }
+        setIsSaving(false);
     };
 
     const handleFileSelect = (e: ChangeEvent<HTMLInputElement>, field: "avatar" | "banner") => {
@@ -73,6 +151,14 @@ export function GamifiedHeader() {
     };
 
     const xpProgress = (user.xp / user.nextLevelXp) * 100;
+
+    if (isLoading) {
+        return (
+            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden relative h-64 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full border-4 border-amber-200 border-t-amber-500 animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden relative">
@@ -103,7 +189,7 @@ export function GamifiedHeader() {
                         {/* Identity */}
                         <div className="space-y-1">
                             <h1 className="text-3xl md:text-4xl font-black tracking-tight">{user.name}</h1>
-                            <p className="text-lg text-muted-foreground font-medium">{user.role}</p>
+                            <p className="text-lg text-muted-foreground font-medium">@{user.username}</p>
                         </div>
 
                         {/* Bio & Links */}
@@ -208,10 +294,16 @@ export function GamifiedHeader() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold uppercase text-gray-500">Role / Title</label>
+                                <label className="text-xs font-bold uppercase text-gray-500">Handle</label>
                                 <Input
-                                    value={formData.role}
-                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, role: e.target.value })}
+                                    value={formData.username === "user" ? formData.username : `@${formData.username}`}
+                                    disabled={formData.username !== "user"}
+                                    className={cn("bg-gray-50", formData.username !== "user" && "cursor-not-allowed opacity-70")}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                                        if (formData.username === "user") {
+                                            setFormData({ ...formData, username: e.target.value.replace("@", "") });
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -244,8 +336,8 @@ export function GamifiedHeader() {
                     </div>
 
                     <div className="pt-4 flex justify-end gap-2">
-                        <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSave}>Save Changes</Button>
+                        <Button variant="ghost" disabled={isSaving} onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                        <Button disabled={isSaving} onClick={handleSave}>{isSaving ? "Saving..." : "Save Changes"}</Button>
                     </div>
                 </div>
             </Modal>

@@ -5,16 +5,38 @@ import { Mail, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 
 export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+    const supabase = createClient();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        // Simulate login
-        setTimeout(() => router.push("/dashboard"), 1500);
+        setError(null);
+
+        // Get values from the inputs
+        const target = e.target as typeof e.target & {
+            email: { value: string };
+            password: { value: string };
+        };
+        const email = target.email.value;
+        const password = target.password.value;
+
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+
+        if (error) {
+            setError(error.message);
+            setIsLoading(false);
+        } else {
+            router.push("/dashboard");
+        }
     };
 
     return (
@@ -22,6 +44,7 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-4">
                     <AuthInput
+                        name="email"
                         type="email"
                         placeholder="Pilot ID / Email"
                         icon={<Mail size={20} />}
@@ -29,6 +52,7 @@ export default function LoginPage() {
                     />
                     <div>
                         <AuthInput
+                            name="password"
                             type="password"
                             placeholder="Passcode"
                             icon={<Lock size={20} />}
@@ -41,6 +65,10 @@ export default function LoginPage() {
                         </div>
                     </div>
                 </div>
+
+                {error && (
+                    <p className="text-sm font-bold text-red-500 text-center">{error}</p>
+                )}
 
                 <AuthButton disabled={isLoading} className="bg-black text-white hover:bg-zinc-800">
                     {isLoading ? "Authenticating..." : "Initialize"}
