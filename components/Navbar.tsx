@@ -6,7 +6,7 @@ import { Menu, X, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "./ui/Button";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { useLenis } from "./SmoothScroll";
+import { useMasterScroll } from "./providers/MasterScrollProvider";
 import { usePathname, useRouter } from "next/navigation";
 import MagneticButton from "./MagneticButton";
 import Logo from "./Logo";
@@ -21,7 +21,7 @@ const NAV_LINKS = [
 export function Navbar() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { scrollY } = useScroll();
-    const lenis = useLenis();
+    const { scrollToElement } = useMasterScroll();
     const pathname = usePathname();
     const router = useRouter();
 
@@ -39,19 +39,7 @@ export function Navbar() {
             // If we are already on the path (or it's just a hash), scroll smoothly
             if (pathname === path || pathname === '/onboarding') {
                 e.preventDefault();
-                const targetId = `#${hash}`;
-
-                if (lenis) {
-                    lenis.scrollTo(targetId, {
-                        offset: -100, // Header height offset
-                        duration: 1.5
-                    });
-                } else {
-                    // Fallback if lenis not ready
-                    const element = document.querySelector(targetId);
-                    element?.scrollIntoView({ behavior: 'smooth' });
-                }
-
+                scrollToElement(hash, -100);
                 setIsMobileMenuOpen(false);
             } else {
                 // Determine if we need to navigate

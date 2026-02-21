@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [-] 1. Fix LenisProvider to properly synchronize with GSAP and ScrollTrigger
+- [ ] 1. Fix LenisProvider to properly synchronize with GSAP and ScrollTrigger
   - Update `components/providers/LenisProvider.tsx` to add ScrollTrigger.refresh() after Lenis initialization
   - Ensure GSAP ticker is properly synchronized with Lenis raf
   - Add lag smoothing disable (gsap.ticker.lagSmoothing(0))

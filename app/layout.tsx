@@ -4,7 +4,7 @@ import "./globals.css";
 import clsx from "clsx";
 
 import { ToastProvider } from "@/components/ui/ToastProvider";
-import { ScrollProvider } from "@/components/providers/ScrollProvider";
+import { MasterScrollProvider } from "@/components/providers/MasterScrollProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -34,9 +34,9 @@ export default function RootLayout({
         <ToastProvider>
           <Suspense fallback={null}>
             <LoadingProvider>
-              <ScrollProvider>
+              <MasterScrollProvider>
                 {children}
-              </ScrollProvider>
+              </MasterScrollProvider>
             </LoadingProvider>
           </Suspense>
         </ToastProvider>
