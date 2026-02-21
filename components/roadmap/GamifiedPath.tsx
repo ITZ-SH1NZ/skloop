@@ -2,31 +2,140 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Lock, Play, Star, Trophy, Zap } from "lucide-react";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { createClient } from "@/utils/supabase/client";
+import { useUser } from "@/context/UserContext";
+import TopicViewer from "../course/TopicViewer";
 
-interface PathNode {
+interface Track {
+    id: string;
+    title: string;
+    slug: string;
+}
+
+interface Module {
     id: string;
     title: string;
     description: string;
+    order_index: number;
+}
+
+interface Topic {
+    id: string;
+    module_id: string;
+    title: string;
+    type: "video" | "quiz" | "article" | "challenge";
+    order_index: number;
+    position_x: number;
+    position_y_index: number;
+    xp_reward: number;
+    content_data: any;
+}
+
+interface PathNode extends Topic {
     status: "completed" | "active" | "locked";
-    xp: number;
     position: { x: number; y: number };
 }
 
-// Static Course Data for different tracks
-// TODO: Fetch track data from backend
-const TRACKS_DATA: Record<string, PathNode[]> = {
-    "Web Dev": [],
-    "DSA": []
-};
-
-import { useAutoScroll } from "@/hooks/use-auto-scroll";
-
 export default function GamifiedPath() {
+    const supabase = createClient();
+    const { user: authUser } = useUser();
+    const [tracks, setTracks] = useState<Track[]>([]);
+    const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
+    const [pathData, setPathData] = useState<PathNode[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<PathNode | null>(null);
-    const [currentTrack, setCurrentTrack] = useState<"Web Dev" | "DSA">("Web Dev");
+    const [activeTopic, setActiveTopic] = useState<PathNode | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const componentRef = useRef<HTMLDivElement>(null);
+
+    const fetchPath = useCallback(async () => {
+        if (!currentTrackId) return;
+        setIsLoading(true);
+        try {
+            // Fetch modules
+            const { data: modules } = await supabase
+                .from("modules")
+                .select("*")
+                .eq("track_id", currentTrackId)
+                .order("order_index");
+
+            if (!modules) return;
+
+            // Fetch topics
+            const { data: topics } = await supabase
+                .from("topics")
+                .select("*")
+                .in("module_id", modules.map(m => m.id))
+                .order("order_index", { ascending: true }); // We'll re-sort by module then topic
+
+            if (!topics) return;
+
+            // Fetch progress
+            const { data: progress } = authUser ? await supabase
+                .from("user_topic_progress")
+                .select("topic_id, status")
+                .eq("user_id", authUser.id) : { data: [] };
+
+            // Process Nodes and Layout
+            const nodes: PathNode[] = [];
+
+            // Sort topics by module order then topic order
+            const sortedTopics = topics.sort((a, b) => {
+                const modA = modules.find(m => m.id === a.module_id)?.order_index || 0;
+                const modB = modules.find(m => m.id === b.module_id)?.order_index || 0;
+                if (modA !== modB) return modA - modB;
+                return a.order_index - b.order_index;
+            });
+
+            sortedTopics.forEach((topic, idx) => {
+                const prog = progress?.find(p => p.topic_id === topic.id);
+                let status: PathNode["status"] = "locked";
+
+                if (prog?.status === "completed") {
+                    status = "completed";
+                } else if (idx === 0 || nodes[idx - 1]?.status === "completed") {
+                    status = "active";
+                }
+
+                // Zigzag calculation if not in DB
+                const x = topic.position_x || (idx % 2 === 0 ? 30 : 70);
+                const y = idx * 10; // Vertical spacing
+
+                nodes.push({
+                    ...topic,
+                    status,
+                    position: { x, y }
+                });
+            });
+
+            setPathData(nodes);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentTrackId, authUser, supabase]);
+
+    // 1. Fetch Tracks on Mount
+    useEffect(() => {
+        const fetchTracks = async () => {
+            const { data, error } = await supabase
+                .from("tracks")
+                .select("id, title, slug")
+                .order("order_index");
+
+            if (!error && data) {
+                setTracks(data);
+                if (data.length > 0) setCurrentTrackId(data[0].id);
+            }
+        };
+        fetchTracks();
+    }, [supabase]);
+
+    // 2. Fetch Modules & Topics for Current Track
+    useEffect(() => {
+        fetchPath();
+    }, [fetchPath]);
 
     // Scroll to this component on mount (page-level scroll)
     useEffect(() => {
@@ -37,10 +146,9 @@ export default function GamifiedPath() {
         return () => clearTimeout(timer);
     }, []);
 
-    const pathData = TRACKS_DATA[currentTrack];
     const activeNodeIndex = pathData.findIndex(n => n.status === "active");
     const completedPathPoints = pathData.slice(0, activeNodeIndex + 1);
-    const remainingPathPoints = pathData.slice(activeNodeIndex);
+    const remainingPathPoints = pathData.slice(activeNodeIndex === -1 ? 0 : activeNodeIndex);
 
     const getNodeColor = (status: PathNode["status"]) => {
         switch (status) {
@@ -76,7 +184,7 @@ export default function GamifiedPath() {
 
         // Scale percentages to pixels for the SVG path
         const getX = (p: PathNode) => p.position.x; // Keep x as % (0-100)
-        const getY = (p: PathNode) => (p.position.y / 100) * contentHeight; // distinct Y in pixels
+        const getY = (p: PathNode) => (p.position.y / 100) * contentHeight; // Use defined contentHeight
 
         // Start point
         let d = `M ${getX(points[0])} ${getY(points[0])}`;
@@ -115,11 +223,11 @@ export default function GamifiedPath() {
                         className="bg-zinc-900 text-white pl-4 pr-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg shadow-zinc-900/10 hover:bg-zinc-800 transition-all active:scale-95"
                     >
                         <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                            {currentTrack === "Web Dev" ? <Zap size={16} className="text-yellow-400" /> : <Trophy size={16} className="text-lime-400" />}
+                            {tracks.find(t => t.id === currentTrackId)?.slug === "web-development" ? <Zap size={16} className="text-yellow-400" /> : <Trophy size={16} className="text-lime-400" />}
                         </div>
                         <div className="text-left">
                             <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Current Track</div>
-                            <div className="font-bold leading-tight">{currentTrack}</div>
+                            <div className="font-bold leading-tight">{tracks.find(t => t.id === currentTrackId)?.title || "Select Track"}</div>
                         </div>
                         <motion.div animate={{ rotate: isFilterOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
@@ -138,20 +246,20 @@ export default function GamifiedPath() {
                                     className="absolute top-full mt-2 left-0 w-64 bg-white rounded-2xl shadow-xl border border-zinc-200 p-2 z-30 overflow-hidden"
                                 >
                                     <div className="text-xs font-bold text-zinc-400 px-3 py-2 uppercase tracking-wider">Switch Roadmap</div>
-                                    {(Object.keys(TRACKS_DATA) as Array<"Web Dev" | "DSA">).map(track => (
+                                    {tracks.map(track => (
                                         <button
-                                            key={track}
-                                            onClick={() => { setCurrentTrack(track); setIsFilterOpen(false); }}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTrack === track ? "bg-lime-50 border border-lime-100" : "hover:bg-zinc-50"}`}
+                                            key={track.id}
+                                            onClick={() => { setCurrentTrackId(track.id); setIsFilterOpen(false); }}
+                                            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTrackId === track.id ? "bg-lime-50 border border-lime-100" : "hover:bg-zinc-50"}`}
                                         >
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${currentTrack === track ? "bg-lime-100 text-lime-700" : "bg-zinc-100 text-zinc-500"}`}>
-                                                {track === "Web Dev" ? <Zap size={16} /> : <Trophy size={16} />}
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${currentTrackId === track.id ? "bg-lime-100 text-lime-700" : "bg-zinc-100 text-zinc-500"}`}>
+                                                {track.slug === "web-development" ? <Zap size={16} /> : <Trophy size={16} />}
                                             </div>
                                             <div className="text-left flex-1">
-                                                <div className={`font-bold text-sm ${currentTrack === track ? "text-zinc-900" : "text-zinc-600"}`}>{track}</div>
-                                                <div className="text-[10px] text-zinc-400">{track === "Web Dev" ? "Frontend & Backend" : "Algorithms & Structures"}</div>
+                                                <div className={`font-bold text-sm ${currentTrackId === track.id ? "text-zinc-900" : "text-zinc-600"}`}>{track.title}</div>
+                                                <div className="text-[10px] text-zinc-400">{track.slug === "web-development" ? "Frontend & Backend" : "Algorithms & Structures"}</div>
                                             </div>
-                                            {currentTrack === track && <Check size={16} className="text-lime-600" />}
+                                            {currentTrackId === track.id && <Check size={16} className="text-lime-600" />}
                                         </button>
                                     ))}
                                 </motion.div>
@@ -376,7 +484,7 @@ export default function GamifiedPath() {
                                         ${node.status === "active" ? "bg-amber-400 text-amber-900 rotate-6 scale-110" : "bg-zinc-900 text-white"}
                                     `}>
                                         <Star size={8} className={`${node.status === "active" ? "fill-amber-800 text-amber-800" : "fill-yellow-400 text-yellow-400"}`} />
-                                        {node.xp}
+                                        {node.xp_reward}
                                     </div>
                                 </motion.div>
                             </motion.button>
@@ -432,7 +540,7 @@ export default function GamifiedPath() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="text-2xl font-black text-zinc-900">{selectedNode.title}</h3>
-                                    <p className="text-zinc-500">{selectedNode.description}</p>
+                                    <p className="text-zinc-500 capitalize">{selectedNode.type} Lesson</p>
                                 </div>
                             </div>
 
@@ -441,19 +549,33 @@ export default function GamifiedPath() {
                                     <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Reward</span>
                                     <span className="text-xl font-black text-lime-600 flex items-center gap-1">
                                         <Star size={16} className="fill-lime-400 text-lime-400" />
-                                        {selectedNode.xp} XP
+                                        {selectedNode.xp_reward} XP
                                     </span>
                                 </div>
                             </div>
 
                             <button
                                 className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all shadow-lg"
-                                onClick={() => setSelectedNode(null)}
+                                onClick={() => { setActiveTopic(selectedNode); setSelectedNode(null); }}
                             >
                                 {selectedNode.status === "completed" ? "Review" : "Start Learning"}
                             </button>
                         </motion.div>
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Full Screen Topic Viewer */}
+            <AnimatePresence>
+                {activeTopic && (
+                    <TopicViewer
+                        topic={activeTopic}
+                        onClose={() => setActiveTopic(null)}
+                        onComplete={async () => {
+                            await fetchPath();
+                            setActiveTopic(null);
+                        }}
+                    />
                 )}
             </AnimatePresence>
         </div >
