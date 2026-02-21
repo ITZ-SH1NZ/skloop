@@ -19,15 +19,20 @@ export async function GET(request: Request) {
             const next = requestUrl.searchParams.get('next') || '/dashboard'
             return NextResponse.redirect(new URL(next, request.url))
         }
+        // Pass the actual Supabase error to the login page
+        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url))
     }
 
     if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (!error) {
-            return NextResponse.redirect(new URL('/dashboard', request.url))
+            const next = requestUrl.searchParams.get('next') || '/dashboard'
+            return NextResponse.redirect(new URL(next, request.url))
         }
+        // Pass the actual Supabase error to the login page
+        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url))
     }
 
-    // return the user to an error page with instructions
-    return NextResponse.redirect(new URL('/login?error=Invalid+verification+link', request.url))
+    // fallback if no params
+    return NextResponse.redirect(new URL('/login?error=No+authentication+parameters+found', request.url))
 }

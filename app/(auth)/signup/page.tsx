@@ -128,6 +128,7 @@ export default function SignupPage() {
                 email: formData.email,
                 password: formData.password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/confirmed`,
                     data: {
                         username: formData.handle,
                         full_name: formData.name,

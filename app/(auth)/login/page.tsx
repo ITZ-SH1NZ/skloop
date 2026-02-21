@@ -3,15 +3,24 @@
 import AuthCard, { AuthInput, AuthButton } from "@/components/auth/AuthCard";
 import { Mail, Lock } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-export default function LoginPage() {
+function LoginForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const supabase = createClient();
+
+    // Catch errors from URL (e.g. from auth callback failures)
+    useEffect(() => {
+        const errorMsg = searchParams.get('error');
+        if (errorMsg) {
+            setError(decodeURIComponent(errorMsg));
+        }
+    }, [searchParams]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -108,5 +117,19 @@ export default function LoginPage() {
                 </p>
             </div>
         </AuthCard>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <AuthCard subtitle="Loading...">
+                <div className="h-64 flex items-center justify-center">
+                    <div className="w-10 h-10 border-4 border-zinc-100 border-t-primary rounded-full animate-spin" />
+                </div>
+            </AuthCard>
+        }>
+            <LoginForm />
+        </Suspense>
     );
 }

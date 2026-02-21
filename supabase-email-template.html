@@ -365,14 +365,7 @@
                 </p>
 
                 <div class="button-container">
-                    <!-- 
-            IMPORTANT: 
-            If you use a custom callback URL, make sure the link is:
-            {{ .SiteURL }}/auth/callback?code={{ .TokenHash }}
-            Otherwise the default is:
-            {{ .ConfirmationURL }}
-          -->
-                    <a href="{{ .SiteURL }}/auth/callback?code={{ .TokenHash }}" class="button">Authorize Account</a>
+                    <a href="{{ .ConfirmationURL }}" class="button">Authorize Account</a>
                 </div>
 
             </div>
@@ -382,8 +375,7 @@
 
                 <div class="raw-link-container">
                     <p class="raw-link-text">Manual Override Link</p>
-                    <a href="{{ .SiteURL }}/auth/callback?code={{ .TokenHash }}" class="raw-link">{{ .SiteURL
-                        }}/auth/callback?code={{ .TokenHash }}</a>
+                    <a href="{{ .ConfirmationURL }}" class="raw-link">{{ .ConfirmationURL }}</a>
                 </div>
             </div>
         </div>
