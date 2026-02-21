@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
 import { motion } from "framer-motion";
@@ -62,43 +62,31 @@ const PANELS = [
 export const ProtocolOverview = () => {
     const sectionRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
-    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
-        if (!sectionRef.current || !triggerRef.current) return;
-
         const totalPanels = PANELS.length;
 
-        // Use pixel-based translation for exact precision (kills the white space bug)
-        const getScrollAmount = () => -(sectionRef.current!.scrollWidth - window.innerWidth);
-
         const pin = gsap.to(sectionRef.current, {
-            x: getScrollAmount,
+            xPercent: -100 * (totalPanels - 1) / totalPanels,
             ease: "none",
             scrollTrigger: {
                 trigger: triggerRef.current,
                 pin: true,
                 start: "top top",
-                // Scroll duration matches the physical width of the panels
-                end: () => `+=${sectionRef.current!.scrollWidth - window.innerWidth}`,
-                scrub: 0.5,
+                end: () => `+=${sectionRef.current?.offsetWidth || 3000}`,
+                scrub: 0.6,
                 snap: {
                     snapTo: 1 / (totalPanels - 1),
-                    duration: { min: 0.2, max: 0.4 },
-                    ease: "power1.inOut"
+                    duration: { min: 0.1, max: 0.3 },
+                    delay: 0,
+                    ease: "power2.inOut"
                 },
+                anticipatePin: 1,
                 invalidateOnRefresh: true,
-                onUpdate: (self) => {
-                    // Drive the progress bar state
-                    setProgress(self.progress * 100);
-                }
             }
         });
-
         return () => {
             pin.kill();
-            // Clean up to prevent React strict-mode double-render issues
-            ScrollTrigger.getAll().forEach(st => st.kill());
         };
     }, []);
 
@@ -118,17 +106,8 @@ export const ProtocolOverview = () => {
                 </p>
             </div>
 
-            <div ref={triggerRef} className="relative">
-                {/* The Progress Bar Overlay */}
-                <div className="absolute bottom-12 left-12 right-12 md:left-24 md:right-24 h-1.5 bg-white/10 rounded-full overflow-hidden z-50 pointer-events-none">
-                    <div
-                        className="h-full bg-primary transition-all duration-100 ease-out"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-
-                {/* Changed to w-max to perfectly fit the children, no ghost space */}
-                <div ref={sectionRef} className="h-screen w-max flex flex-row items-center bg-zinc-900 text-white relative will-change-transform">
+            <div ref={triggerRef}>
+                <div ref={sectionRef} className="h-screen w-[500vw] flex flex-row items-center bg-zinc-900 text-white relative will-change-transform">
                     {/* Background Detail Grid */}
                     <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
                         style={{

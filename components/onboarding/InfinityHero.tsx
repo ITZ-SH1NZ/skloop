@@ -50,12 +50,9 @@ export const InfinityHero = () => {
                     scrollTrigger: {
                         trigger: containerRef.current,
                         start: "top top",
-                        end: "+=250%",
+                        end: "+=150%",
                         pin: true,
                         scrub: 1,
-                        onUpdate: (self) => {
-                            // Sync state if needed for UI reactive bits
-                        }
                     }
                 });
 
@@ -76,12 +73,7 @@ export const InfinityHero = () => {
                         y: 0,
                         duration: 1,
                         ease: "power3.out"
-                    }, "-=1")
-                    // Hold phase - forcing a gap where content is fully visible but locked
-                    .to({}, { duration: 1 });
-
-                // Refresh ScrollTrigger to account for dynamic entry
-                ScrollTrigger.refresh();
+                    }, "-=1");
             }
         }, containerRef);
 
