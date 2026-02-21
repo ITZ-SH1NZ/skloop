@@ -14,11 +14,13 @@ import { ImageCropper } from "@/components/ui/ImageCropper";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/ToastProvider";
 
+import { useUser } from "@/context/UserContext";
+import { uploadProfileImage } from "@/utils/supabase/storage";
+
 // Theme Configuration (Fixed)
 const THEME = { name: "Gold", bg: "bg-amber-50", text: "text-amber-900", border: "border-amber-100", ring: "text-amber-500", solid: "bg-amber-500" };
 
 // Mock User Data
-// TODO: Fetch user data from backend
 const DEFAULT_USER = {
     name: "User",
     username: "user",
@@ -37,12 +39,48 @@ const DEFAULT_USER = {
 export function GamifiedHeader() {
     const supabase = createClient();
     const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(true);
+    const { profile: globalProfile, isLoading: isUserLoading, refreshProfile } = useUser();
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [user, setUser] = useState(DEFAULT_USER);
-    const [formData, setFormData] = useState(DEFAULT_USER);
+
+    // Default values for rendering
+    const user = {
+        name: globalProfile?.full_name || "User",
+        username: globalProfile?.username || "user",
+        bio: globalProfile?.bio || "",
+        location: globalProfile?.location || "--",
+        website: globalProfile?.website || "",
+        joined: globalProfile?.joined_at ? new Date(globalProfile.joined_at).toLocaleDateString() : "Recently",
+        level: globalProfile?.level || 1,
+        xp: globalProfile?.xp || 0,
+        nextLevelXp: (globalProfile?.level || 1) * 100,
+        coins: globalProfile?.coins || 0,
+        avatar: globalProfile?.avatar_url || "https://github.com/shadcn.png",
+        banner: globalProfile?.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
+    };
+
+    const [formData, setFormData] = useState(user);
+
+    // Update formData when globalProfile becomes available (for first click of Edit)
+    useEffect(() => {
+        if (globalProfile) {
+            setFormData({
+                name: globalProfile.full_name || "User",
+                username: globalProfile.username || "user",
+                bio: globalProfile.bio || "",
+                location: globalProfile.location || "--",
+                website: globalProfile.website || "",
+                joined: globalProfile.joined_at ? new Date(globalProfile.joined_at).toLocaleDateString() : "Recently",
+                level: globalProfile.level || 1,
+                xp: globalProfile.xp || 0,
+                nextLevelXp: (globalProfile.level || 1) * 100,
+                coins: globalProfile.coins || 0,
+                avatar: globalProfile.avatar_url || "https://github.com/shadcn.png",
+                banner: globalProfile.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
+            } as any);
+        }
+    }, [globalProfile]);
 
     // Cropping State
     const [croppingImage, setCroppingImage] = useState<string | null>(null);
@@ -53,80 +91,72 @@ export function GamifiedHeader() {
 
     const theme = THEME;
 
-    // Fetch user profile on mount
-    useEffect(() => {
-        const fetchProfile = async () => {
-            const { data: { user: authUser } } = await supabase.auth.getUser();
-            if (authUser) {
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', authUser.id)
-                    .single();
-
-                let profileData;
-                const meta = authUser.user_metadata || {};
-
-                if (data && !error) {
-                    profileData = {
-                        name: data.full_name || meta.full_name || "User",
-                        username: data.username || meta.username || "user",
-                        bio: data.bio || "",
-                        location: "--",
-                        website: "--",
-                        joined: "Recently",
-                        level: data.level || 1,
-                        xp: data.xp || 0,
-                        nextLevelXp: (data.level || 1) * 100,
-                        coins: data.coins || 0,
-                        avatar: data.avatar_url || meta.avatar_url || "https://github.com/shadcn.png",
-                        banner: data.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
-                    };
-                } else {
-                    // Fallback if profile row is completely missing
-                    profileData = {
-                        ...DEFAULT_USER,
-                        name: meta.full_name || "User",
-                        username: meta.username || "user",
-                        avatar: meta.avatar_url || DEFAULT_USER.avatar
-                    };
-                }
-
-                setUser(profileData as any);
-                setFormData(profileData as any);
-            }
-            setIsLoading(false);
-        };
-        fetchProfile();
-    }, [supabase]);
-
     const handleSave = async () => {
+        if (isSaving) return;
+
         setIsSaving(true);
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-            // Note: Uploading images via Supabase Storage comes next
-            // For now, we update the simple text fields
+        try {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+
+            if (!authUser) {
+                toast("You must be logged in to save changes.", "error");
+                return;
+            }
+
+            let avatarUrl = formData.avatar;
+            let bannerUrl = formData.banner;
+
+            // 1. Upload Avatar if it's a new file (data or blob URL)
+            if (avatarUrl.startsWith("data:") || avatarUrl.startsWith("blob:")) {
+                toast("Uploading avatar...", "info");
+                const uploadedUrl = await uploadProfileImage(
+                    "avatars",
+                    `${authUser.id}/avatar_${Date.now()}.jpg`,
+                    avatarUrl
+                );
+                if (uploadedUrl) avatarUrl = uploadedUrl;
+            }
+
+            // 2. Upload Banner if it's a new file
+            if (bannerUrl.startsWith("data:") || bannerUrl.startsWith("blob:")) {
+                toast("Uploading banner...", "info");
+                const uploadedUrl = await uploadProfileImage(
+                    "banners",
+                    `${authUser.id}/banner_${Date.now()}.jpg`,
+                    bannerUrl
+                );
+                if (uploadedUrl) bannerUrl = uploadedUrl;
+            }
+
+            // 3. Update Profile with new URLs and text fields
+            toast("Saving profile changes...", "info");
             const { error } = await supabase
                 .from('profiles')
                 .update({
                     full_name: formData.name,
                     username: formData.username,
                     bio: formData.bio,
-                    avatar_url: formData.avatar,
-                    banner_url: formData.banner,
+                    location: formData.location,
+                    website: formData.website,
+                    avatar_url: avatarUrl,
+                    banner_url: bannerUrl,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', authUser.id);
 
-            if (!error) {
-                setUser(formData);
-                setIsEditModalOpen(false);
-                toast("Profile updated successfully!", "success");
-            } else {
-                toast(`Failed to update profile: ${error.message}`, "error");
-            }
+            if (error) throw error;
+
+            // Success
+            await refreshProfile();
+            setIsEditModalOpen(false);
+            toast("Profile updated successfully!", "success");
+
+        } catch (error: any) {
+            console.error("Error saving profile:", error);
+            toast(`Failed to update profile: ${error.message || "Unknown error"}`, "error");
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
 
     const handleFileSelect = (e: ChangeEvent<HTMLInputElement>, field: "avatar" | "banner") => {
@@ -152,7 +182,7 @@ export function GamifiedHeader() {
 
     const xpProgress = (user.xp / user.nextLevelXp) * 100;
 
-    if (isLoading) {
+    if (isUserLoading) {
         return (
             <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden relative h-64 flex items-center justify-center">
                 <div className="w-8 h-8 rounded-full border-4 border-amber-200 border-t-amber-500 animate-spin"></div>

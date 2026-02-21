@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/Card";
 import DailyCodeleShare from "@/components/practice/DailyCodeleShare";
 import confetti from "canvas-confetti";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { useUser } from "@/context/UserContext";
+import { createClient } from "@/utils/supabase/client";
 
 const WORDS = ["REACT", "STACK", "QUEUE", "ASYNC", "CONST", "AWAIT", "FETCH", "BUILD", "DEBUG", "LOGIC"];
 
@@ -22,6 +24,7 @@ const VALID_WORDS = [
 ];
 
 export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen: boolean; onClose: () => void; inline?: boolean }) {
+    const { user } = useUser();
     const [solution, setSolution] = useState("");
     const [guesses, setGuesses] = useState<string[]>(Array(6).fill(""));
     const [currentGuess, setCurrentGuess] = useState("");
@@ -35,7 +38,6 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
 
     useEffect(() => {
         const fetchDailyPuzzle = async () => {
-            const { createClient } = await import('@/utils/supabase/client');
             const supabase = createClient();
 
             // Get today's date in YYYY-MM-DD
@@ -52,7 +54,6 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
                 setPuzzleId(puzzle.id);
 
                 // Also check if user has already played today
-                const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const { data: attempt } = await supabase
                         .from('user_puzzle_attempts')
@@ -71,7 +72,7 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
             }
         };
         fetchDailyPuzzle();
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         if (!isOpen && !inline) return;

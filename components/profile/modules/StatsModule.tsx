@@ -1,12 +1,14 @@
 "use client";
 
 import { ActivityHeatmap } from "../charts/ActivityHeatmap";
-import { DSARadar } from "../charts/DSARadar"; // Reusing existing
+import { DSARadar } from "../charts/DSARadar";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useUser } from "@/context/UserContext";
 
 export function StatsModule() {
+    const { user } = useUser();
     const [courses, setCourses] = useState<{ name: string, progress: number, color: string }[]>([
         { name: "No courses started", progress: 0, color: "bg-gray-300" }
     ]);
@@ -15,7 +17,6 @@ export function StatsModule() {
     useEffect(() => {
         const fetchCourses = async () => {
             const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
 
             if (user) {
                 const { data, error } = await supabase
@@ -42,7 +43,7 @@ export function StatsModule() {
             setIsLoading(false);
         };
         fetchCourses();
-    }, []);
+    }, [user]);
     return (
         <div className="space-y-8">
             <h2 className="text-2xl font-bold tracking-tight">Skill Breakdown</h2>

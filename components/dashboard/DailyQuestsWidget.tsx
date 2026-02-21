@@ -18,12 +18,15 @@ interface Quest {
     onClick?: () => void;
 }
 
+import { useUser } from "@/context/UserContext";
+
 export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () => void }) {
+    const { profile } = useUser();
     const [quests, setQuests] = useState<Quest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchQuests = async () => {
+        const fetchQuestStatus = async () => {
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -31,37 +34,17 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
 
             const todayStr = new Date().toISOString().split('T')[0];
 
-            let loginCompleted = false;
+            // Only check completion, don't grant rewards (handled by UserContext)
             const { data: activity } = await supabase
                 .from('activity_logs')
                 .select('id')
                 .eq('user_id', user.id)
-                .gte('activity_date', todayStr)
+                .eq('activity_date', todayStr)
+                .eq('focus_area', 'Daily Login')
                 .limit(1)
                 .single();
 
-            if (activity) {
-                loginCompleted = true;
-            } else {
-                // To keep it simple, log their "login" for today right now if it's missing
-                await supabase.from('activity_logs').insert({
-                    user_id: user.id,
-                    activity_date: todayStr,
-                    hours_spent: 0.1, // Minimal
-                    focus_area: 'Dashboard Login'
-                });
-                loginCompleted = true;
-
-                // Grant initial login XP/Coins if we just inserted
-                const { data: profile } = await supabase.from('profiles').select('xp, coins, streak').eq('id', user.id).single();
-                if (profile) {
-                    await supabase.from('profiles').update({
-                        xp: (profile.xp || 0) + 10,
-                        coins: (profile.coins || 0) + 5,
-                        streak: (profile.streak || 0) + 1
-                    }).eq('id', user.id);
-                }
-            }
+            const loginCompleted = !!activity;
 
             let codeleCompleted = false;
             const { data: dailyPuzzle } = await supabase
@@ -107,7 +90,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
             ]);
             setIsLoading(false);
         };
-        fetchQuests();
+        fetchQuestStatus();
     }, [onOpenCodele]);
 
     const allCompleted = quests.length > 0 && quests.every(q => q.completed);

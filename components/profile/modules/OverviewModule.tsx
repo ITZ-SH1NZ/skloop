@@ -8,20 +8,19 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
 
+import { useUser } from "@/context/UserContext";
+
 export function OverviewModule() {
     const supabase = createClient();
+    const { profile } = useUser();
     const [stats, setStats] = useState({ streak: 0, lessonsCompleted: 0, problemsSolved: 0 });
 
     useEffect(() => {
         const fetchStats = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                // Streak
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('streak')
-                    .eq('id', user.id)
-                    .single();
+                // Streak comes from profile context
+                const streak = profile?.streak || 0;
 
                 // Problems Solved (Quizzes + Codele Wins)
                 const { count: dsaCount } = await supabase
@@ -47,14 +46,14 @@ export function OverviewModule() {
                 const lessonsCompleted = coursesData ? coursesData.reduce((acc, curr) => acc + (curr.completed_lessons || 0), 0) : 0;
 
                 setStats({
-                    streak: data?.streak || 0,
+                    streak,
                     problemsSolved,
                     lessonsCompleted
                 });
             }
         };
         fetchStats();
-    }, []);
+    }, [profile]);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

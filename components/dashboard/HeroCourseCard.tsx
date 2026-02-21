@@ -4,16 +4,16 @@ import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useUser } from "@/context/UserContext";
+import { createClient } from "@/utils/supabase/client";
 
 export default function HeroCourseCard() {
+    const { user } = useUser();
     const [course, setCourse] = useState<any>(null);
 
     useEffect(() => {
         const fetchCourse = async () => {
-            const { createClient } = await import('@/utils/supabase/client');
             const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
             if (user) {
                 // Fetch user's pinned course or most recent
                 const { data, error } = await supabase

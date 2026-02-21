@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { useUser } from "@/context/UserContext";
 
 const getLevelColor = (level: number) => {
     switch (level) {
@@ -18,12 +19,12 @@ const getLevelColor = (level: number) => {
 };
 
 export function ActivityHeatmap() {
+    const { user } = useUser();
     const [activityData, setActivityData] = useState<number[]>(Array(365).fill(0));
 
     useEffect(() => {
         const fetchActivity = async () => {
             const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
             // Date 365 days ago

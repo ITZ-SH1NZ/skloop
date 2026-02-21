@@ -7,22 +7,14 @@ import { useToast } from "@/components/ui/ToastProvider";
 import Link from "next/link";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
 import { createClient } from "@/utils/supabase/client";
+import { useUser } from "@/context/UserContext";
 
 export default function DashboardHeader({ initialUser }: { initialUser?: any }) {
     const { toast } = useToast();
     const [activeDropdown, setActiveDropdown] = useState<'notifications' | 'profile' | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const supabase = createClient();
-
-    // Real Data State
-    const [userProfile, setUserProfile] = useState<{
-        name: string;
-        xp: number;
-        coins: number;
-        level: number;
-        streak: number;
-        avatar_url: string;
-    } | null>(null);
+    const { profile: userProfile } = useUser();
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -34,43 +26,6 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    // Fetch User Profile
-    useEffect(() => {
-        const fetchProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('full_name, username, xp, coins, level, streak, avatar_url')
-                    .eq('id', user.id)
-                    .single();
-
-                const meta = user.user_metadata || {};
-
-                if (data && !error) {
-                    setUserProfile({
-                        name: data.full_name || data.username || meta.full_name || meta.username || "Pilot",
-                        xp: data.xp || 0,
-                        coins: data.coins || 0,
-                        level: data.level || 1,
-                        streak: data.streak || 0,
-                        avatar_url: data.avatar_url || meta.avatar_url || ""
-                    });
-                } else {
-                    setUserProfile({
-                        name: meta.full_name || meta.username || "Pilot",
-                        xp: 0,
-                        coins: 0,
-                        level: 1,
-                        streak: 0,
-                        avatar_url: meta.avatar_url || ""
-                    });
-                }
-            }
-        };
-        fetchProfile();
-    }, [supabase]);
 
     const toggleDropdown = (type: 'notifications' | 'profile') => {
         setActiveDropdown(activeDropdown === type ? null : type);
@@ -94,7 +49,7 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                     transition={{ delay: 0.2 }}
                     className="text-slate-500 text-sm"
                 >
-                    Welcome back, {userProfile?.name || "Loading..."}!
+                    Welcome back, {userProfile?.full_name || userProfile?.username || "Loading..."}!
                 </motion.p>
             </div>
 
