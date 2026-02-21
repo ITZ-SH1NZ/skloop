@@ -16,31 +16,28 @@ const MasterScrollContext = createContext<MasterScrollContextType | undefined>(u
 
 export function MasterScrollProvider({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const lenisRef = useRef<any>(null);
+    const [lenis, setLenis] = React.useState<any>(null);
 
     // Sync GSAP with Lenis heartbeat
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const lenis = lenisRef.current?.lenis;
-            if (!lenis) return;
+        if (!lenis) return;
 
-            // Update ScrollTrigger on Lenis scroll
-            lenis.on('scroll', ScrollTrigger.update);
+        // Update ScrollTrigger on Lenis scroll
+        lenis.on('scroll', ScrollTrigger.update);
 
-            // Manual RAF loop via GSAP ticker for perfect sync
-            const update = (time: number) => {
-                lenis.raf(time * 1000);
-            };
+        // Manual RAF loop via GSAP ticker for perfect sync
+        const update = (time: number) => {
+            lenis.raf(time * 1000);
+        };
 
-            gsap.ticker.add(update);
-            gsap.ticker.lagSmoothing(0);
+        gsap.ticker.add(update);
+        gsap.ticker.lagSmoothing(0);
 
-            return () => {
-                gsap.ticker.remove(update);
-                lenis.off('scroll', ScrollTrigger.update);
-            };
-        }
-    }, []);
+        return () => {
+            gsap.ticker.remove(update);
+            lenis.off('scroll', ScrollTrigger.update);
+        };
+    }, [lenis]);
 
     // Refresh ScrollTrigger on route changes to account for height shifts
     useEffect(() => {
@@ -52,26 +49,25 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
     }, [pathname]);
 
     const scrollToTop = useCallback(() => {
-        lenisRef.current?.lenis?.scrollTo(0, { lerp: 0.1 });
-    }, []);
+        lenis?.scrollTo(0, { lerp: 0.1 });
+    }, [lenis]);
 
     const scrollToBottom = useCallback(() => {
-        lenisRef.current?.lenis?.scrollTo("bottom", { lerp: 0.1 });
-    }, []);
+        lenis?.scrollTo("bottom", { lerp: 0.1 });
+    }, [lenis]);
 
     const scrollToElement = useCallback((elementId: string, offset: number = 0) => {
         const target = elementId.startsWith("#") ? elementId : `#${elementId}`;
-        lenisRef.current?.lenis?.scrollTo(target, {
+        lenis?.scrollTo(target, {
             offset,
             lerp: 0.1,
             duration: 1.5
         });
-    }, []);
+    }, [lenis]);
 
     return (
         <ReactLenis
             root
-            ref={lenisRef}
             autoRaf={false}
             options={{
                 lerp: 0.1,
@@ -80,12 +76,17 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
                 syncTouch: true,
                 touchMultiplier: 1.5,
             }}
+            ref={(s: any) => {
+                if (s?.lenis && !lenis) {
+                    setLenis(s.lenis);
+                }
+            }}
         >
             <MasterScrollContext.Provider value={{
                 scrollToTop,
                 scrollToBottom,
                 scrollToElement,
-                lenis: lenisRef.current?.lenis
+                lenis
             }}>
                 {children}
             </MasterScrollContext.Provider>

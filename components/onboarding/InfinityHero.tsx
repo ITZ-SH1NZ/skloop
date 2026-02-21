@@ -50,11 +50,17 @@ export const InfinityHero = () => {
                     scrollTrigger: {
                         trigger: containerRef.current,
                         start: "top top",
-                        end: "+=150%",
+                        end: "+=125%",
                         pin: true,
                         scrub: 1,
+                        anticipatePin: 1,
                     }
                 });
+
+                // Force a refresh after a small delay to ensure scroller calculations are correct
+                setTimeout(() => {
+                    ScrollTrigger.refresh();
+                }, 100);
 
                 scrollTl
                     .to(loopRef.current, {

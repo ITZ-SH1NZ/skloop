@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
 import { motion } from "framer-motion";
@@ -60,116 +60,164 @@ const PANELS = [
 ];
 
 export const ProtocolOverview = () => {
-    const sectionRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
+    const orbitRef = useRef<HTMLDivElement>(null);
+    const [activeIdx, setActiveIdx] = useState(0);
 
     useEffect(() => {
-        const totalPanels = PANELS.length;
+        const total = PANELS.length;
 
-        const pin = gsap.to(sectionRef.current, {
-            xPercent: -100 * (totalPanels - 1) / totalPanels,
-            ease: "none",
+        // 1. Initial State: Carousel starts compressed
+        gsap.set(".orbit-card", {
+            opacity: 0,
+            scale: 0.8,
+            z: -500
+        });
+
+        const tl = gsap.timeline({
             scrollTrigger: {
                 trigger: triggerRef.current,
-                pin: true,
                 start: "top top",
-                end: () => `+=${sectionRef.current?.offsetWidth || 3000}`,
-                scrub: 0.6,
-                snap: {
-                    snapTo: 1 / (totalPanels - 1),
-                    duration: { min: 0.1, max: 0.3 },
-                    delay: 0,
-                    ease: "power2.inOut"
-                },
-                anticipatePin: 1,
-                invalidateOnRefresh: true,
+                end: "+=350%", // Long enough for smooth rotation
+                pin: true,
+                scrub: 1,
+                onUpdate: (self) => {
+                    // Calculate which card is closest to front (progress 0-1)
+                    const segment = 1 / total;
+                    const closest = Math.round(self.progress * (total - 1));
+                    if (closest !== activeIdx) setActiveIdx(closest);
+                }
             }
         });
+
+        // 2. The Rotation Animation
+        tl.to(orbitRef.current, {
+            rotateY: (total - 1) * -72, // -360 / 5 = -72 deg per step
+            ease: "none"
+        });
+
+        // 3. Staggered Entrance
+        gsap.to(".orbit-card", {
+            opacity: 1,
+            scale: 1,
+            z: 0,
+            duration: 1,
+            stagger: 0.1,
+            scrollTrigger: {
+                trigger: triggerRef.current,
+                start: "top 80%",
+            }
+        });
+
         return () => {
-            pin.kill();
+            ScrollTrigger.getAll().forEach(t => t.kill());
         };
     }, []);
 
     return (
-        <section className="overflow-hidden bg-[#FDFCF8]">
-            {/* Context Header */}
-            <div className="py-32 px-12 text-center max-w-4xl mx-auto">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 text-white rounded-full mb-8 shadow-xl">
+        <section ref={triggerRef} className="relative bg-zinc-950 overflow-hidden min-h-screen">
+            {/* Context Header (Pinned at Top) */}
+            <div className="absolute top-0 w-full z-50 py-16 px-12 text-center">
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full mb-6 backdrop-blur-md"
+                >
                     <LayoutDashboard size={14} className="text-primary" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] px-2 italic">Protocol Modules</span>
-                </div>
-                <h2 className="text-[clamp(3.5rem,8vw,8rem)] font-black tracking-tighter mb-8 leading-[0.85]">
-                    THE FULL <span className="text-primary italic">CIRCLE.</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] px-2 italic text-zinc-400">Mastery Orbit // Protocol v1.0</span>
+                </motion.div>
+                <h2 className="text-[clamp(2.5rem,6vw,6rem)] font-black tracking-tighter leading-none text-white select-none">
+                    ORCHESTRATED <span className="text-primary italic">INTELLIGENCE.</span>
                 </h2>
-                <p className="text-xl md:text-2xl text-zinc-500 font-medium">
-                    Skloop isn't just a course—it's a living technical ecosystem. Every feature is designed to sharpen your edge.
-                </p>
             </div>
 
-            <div ref={triggerRef}>
-                <div ref={sectionRef} className="h-screen w-[500vw] flex flex-row items-center bg-zinc-900 text-white relative will-change-transform">
-                    {/* Background Detail Grid */}
-                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
-                        style={{
-                            backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-                            backgroundSize: "80px 80px"
-                        }}
-                    />
+            {/* 3D Scene Root */}
+            <div className="relative h-screen flex items-center justify-center perspective-[2000px]">
+                {/* Background Grid (Parallax) */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+                    style={{
+                        backgroundImage: "radial-gradient(circle at 2px 2px, white 1px, transparent 0)",
+                        backgroundSize: "40px 40px",
+                        transform: "translateZ(-500px) scale(2)"
+                    }}
+                />
 
-                    {PANELS.map((panel, idx) => (
-                        <div key={panel.id} className="h-screen w-screen flex-shrink-0 flex items-center justify-center px-12 md:px-24 relative overflow-hidden">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center max-w-7xl w-full relative z-10">
+                {/* The Orbit Container */}
+                <div
+                    ref={orbitRef}
+                    className="relative w-full h-[600px] flex items-center justify-center translate-z-0 preserve-3d transition-transform duration-700 ease-out"
+                >
+                    {PANELS.map((panel, idx) => {
+                        const angle = (idx * 360) / PANELS.length;
+                        const isFocused = idx === activeIdx;
+
+                        return (
+                            <div
+                                key={panel.id}
+                                className="orbit-card absolute w-[90vw] md:w-[800px] preserve-3d flex items-center justify-center"
+                                style={{
+                                    transform: `rotateY(${angle}deg) translateZ(600px)`,
+                                }}
+                            >
                                 <motion.div
-                                    initial={{ opacity: 0, x: -30 }}
-                                    whileInView={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.8 }}
+                                    animate={{
+                                        opacity: isFocused ? 1 : 0.15,
+                                        scale: isFocused ? 1 : 0.85,
+                                        filter: isFocused ? "blur(0px)" : "blur(4px)",
+                                    }}
+                                    transition={{ duration: 0.5 }}
+                                    className="relative w-full bg-zinc-900 rounded-[3rem] border border-white/10 p-8 md:p-12 shadow-2xl overflow-hidden group"
                                 >
-                                    <div className="inline-flex items-center gap-4 py-2 px-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm mb-10 group">
-                                        <div className="p-2 bg-zinc-800 rounded-lg group-hover:rotate-12 transition-transform">{panel.icon}</div>
-                                        <div className="text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
-                                            {panel.subtitle}
+                                    {/* Card Content */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
+                                        <div>
+                                            <div className="flex items-center gap-4 mb-8">
+                                                <div className="p-3 bg-white/5 rounded-2xl text-primary">{panel.icon}</div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/60 italic">
+                                                    Module_0{idx + 1}
+                                                </div>
+                                            </div>
+
+                                            <h3 className="text-4xl md:text-6xl font-black tracking-tighter text-white mb-6 leading-none">
+                                                {panel.title}
+                                            </h3>
+
+                                            <p className="text-lg text-zinc-400 font-medium leading-relaxed mb-10 max-w-md">
+                                                {panel.description}
+                                            </p>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                {panel.features.map((feat, fIdx) => (
+                                                    <span key={fIdx} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold tracking-widest uppercase text-zinc-500">
+                                                        {feat}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="relative">
+                                            <div className="absolute -inset-10 bg-primary/20 blur-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                                            {panel.ui}
                                         </div>
                                     </div>
 
-                                    <h2 className="text-[clamp(3rem,6vw,5rem)] font-black tracking-tighter mb-8 leading-none">
-                                        {panel.title}
-                                    </h2>
-
-                                    <p className="text-lg md:text-xl text-zinc-400 font-medium leading-relaxed max-w-lg mb-12">
-                                        {panel.description}
-                                    </p>
-
-                                    <div className="flex flex-wrap gap-3">
-                                        {panel.features.map((feat, fIdx) => (
-                                            <div key={fIdx} className="px-5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-[10px] font-bold tracking-[0.1em] uppercase hover:bg-primary hover:text-zinc-900 transition-all cursor-default">
-                                                {feat}
-                                            </div>
-                                        ))}
+                                    {/* Numbers HUD detail */}
+                                    <div className="absolute bottom-6 right-10 text-[12rem] font-black text-white/[0.03] select-none pointer-events-none -mb-8 -mr-8 italic">
+                                        0{idx + 1}
                                     </div>
-                                </motion.div>
 
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                                    whileInView={{ opacity: 1, scale: 1, y: 0 }}
-                                    transition={{ duration: 1 }}
-                                    className="relative"
-                                >
-                                    <div className="absolute -inset-4 bg-primary/10 blur-[80px] opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    {panel.ui}
-
-                                    {/* Overlay HUD bits */}
-                                    <div className="absolute -top-4 -right-4 p-3 bg-zinc-900 border border-white/10 rounded-xl font-mono text-[9px] text-zinc-500">
-                                        MODULE_ID: 0{idx + 1}
-                                    </div>
+                                    {/* Decorative Borders */}
+                                    <div className="absolute inset-0 border-[20px] border-white/[0.01] pointer-events-none rounded-[3rem]" />
                                 </motion.div>
                             </div>
+                        );
+                    })}
+                </div>
 
-                            {/* Number Detail bg */}
-                            <div className="absolute bottom-[-5%] right-[-2%] text-[30vw] font-black text-white/[0.02] select-none pointer-events-none italic">
-                                0{idx + 1}
-                            </div>
-                        </div>
-                    ))}
+                {/* Controls Info Tooltip */}
+                <div className="absolute bottom-8 flex flex-col items-center gap-4 opacity-40">
+                    <div className="text-[8px] font-mono tracking-[0.4em] uppercase text-zinc-500">CONTINUE_DEEP_SYNC</div>
+                    <div className="h-12 w-px bg-gradient-to-b from-primary to-transparent" />
                 </div>
             </div>
         </section>
