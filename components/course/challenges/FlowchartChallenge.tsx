@@ -11,6 +11,8 @@ import {
     addEdge,
     Panel,
     MarkerType,
+    Node,
+    Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Play, RotateCcw, CheckCircle, Info, Database } from 'lucide-react';
@@ -27,13 +29,13 @@ interface FlowchartChallengeProps {
     onComplete: () => void;
 }
 
-const initialNodes = [
+const initialNodes: Node[] = [
     { id: '1', position: { x: 250, y: 50 }, data: { label: 'Start' }, type: 'input' },
 ];
 
 export default function FlowchartChallenge({ challengeData, onComplete }: FlowchartChallengeProps) {
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as any);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node>(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
     const [isValidating, setIsValidating] = useState(false);
     const [isPassed, setIsPassed] = useState(false);
 
