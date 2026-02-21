@@ -64,23 +64,29 @@ export const ProtocolOverview = () => {
     const triggerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const pin = gsap.fromTo(
-            sectionRef.current,
-            { translateX: 0 },
-            {
-                translateX: "-400vw",
-                ease: "none",
-                duration: 1,
-                scrollTrigger: {
-                    trigger: triggerRef.current,
-                    start: "top top",
-                    end: "3000 top",
-                    scrub: 0.6,
-                    pin: true,
-                    anticipatePin: 1, // Fixes mobile jitter during pin
+        const totalPanels = PANELS.length;
+
+        const pin = gsap.to(sectionRef.current, {
+            xPercent: -100 * (totalPanels - 1),
+            ease: "none",
+            scrollTrigger: {
+                trigger: triggerRef.current,
+                pin: true,
+                start: "top top",
+                end: `+=${totalPanels * 100}%`,
+                scrub: 0.6,
+                snap: {
+                    snapTo: 1 / (totalPanels - 1),
+                    duration: { min: 0.2, max: 0.5 },
+                    delay: 0,
+                    ease: "power1.inOut"
                 },
+                anticipatePin: 1,
+                onRefresh: (self) => {
+                    // Force final position sync on refresh
+                }
             }
-        );
+        });
         return () => {
             pin.kill();
         };
