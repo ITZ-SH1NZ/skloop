@@ -163,6 +163,8 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors"
                         onClick={async () => {
                             await supabase.auth.signOut();
+                            // Reset onboarding for logged out users
+                            document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
                             window.location.href = "/login";
                         }}
                     >

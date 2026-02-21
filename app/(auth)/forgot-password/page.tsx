@@ -6,19 +6,31 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { createClient } from "@/utils/supabase/client";
+
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
     const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+    const [error, setError] = useState<string | null>(null);
+    const supabase = createClient();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email) return;
 
         setStatus("sending");
-        // Simulate API call
-        setTimeout(() => {
+        setError(null);
+
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        });
+
+        if (error) {
+            setError(error.message);
+            setStatus("idle");
+        } else {
             setStatus("sent");
-        }, 1500);
+        }
     };
 
     return (
@@ -50,6 +62,12 @@ export default function ForgotPasswordPage() {
                                 autoFocus
                             />
                         </div>
+
+                        {error && (
+                            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-[10px] font-bold text-red-500 uppercase tracking-widest text-center">
+                                ERROR: {error}
+                            </div>
+                        )}
 
                         <div className="pt-2">
                             <AuthButton disabled={status === "sending" || !email}>

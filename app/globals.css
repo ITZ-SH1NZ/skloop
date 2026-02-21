@@ -140,6 +140,24 @@ body {
   text-wrap: balance;
 }
 
+/* Optimization Utilities */
+@utility gpu-accelerate {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1000px;
+  /* Placeholder size for off-screen */
+}
+
+section {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1000px;
+}
+
 /* Floating Layers Utilities */
 @utility card-float {
   background-color: var(--color-surface);

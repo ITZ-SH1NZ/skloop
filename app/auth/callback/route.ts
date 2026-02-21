@@ -16,7 +16,8 @@ export async function GET(request: Request) {
             token_hash,
         })
         if (!error) {
-            return NextResponse.redirect(new URL('/dashboard', request.url))
+            const next = requestUrl.searchParams.get('next') || '/dashboard'
+            return NextResponse.redirect(new URL(next, request.url))
         }
     }
 
