@@ -142,7 +142,7 @@ export default function EmbeddedCodal() {
             <div className="text-center mb-10">
                 <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-black uppercase">Daily Brain Teaser</h2>
                 <p className="text-zinc-600 font-bold mt-4 text-balance text-lg">
-                    Train your logic skills with <span className="text-black bg-lime-300 px-2 rounded">Codal</span>.
+                    Train your logic skills with <span className="text-black bg-lime-300 px-2 rounded">Codele</span>.
                     Can you guess the frontend library in one try?
                 </p>
             </div>
