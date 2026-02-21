@@ -64,30 +64,38 @@ export const ProtocolOverview = () => {
     const triggerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const totalPanels = PANELS.length;
+        const ctx = gsap.context(() => {
+            const section = sectionRef.current;
+            const trigger = triggerRef.current;
 
-        const pin = gsap.to(sectionRef.current, {
-            xPercent: -100 * (totalPanels - 1) / totalPanels,
-            ease: "none",
-            scrollTrigger: {
-                trigger: triggerRef.current,
-                pin: true,
-                start: "top top",
-                end: () => `+=${sectionRef.current?.offsetWidth || 3000}`,
-                scrub: 0.6,
-                snap: {
-                    snapTo: 1 / (totalPanels - 1),
-                    duration: { min: 0.1, max: 0.3 },
-                    delay: 0,
-                    ease: "power2.inOut"
-                },
-                anticipatePin: 1,
-                invalidateOnRefresh: true,
-            }
+            if (!section || !trigger) return;
+
+            const totalWidth = section.scrollWidth;
+            const viewportWidth = window.innerWidth;
+            const scrollDistance = totalWidth - viewportWidth;
+
+            gsap.to(section, {
+                x: -scrollDistance,
+                ease: "none",
+                scrollTrigger: {
+                    trigger: trigger,
+                    pin: true,
+                    start: "top top",
+                    end: () => `+=${scrollDistance}`,
+                    scrub: 0.5,
+                    snap: {
+                        snapTo: 1 / (PANELS.length - 1),
+                        duration: { min: 0.2, max: 0.5 },
+                        delay: 0,
+                        ease: "power2.inOut"
+                    },
+                    invalidateOnRefresh: true,
+                    anticipatePin: 1
+                }
+            });
         });
-        return () => {
-            pin.kill();
-        };
+
+        return () => ctx.revert();
     }, []);
 
     return (
