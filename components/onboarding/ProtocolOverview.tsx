@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/dist/ScrollTrigger";
 import { motion } from "framer-motion";
@@ -62,40 +62,44 @@ const PANELS = [
 export const ProtocolOverview = () => {
     const sectionRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
+    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
-        const ctx = gsap.context(() => {
-            const section = sectionRef.current;
-            const trigger = triggerRef.current;
+        if (!sectionRef.current || !triggerRef.current) return;
 
-            if (!section || !trigger) return;
+        const totalPanels = PANELS.length;
 
-            const totalWidth = section.scrollWidth;
-            const viewportWidth = window.innerWidth;
-            const scrollDistance = totalWidth - viewportWidth;
+        // Use pixel-based translation for exact precision (kills the white space bug)
+        const getScrollAmount = () => -(sectionRef.current!.scrollWidth - window.innerWidth);
 
-            gsap.to(section, {
-                x: -scrollDistance,
-                ease: "none",
-                scrollTrigger: {
-                    trigger: trigger,
-                    pin: true,
-                    start: "top top",
-                    end: () => `+=${scrollDistance}`,
-                    scrub: 0.5,
-                    snap: {
-                        snapTo: 1 / (PANELS.length - 1),
-                        duration: { min: 0.2, max: 0.5 },
-                        delay: 0,
-                        ease: "power2.inOut"
-                    },
-                    invalidateOnRefresh: true,
-                    anticipatePin: 1
+        const pin = gsap.to(sectionRef.current, {
+            x: getScrollAmount,
+            ease: "none",
+            scrollTrigger: {
+                trigger: triggerRef.current,
+                pin: true,
+                start: "top top",
+                // Scroll duration matches the physical width of the panels
+                end: () => `+=${sectionRef.current!.scrollWidth - window.innerWidth}`,
+                scrub: 0.5,
+                snap: {
+                    snapTo: 1 / (totalPanels - 1),
+                    duration: { min: 0.2, max: 0.4 },
+                    ease: "power1.inOut"
+                },
+                invalidateOnRefresh: true,
+                onUpdate: (self) => {
+                    // Drive the progress bar state
+                    setProgress(self.progress * 100);
                 }
-            });
+            }
         });
 
-        return () => ctx.revert();
+        return () => {
+            pin.kill();
+            // Clean up to prevent React strict-mode double-render issues
+            ScrollTrigger.getAll().forEach(st => st.kill());
+        };
     }, []);
 
     return (
@@ -114,8 +118,17 @@ export const ProtocolOverview = () => {
                 </p>
             </div>
 
-            <div ref={triggerRef}>
-                <div ref={sectionRef} className="h-screen w-[500vw] flex flex-row items-center bg-zinc-900 text-white relative will-change-transform">
+            <div ref={triggerRef} className="relative">
+                {/* The Progress Bar Overlay */}
+                <div className="absolute bottom-12 left-12 right-12 md:left-24 md:right-24 h-1.5 bg-white/10 rounded-full overflow-hidden z-50 pointer-events-none">
+                    <div
+                        className="h-full bg-primary transition-all duration-100 ease-out"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+
+                {/* Changed to w-max to perfectly fit the children, no ghost space */}
+                <div ref={sectionRef} className="h-screen w-max flex flex-row items-center bg-zinc-900 text-white relative will-change-transform">
                     {/* Background Detail Grid */}
                     <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
                         style={{
