@@ -93,10 +93,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(url)
         }
 
-        if (isOnboardingPath && hasSeenOnboarding) {
-            url.pathname = '/login'
-            return NextResponse.redirect(url)
-        }
+        // Allow revisiting onboarding even if cookie is set (good for reference/debugging)
+        // Only redirect if they are at the root and have seen it.
     }
 
     return response
