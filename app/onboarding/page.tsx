@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -11,8 +11,19 @@ import ExpandedSections from "@/components/marketing/ExpandedSections";
 import ParallaxBackground from "@/components/marketing/ParallaxBackground";
 
 export default function OnboardingPage() {
+    useEffect(() => {
+        // Force scroll to top on mount/reload to ensure user starts at Hero
+        window.scrollTo(0, 0);
+
+        // Some browsers try to be smart and restore scroll after a delay
+        const timer = setTimeout(() => {
+            window.scrollTo(0, 0);
+        }, 100);
+        return () => clearTimeout(timer);
+    }, []);
+
     return (
-        <div className="min-h-[200vh] bg-[#f8f9fa] selection:bg-[#D4F268] selection:text-black font-sans relative overflow-x-hidden">
+        <div className="min-h-screen bg-[#f8f9fa] selection:bg-[#D4F268] selection:text-black font-sans relative overflow-x-hidden">
 
             {/* GLOBAL BACKGROUND: 3D Grid Floor (from AuthVisuals) */}
             <div className="fixed inset-0 pointer-events-none z-0 perspective-[1000px]">

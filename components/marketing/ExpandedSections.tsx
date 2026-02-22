@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { Code2, Braces, Swords, Trophy, Sparkles, ArrowRight, Terminal, User, Play } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, useScroll, useTransform, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { Code2, Braces, Swords, Trophy, Sparkles, ArrowRight, Terminal, User, Play, Check } from "lucide-react";
+import confetti from "canvas-confetti";
 import Link from "next/link";
 
 import LiveServerLog from "./LiveServerLog";
 import LootBoxShowcase from "./LootBoxShowcase";
 import DevTradingCards from "./DevTradingCards";
 import PlayableBossFight from "./PlayableBossFight";
-import EmbeddedCodal from "./EmbeddedCodal";
+import EmbeddedCodele from "./EmbeddedCodele";
 import SkillTreeExplorer from "./SkillTreeExplorer";
 
 export default function ExpandedSections() {
@@ -28,7 +29,7 @@ export default function ExpandedSections() {
             <RPGDialogues />
 
             {/* Phase 3: Interactive Demos & Economy */}
-            <EmbeddedCodal />
+            <EmbeddedCodele />
             <LootBoxShowcase />
             <PlayableBossFight />
 
@@ -42,6 +43,18 @@ export default function ExpandedSections() {
 // 1. CHOOSE YOUR CHARACTER (Tracks Preview)
 // ---------------------------------------------------------------------------
 function CharacterSelect() {
+    const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+    const handleSelect = (id: string) => {
+        setSelectedPath(id);
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ["#D4F268", "#000000", "#FFFFFF"]
+        });
+    };
+
     return (
         <section className="relative w-full max-w-5xl mx-auto px-2 md:px-6">
             <div className="text-center mb-10 md:mb-16">
@@ -52,51 +65,138 @@ function CharacterSelect() {
                     transition={{ type: "spring", bounce: 0.5 }}
                     className="inline-block px-4 py-1.5 rounded-full bg-black text-lime-400 text-xs font-black uppercase tracking-widest mb-4 border-2 border-lime-400 shadow-[2px_2px_0_0_#A3E635]"
                 >
-                    Select Class
+                    Enroll Now
                 </motion.div>
                 <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black uppercase">Choose Your Path</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                {/* Web Dev Class */}
-                <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-white border-4 md:border-8 border-black rounded-3xl md:rounded-[2rem] p-6 md:p-8 shadow-[8px_8px_0_0_#000] md:shadow-[12px_12px_0_0_#000] relative overflow-hidden cursor-pointer hover:z-20 z-10 transition-all duration-300"
-                >
-                    <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-lime-200 rounded-bl-[100%] -z-10 group-hover:scale-110 transition-transform" />
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-lime-400 border-4 border-black rounded-xl flex items-center justify-center mb-4 md:mb-6 shadow-[4px_4px_0_0_#000]">
-                        <Code2 className="w-6 h-6 md:w-8 md:h-8 text-black" />
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-black mb-2 uppercase">The Builder</h3>
-                    <p className="text-zinc-600 font-semibold mb-6 text-sm md:text-base">Master full-stack Web Development. Learn React, Next.js, databases, and ship real projects to your portfolio.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12 perspective-[2000px]">
+                <PathCard
+                    title="The Builder"
+                    subtitle="Web Development Mastery"
+                    description="Master full-stack Web Development. Learn React, Next.js, databases, and ship real projects to your portfolio."
+                    icon={<Code2 className="w-8 h-8 md:w-10 md:h-10 text-black" />}
+                    color="bg-white"
+                    accentColor="bg-lime-400"
+                    glowColor="bg-lime-200"
+                    isSelected={selectedPath === "web"}
+                    onClick={() => handleSelect("web")}
+                    skills={[
+                        { name: "Frontend", level: 90, color: "bg-lime-400" },
+                        { name: "Backend", level: 75, color: "bg-emerald-400" },
+                        { name: "Design", level: 60, color: "bg-cyan-400" },
+                    ]}
+                />
 
-                    <div className="space-y-3 relative z-10">
-                        <SkillBar name="Frontend" level={90} color="bg-lime-400" />
-                        <SkillBar name="Backend" level={75} color="bg-emerald-400" />
-                        <SkillBar name="Design" level={60} color="bg-cyan-400" />
-                    </div>
-                </motion.div>
-
-                {/* DSA Class */}
-                <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-zinc-900 border-4 md:border-8 border-black rounded-3xl md:rounded-[2rem] p-6 md:p-8 shadow-[8px_8px_0_0_#000] md:shadow-[12px_12px_0_0_#000] relative overflow-hidden cursor-pointer hover:z-20 z-10 transition-all duration-300"
-                >
-                    <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-orange-500/20 rounded-bl-[100%] -z-10 group-hover:scale-110 transition-transform" />
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-500 border-4 border-black rounded-xl flex items-center justify-center mb-4 md:mb-6 shadow-[4px_4px_0_0_#000]">
-                        <Braces className="w-6 h-6 md:w-8 md:h-8 text-black" />
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-black mb-2 uppercase text-white">The Algomancer</h3>
-                    <p className="text-zinc-400 font-semibold mb-6 text-sm md:text-base">Conquer Data Structures and Algorithms. optimized for technical interviews at top-tier tech companies.</p>
-
-                    <div className="space-y-3">
-                        <SkillBar name="Logic" level={95} color="bg-orange-500" />
-                        <SkillBar name="Math" level={80} color="bg-red-400" />
-                        <SkillBar name="Speed" level={85} color="bg-yellow-400" />
-                    </div>
-                </motion.div>
+                <PathCard
+                    title="The Algomancer"
+                    subtitle="DSA & Logic Mastery"
+                    description="Conquer Data Structures and Algorithms optimized for technical interviews at top-tier tech companies."
+                    icon={<Braces className="w-8 h-8 md:w-10 md:h-10 text-white" />}
+                    color="bg-zinc-900"
+                    accentColor="bg-orange-500"
+                    glowColor="bg-orange-500/20"
+                    textColor="text-white"
+                    descColor="text-zinc-400"
+                    isSelected={selectedPath === "dsa"}
+                    onClick={() => handleSelect("dsa")}
+                    skills={[
+                        { name: "Logic", level: 95, color: "bg-orange-500" },
+                        { name: "Math", level: 80, color: "bg-red-400" },
+                        { name: "Speed", level: 85, color: "bg-yellow-400" },
+                    ]}
+                />
             </div>
         </section>
+    );
+}
+
+function PathCard({
+    title, subtitle, description, icon, color, accentColor, glowColor, textColor = "text-black", descColor = "text-zinc-600", skills, isSelected, onClick
+}: any) {
+    const x = useMotionValue(0);
+    const y = useMotionValue(0);
+
+    const mouseXSpring = useSpring(x, { stiffness: 150, damping: 15, mass: 0.5 });
+    const mouseYSpring = useSpring(y, { stiffness: 150, damping: 15, mass: 0.5 });
+
+    const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
+    const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
+    const glareOpacity = useTransform(mouseXSpring, [-0.5, 0, 0.5], [0, 0.2, 0]);
+    const glareX = useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]);
+    const glareY = useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]);
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        x.set(mouseX / width - 0.5);
+        y.set(mouseY / height - 0.5);
+    };
+
+    const handleMouseLeave = () => {
+        x.set(0);
+        y.set(0);
+    };
+
+    return (
+        <motion.div
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onClick={onClick}
+            style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+            animate={{
+                scale: isSelected ? 1.05 : 1,
+                y: isSelected ? -10 : 0,
+                boxShadow: isSelected ? "20px 20px 0 0 #000" : "12px 12px 0 0 #000"
+            }}
+            whileHover={{ y: isSelected ? -10 : -5 }}
+            whileTap={{ scale: 0.98 }}
+            className={`${color} border-4 md:border-8 border-black rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden cursor-pointer hover:z-20 z-10 transition-shadow duration-300`}
+        >
+            {/* Holographic Glare */}
+            <motion.div
+                className="absolute inset-0 z-50 pointer-events-none bg-gradient-to-br from-white to-transparent"
+                style={{ opacity: glareOpacity, left: glareX, top: glareY, transform: "translate(-50%, -50%) scale(2)" }}
+            />
+
+            {/* Background Accent */}
+            <div className={`absolute top-0 right-0 w-32 h-32 md:w-48 md:h-48 ${glowColor} rounded-bl-[100%] transition-transform group-hover:scale-110`} />
+
+            {/* Selection Badge */}
+            {isSelected && (
+                <div className="absolute top-6 right-6 z-50 bg-black text-lime-400 border-4 border-lime-400 rounded-full w-12 h-12 flex items-center justify-center shadow-[4px_4px_0_0_#000] rotate-12">
+                    <Check className="w-8 h-8" />
+                </div>
+            )}
+
+            <div className="relative z-10" style={{ transform: "translateZ(40px)" }}>
+                <div className={`w-14 h-14 md:w-20 md:h-20 ${accentColor} border-4 border-black rounded-2xl flex items-center justify-center mb-6 md:mb-8 shadow-[6px_6px_0_0_#000]`}>
+                    {icon}
+                </div>
+                <h3 className={`text-3xl md:text-4xl font-black mb-2 uppercase ${textColor}`}>{title}</h3>
+                <p className={`${descColor} font-bold mb-4 text-xs uppercase tracking-widest`}>{subtitle}</p>
+                <p className={`${descColor} font-semibold mb-8 text-sm md:text-lg leading-relaxed`}>{description}</p>
+
+                <div className="space-y-4">
+                    {skills.map((skill: any, i: number) => (
+                        <SkillBar key={i} name={skill.name} level={skill.level} color={skill.color} />
+                    ))}
+                </div>
+
+                {/* Tactical Select Button */}
+                <div className="mt-10 pt-6 border-t-4 border-black/5">
+                    <button className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center justify-center gap-2 ${isSelected
+                        ? "bg-black text-lime-400 shadow-none translate-y-1"
+                        : "bg-black text-white shadow-[0_6px_0_0_#3f3f46] hover:shadow-[0_4px_0_0_#3f3f46] hover:translate-y-1 active:shadow-none active:translate-y-1.5"
+                        }`}>
+                        {isSelected ? <><Check className="w-5 h-5" /> Path Selected</> : "Enroll in Track"}
+                    </button>
+                </div>
+            </div>
+        </motion.div>
     );
 }
 
@@ -134,7 +234,7 @@ function LeaderboardSnippet() {
                     <div className="w-full md:w-1/2">
                         <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-black text-center md:text-left">Climb The Ranks</h2>
                         <p className="text-zinc-800 font-bold text-base md:text-lg mb-6 md:mb-8 text-center md:text-left text-balance">
-                            Every module completed, every Codal puzzle solved, and every typing test aced earns you XP. Compete globally or against your study circle.
+                            Every module completed, every Codele puzzle solved, and every typing test aced earns you XP. Compete globally or against your study circle.
                         </p>
                         <div className="flex justify-center md:justify-start">
                             <Link href="/signup" className="w-full sm:w-auto">
@@ -148,7 +248,7 @@ function LeaderboardSnippet() {
                     <div className="w-full md:w-1/2">
                         <div className="bg-white border-4 border-black rounded-2xl p-4 md:p-5 shadow-[8px_8px_0_0_#000] flex flex-col gap-3">
                             <div className="flex justify-between items-center pb-2 border-b-4 border-black mb-2">
-                                <span className="font-black uppercase tracking-widest text-xs md:text-sm text-zinc-500">Global Top 3 (Codal)</span>
+                                <span className="font-black uppercase tracking-widest text-xs md:text-sm text-zinc-500">Global Top 3 (Codele)</span>
                                 <Trophy className="w-5 h-5 text-orange-500" />
                             </div>
 
@@ -255,6 +355,9 @@ function InteractiveConsoleCTA() {
     const [inputValue, setInputValue] = useState("");
     const [unlocked, setUnlocked] = useState(false);
     const [shake, setShake] = useState(false);
+    const consoleInputRef = useRef<HTMLInputElement>(null);
+
+
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -309,6 +412,7 @@ function InteractiveConsoleCTA() {
                                 <form onSubmit={handleSubmit} className="w-full max-w-md relative flex items-center">
                                     <span className="absolute left-4 text-lime-400 font-mono font-bold">$</span>
                                     <input
+                                        ref={consoleInputRef}
                                         type="text"
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}

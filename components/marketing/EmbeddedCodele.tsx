@@ -12,25 +12,32 @@ type KeyState = "absent" | "present" | "correct" | undefined;
 const TARGET_WORD = "REACT";
 const MAX_ATTEMPTS = 1; // Only one try for the demo
 
-export default function EmbeddedCodal() {
+export default function EmbeddedCodele() {
     const [word, setWord] = useState("");
     const [gameState, setGameState] = useState<"idle" | "playing" | "won" | "lost">("idle");
     const [hasGuessed, setHasGuessed] = useState(false);
     const [letterStates, setLetterStates] = useState<LetterState[]>(Array(5).fill("empty"));
     const [keyboardState, setKeyboardState] = useState<Record<string, KeyState>>({});
 
+    const handleKey = (key: string) => {
+        if (gameState !== "playing") return;
+        if (hasGuessed) return;
+
+        if (key === "ENTER") {
+            submitGuess();
+        } else if (key === "BACKSPACE" || key === "BACK") {
+            setWord((prev) => prev.slice(0, -1));
+        } else if (/^[a-zA-Z]$/.test(key) && word.length < 5) {
+            setWord((prev) => (prev + key).toUpperCase());
+        }
+    };
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (gameState !== "playing") return;
-            if (hasGuessed) return;
-
-            if (e.key === "Enter") {
-                submitGuess();
-            } else if (e.key === "Backspace") {
-                setWord((prev) => prev.slice(0, -1));
-            } else if (/^[a-zA-Z]$/.test(e.key) && word.length < 5) {
-                setWord((prev) => (prev + e.key).toUpperCase());
-            }
+            const key = e.key.toUpperCase();
+            if (key === "ENTER") handleKey("ENTER");
+            else if (key === "BACKSPACE") handleKey("BACKSPACE");
+            else if (/^[A-Z]$/.test(key)) handleKey(key);
         };
 
         window.addEventListener("keydown", handleKeyDown);
@@ -60,8 +67,10 @@ export default function EmbeddedCodal() {
                 newStates[i] = "present";
                 newKeyboardState[word[i]] = newKeyboardState[word[i]] === "correct" ? "correct" : "present";
                 targetChars[targetChars.indexOf(word[i])] = " ";
-            } else if (newStates[i] !== "correct") {
-                newKeyboardState[word[i]] = newKeyboardState[word[i]] === "correct" ? "correct" : newKeyboardState[word[i]] === "present" ? "present" : "absent";
+            } else if (newStates[i] !== "correct" && word[i] !== " ") {
+                if (!newKeyboardState[word[i]]) {
+                    newKeyboardState[word[i]] = "absent";
+                }
             }
         }
 
@@ -128,10 +137,17 @@ export default function EmbeddedCodal() {
                 if (state === "present") bg = "bg-yellow-500 border-yellow-600 text-black";
                 if (state === "absent") bg = "bg-zinc-900 border-zinc-800 text-zinc-600 opacity-50";
 
+                const isWide = k === "ENTER" || k === "BACK";
+
                 return (
-                    <div key={k} className={`px-2 md:px-3 py-3 md:py-4 rounded-lg border-b-4 font-bold text-xs md:text-sm ${bg}`}>
+                    <button
+                        key={k}
+                        onClick={() => handleKey(k)}
+                        className={`transition-all active:scale-95 py-2 md:py-2.5 rounded-lg border-b-4 font-bold text-[9px] md:text-xs flex items-center justify-center ${isWide ? "px-2 md:px-4 min-w-[50px] md:min-w-[70px] bg-zinc-700 active:translate-y-1 active:border-b-0" : "px-1 md:px-2 min-w-[28px] md:min-w-[38px]"
+                            } ${bg}`}
+                    >
                         {k}
-                    </div>
+                    </button>
                 )
             })}
         </div>
@@ -167,10 +183,10 @@ export default function EmbeddedCodal() {
                         <div className="flex flex-col items-center w-full">
                             {renderGridRow()}
 
-                            <div className="w-full max-w-sm mt-4">
+                            <div className="w-full mt-4">
                                 {renderKeyboardRow("QWERTYUIOP".split(""))}
                                 {renderKeyboardRow("ASDFGHJKL".split(""))}
-                                {renderKeyboardRow("ZXCVBNM".split(""))}
+                                {renderKeyboardRow(["ENTER", ..."ZXCVBNM".split(""), "BACK"])}
                             </div>
                         </div>
                     )}
@@ -182,8 +198,8 @@ export default function EmbeddedCodal() {
                         {gameState === "playing" && (
                             <motion.div key="playing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-zinc-400 font-mono flex flex-col items-center md:items-start text-sm">
                                 <Keyboard className="w-8 h-8 mb-4 text-zinc-600" />
-                                <p className="mb-2">1. Use your physical keyboard to type a 5-letter technical word.</p>
-                                <p>2. Press <kbd className="bg-zinc-800 text-lime-400 px-2 py-0.5 rounded border border-zinc-700 shadow-sm mx-1">Enter</kbd> to submit your guess.</p>
+                                <p className="mb-2">1. Type or tap the keys to enter a 5-letter technical word.</p>
+                                <p>2. Press or tap <kbd className="bg-zinc-800 text-lime-400 px-2 py-0.5 rounded border border-zinc-700 shadow-sm mx-1">ENTER</kbd> to submit.</p>
                             </motion.div>
                         )}
 

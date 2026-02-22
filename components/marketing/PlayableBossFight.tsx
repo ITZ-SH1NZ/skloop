@@ -45,8 +45,17 @@ export default function PlayableBossFight() {
         setGameState("playing");
         setTimeLeft(TIME_LIMIT);
         setInput("");
-        setTimeout(() => inputRef.current?.focus(), 100);
     };
+
+    // Robust autofocus when game starts
+    useEffect(() => {
+        if (gameState === "playing") {
+            const timer = setTimeout(() => {
+                inputRef.current?.focus();
+            }, 400); // Increased delay to account for exit animation of the previous state
+            return () => clearTimeout(timer);
+        }
+    }, [gameState]);
 
     const triggerConfetti = () => {
         const duration = 3000;

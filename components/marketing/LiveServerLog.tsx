@@ -14,7 +14,7 @@ type ServerEvent = {
 const INITIAL_EVENTS: ServerEvent[] = [
     { id: 1, type: "system", message: <span>Server connection established. Welcome to the Arena.</span>, time: "10:00:00" },
     { id: 2, type: "combat", message: <span><strong className="text-lime-400">ByteNinja</strong> defeated Boss: <strong className="text-red-400">Memory Leak</strong></span>, time: "10:02:14" },
-    { id: 3, type: "achievement", message: <span><strong className="text-cyan-400">NeoHakr</strong> reached a 7-day Codal Streak!</span>, time: "10:05:42" },
+    { id: 3, type: "achievement", message: <span><strong className="text-cyan-400">NeoHakr</strong> reached a 7-day Codele Streak!</span>, time: "10:05:42" },
 ];
 
 const RANDOM_MESSAGES = [
@@ -87,7 +87,7 @@ export default function LiveServerLog() {
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-2 font-mono text-sm md:text-base min-h-[200px]">
+                <div className="flex flex-col gap-2 font-mono text-sm md:text-base h-[280px] md:h-[320px] overflow-hidden">
                     <AnimatePresence mode="popLayout">
                         {events.map((event) => (
                             <motion.div

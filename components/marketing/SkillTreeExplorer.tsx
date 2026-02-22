@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useRef } from "react";
-import { motion } from "framer-motion";
-import { Database, Code, Server, Flame, GitBranch } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Database, Code, Server, Flame, GitBranch, Lock, Unlock, MousePointer2 } from "lucide-react";
 
 export default function SkillTreeExplorer() {
     const constraintsRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
 
     return (
         <section className="relative w-full max-w-6xl mx-auto px-2 md:px-6 mb-20 overflow-hidden">
@@ -20,19 +21,58 @@ export default function SkillTreeExplorer() {
             {/* Viewport for panning */}
             <div
                 ref={constraintsRef}
-                className="w-full h-[400px] md:h-[600px] bg-zinc-950 border-4 md:border-8 border-black rounded-[2rem] shadow-[12px_12px_0_0_#000] overflow-hidden relative"
-                style={{ cursor: "grab" }}
-                onMouseDown={(e) => (e.currentTarget.style.cursor = "grabbing")}
-                onMouseUp={(e) => (e.currentTarget.style.cursor = "grab")}
-                onMouseLeave={(e) => (e.currentTarget.style.cursor = "grab")}
+                className={`w-full h-[450px] md:h-[600px] bg-zinc-950 border-4 md:border-8 border-black rounded-[2rem] shadow-[12px_12px_0_0_#000] overflow-hidden relative transition-colors duration-500 ${isFocused ? 'ring-4 ring-lime-400/50' : ''}`}
+                style={{
+                    cursor: isFocused ? "grab" : "default",
+                    touchAction: isFocused ? "none" : "auto"
+                }}
             >
-                {/* 
-                  The draggable canvas inside. 
-                  It's larger than the viewport so we can drag it around.
-                */}
+                {/* Activation Overlay (Mobile Focus) */}
+                <AnimatePresence>
+                    {!isFocused && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsFocused(true)}
+                            className="absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-pointer group"
+                        >
+                            <motion.div
+                                animate={{ y: [0, -10, 0] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className="w-20 h-20 rounded-full bg-lime-400 flex items-center justify-center border-4 border-black mb-4 shadow-[0_0_20px_rgba(163,230,53,0.4)] group-hover:scale-110 transition-transform"
+                            >
+                                <MousePointer2 className="w-10 h-10 text-black translate-x-1" />
+                            </motion.div>
+                            <p className="text-white font-black text-xl uppercase tracking-widest text-center px-6">
+                                Tap to Explore Tree
+                            </p>
+                            <p className="text-zinc-400 font-bold mt-2 text-sm uppercase tracking-wider">
+                                Enables Pan & Zoom
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Focus Status & Lock Toggle */}
+                <div className="absolute top-6 right-6 z-40 flex items-center gap-3">
+                    {isFocused && (
+                        <motion.button
+                            initial={{ x: 20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            onClick={() => setIsFocused(false)}
+                            className="bg-black text-white px-4 py-2 rounded-full border-2 border-white font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-[4px_4px_0_0_#fff] hover:-translate-y-1 active:translate-y-1 transition-all"
+                        >
+                            <Lock className="w-3 h-3" /> Lock Scroll
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* Draggable Canvas */}
                 <motion.div
-                    drag
-                    dragConstraints={constraintsRef}
+                    drag={isFocused}
+                    onDragStart={() => isFocused && (constraintsRef.current! as HTMLElement).style.setProperty('cursor', 'grabbing')}
+                    onDragEnd={() => isFocused && (constraintsRef.current! as HTMLElement).style.setProperty('cursor', 'grab')}
                     dragElastic={0.2}
                     className="absolute top-1/2 left-1/2 w-[1200px] h-[1000px] -translate-x-1/2 -translate-y-1/2"
                 >

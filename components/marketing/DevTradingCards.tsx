@@ -2,7 +2,8 @@
 
 import React from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Code2, Braces, Database, Terminal, Ghost, Sparkles } from "lucide-react";
+import { Code2, Braces, Database, Terminal, Ghost, Sparkles, Check } from "lucide-react";
+import confetti from "canvas-confetti";
 
 const CARDS = [
     {
@@ -24,7 +25,7 @@ const CARDS = [
         subtitle: "Specialty: Time Complexity",
         color: "bg-orange-500",
         shadow: "shadow-[10px_10px_0_0_#f97316]",
-        icon: <Braces className="w-16 h-16 text-white" />,
+        icon: <Braces className="w-16 h-16 text-black" />,
         stats: [
             { label: "Big O Analysis", val: 99 },
             { label: "Tree Traversal", val: 90 },
@@ -37,7 +38,7 @@ const CARDS = [
         subtitle: "Specialty: APIs & Databases",
         color: "bg-cyan-500",
         shadow: "shadow-[10px_10px_0_0_#06b6d4]",
-        icon: <Database className="w-16 h-16 text-white" />,
+        icon: <Database className="w-16 h-16 text-black" />,
         stats: [
             { label: "System Design", val: 90 },
             { label: "SQL Queries", val: 85 },
@@ -47,26 +48,44 @@ const CARDS = [
 ];
 
 export default function DevTradingCards() {
+    const [selectedId, setSelectedId] = React.useState<string | null>(null);
+
+    const handleSelect = (id: string) => {
+        setSelectedId(id);
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ["#D4F268", "#000000", "#FFFFFF"]
+        });
+    };
+
     return (
         <section className="relative w-full max-w-6xl mx-auto px-2 md:px-6">
             <div className="text-center mb-12 md:mb-16">
                 <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black uppercase mb-4">Choose Your Class</h2>
                 <div className="inline-flex gap-2 items-center bg-black text-white px-4 py-2 rounded-full border-2 border-lime-400 shadow-[4px_4px_0_0_#A3E635]">
                     <Sparkles className="w-4 h-4 text-lime-400 animate-pulse" />
-                    <span className="font-bold text-sm tracking-wider uppercase">Hover Cards to Inspect</span>
+                    <span className="font-bold text-sm tracking-wider uppercase">Click a Class to Select</span>
                 </div>
             </div>
 
             <div className="flex flex-col md:flex-row justify-center gap-10 md:gap-8 perspective-[2000px]">
                 {CARDS.map((card, idx) => (
-                    <TiltCard key={card.id} card={card} index={idx} />
+                    <TiltCard
+                        key={card.id}
+                        card={card}
+                        index={idx}
+                        isSelected={selectedId === card.id}
+                        onSelect={() => handleSelect(card.id)}
+                    />
                 ))}
             </div>
         </section>
     );
 }
 
-function TiltCard({ card, index }: { card: typeof CARDS[0], index: number }) {
+function TiltCard({ card, index, isSelected, onSelect }: { card: typeof CARDS[0], index: number, isSelected: boolean, onSelect: () => void }) {
     const x = useMotionValue(0);
     const y = useMotionValue(0);
 
@@ -114,8 +133,27 @@ function TiltCard({ card, index }: { card: typeof CARDS[0], index: number }) {
             whileInView={{ y: 0, opacity: 1 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ type: "spring", bounce: 0.4, delay: index * 0.1 }}
-            className={`relative w-full md:w-80 aspect-[2/3] rounded-3xl md:rounded-[2rem] border-8 border-black ${card.color} ${card.shadow} cursor-crosshair group`}
+            className={`relative w-full md:w-80 aspect-[2/3] rounded-3xl md:rounded-[2rem] border-8 border-black ${card.color} ${card.shadow} cursor-pointer group`}
+            onClick={onSelect}
+            animate={{
+                scale: isSelected ? 1.05 : 1,
+                y: isSelected ? -16 : 0,
+                boxShadow: isSelected ? "20px 20px 0 0 #000" : undefined
+            }}
+            whileHover={{ y: isSelected ? -16 : -8 }}
+            whileTap={{ scale: 0.95 }}
         >
+            {/* Selection Badge */}
+            {isSelected && (
+                <div className="absolute -top-6 -right-6 z-[60] bg-black text-lime-400 border-4 border-lime-400 rounded-full w-16 h-16 flex items-center justify-center shadow-[4px_4px_0_0_#000] rotate-12">
+                    <Check className="w-10 h-10" />
+                </div>
+            )}
+
+            {/* Selection Glow */}
+            {isSelected && (
+                <div className="absolute inset-0 z-0 bg-white/20 animate-pulse rounded-[2rem]" />
+            )}
             {/* Holographic Glare */}
             <motion.div
                 className="absolute inset-0 z-50 pointer-events-none rounded-[1.5rem] bg-gradient-to-br from-white to-transparent"
@@ -161,6 +199,12 @@ function TiltCard({ card, index }: { card: typeof CARDS[0], index: number }) {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                    {/* Select Button appearing on hover */}
+                    <div className="absolute inset-x-0 bottom-4 flex justify-center translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-50">
+                        <button className="bg-black text-white px-6 py-2 rounded-full border-2 border-white font-black uppercase text-sm shadow-[4px_4px_0_0_#fff]">
+                            {isSelected ? "Selected" : "Select Class"}
+                        </button>
                     </div>
                 </div>
             </div>

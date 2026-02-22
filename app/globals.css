@@ -118,7 +118,6 @@ body {
 
   /* Scale down the entire interface slightly on mobile for better density */
   body {
-    zoom: 0.95;
     -webkit-text-size-adjust: 100%;
   }
 
@@ -147,16 +146,7 @@ body {
   backface-visibility: hidden;
 }
 
-@utility content-auto {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 1000px;
-  /* Placeholder size for off-screen */
-}
 
-section {
-  content-visibility: auto;
-  contain-intrinsic-size: 1px 1000px;
-}
 
 /* Floating Layers Utilities */
 @utility card-float {

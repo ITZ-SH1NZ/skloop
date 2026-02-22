@@ -2,34 +2,46 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, Gamepad2 } from "lucide-react";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { Menu, X, ArrowRight, Gamepad2, Infinity } from "lucide-react";
 
 export default function MarketingNavbar() {
-    const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const { scrollY } = useScroll();
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setIsScrolled(window.scrollY > 50);
-        };
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
+    // DOCKING TRANSITIONS (Top of page -> Floating Pill)
+    // 0 to 100px scroll range
+    const navWidth = useTransform(scrollY, [0, 80], ["100%", "90%"]);
+    const navTop = useTransform(scrollY, [0, 80], ["0px", "24px"]);
+    const navRadius = useTransform(scrollY, [0, 80], ["0px", "9999px"]);
+    const navBorder = useTransform(scrollY, [0, 80], ["0px", "4px"]);
+    const navShadow = useTransform(scrollY, [0, 80], ["0px 0px 0 0 #000", "0px 8px 0 0 #000"]);
+    const navPadding = useTransform(scrollY, [0, 80], ["16px 24px", "12px 24px"]);
+    const navOpacity = useTransform(scrollY, [0, 80], [1, 0.95]);
 
     return (
         <>
             <motion.nav
+                style={{
+                    width: navWidth,
+                    top: navTop,
+                    borderRadius: navRadius,
+                    borderWidth: navBorder,
+                    boxShadow: navShadow,
+                    padding: navPadding,
+                    opacity: navOpacity,
+                    backdropFilter: "blur(8px)",
+                    translateX: "-50%"
+                }}
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
                 transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
-                className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 w-[90%] max-w-5xl rounded-full border-4 border-black shadow-[0_8px_0_0_#000] flex items-center justify-between px-6 py-3 ${isScrolled ? "bg-white/90 backdrop-blur-md" : "bg-white"
-                    }`}
+                className="fixed left-1/2 z-50 bg-white border-black flex items-center justify-between shadow-black"
             >
                 {/* Logo */}
-                <Link href="/onboarding" className="flex items-center gap-3 group">
-                    <div className="w-10 h-10 rounded-xl bg-lime-400 border-2 border-black flex items-center justify-center text-black font-black rotate-3 group-hover:rotate-12 transition-transform shadow-[2px_2px_0_0_#000]">
-                        S
+                <Link href="/onboarding" className="flex items-center gap-3 group text-black">
+                    <div className="w-10 h-10 rounded-xl bg-lime-400 border-2 border-black flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform shadow-[2px_2px_0_0_#000]">
+                        <Infinity className="w-6 h-6" />
                     </div>
                     <span className="font-black text-2xl tracking-tighter text-zinc-900 group-hover:-translate-y-1 transition-transform">
                         SKLOOP
@@ -90,7 +102,9 @@ export default function MarketingNavbar() {
                             </button>
 
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-lime-400 border-4 border-black rounded-xl shadow-[4px_4px_0_0_#000] flex items-center justify-center font-black text-2xl">S</div>
+                                <div className="w-12 h-12 bg-lime-400 border-4 border-black rounded-xl shadow-[4px_4px_0_0_#000] flex items-center justify-center">
+                                    <Infinity className="w-8 h-8 text-black" />
+                                </div>
                                 <span className="font-black text-3xl tracking-tighter">SKLOOP</span>
                             </div>
 

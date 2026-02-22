@@ -81,7 +81,7 @@ export default function FeatureLevels() {
                 {/* LEVEL 3: DAILY GAMES */}
                 <LevelCard
                     title="Level 3: Daily Arcade"
-                    description="Keep your streak alive. Play Codal (Coding Wordle), test your typing speed, and solve DSA quizzes."
+                    description="Keep your streak alive. Play Codele (Coding Wordle), test your typing speed, and solve DSA quizzes."
                     icon={<Gamepad2 className="w-8 h-8 text-lime-400" />}
                     align="left"
                     color="bg-zinc-900"
