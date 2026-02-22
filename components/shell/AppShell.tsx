@@ -1,11 +1,21 @@
 "use client";
 
 import { Sidebar } from "./Sidebar";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { useMasterScroll } from "@/components/providers/MasterScrollProvider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const { setWrapper } = useMasterScroll();
+
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            setWrapper(scrollContainerRef.current);
+        }
+        return () => setWrapper(null);
+    }, [setWrapper]);
 
     return (
         <div className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-start">
@@ -27,7 +37,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Main Content Area - Soft Pop Card */}
             <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh] pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0">
-                <div id="app-scroll-container" className="flex-1 overflow-y-auto pb-0">
+                <div
+                    id="app-scroll-container"
+                    ref={scrollContainerRef}
+                    className="flex-1 overflow-y-auto pb-0"
+                >
                     {children}
                 </div>
             </main>

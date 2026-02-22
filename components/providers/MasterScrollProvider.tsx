@@ -10,6 +10,7 @@ interface MasterScrollContextType {
     scrollToBottom: () => void;
     scrollToElement: (elementId: string, offset?: number) => void;
     lenis: any;
+    setWrapper: (element: HTMLElement | null) => void;
 }
 
 const MasterScrollContext = createContext<MasterScrollContextType | undefined>(undefined);
@@ -17,6 +18,7 @@ const MasterScrollContext = createContext<MasterScrollContextType | undefined>(u
 export function MasterScrollProvider({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [lenis, setLenis] = React.useState<any>(null);
+    const [wrapper, setWrapper] = React.useState<HTMLElement | null>(null);
 
     // Sync GSAP with Lenis heartbeat
     useEffect(() => {
@@ -65,9 +67,24 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
         });
     }, [lenis]);
 
+    // Reset wrapper on major route group changes if needed, but usually AppShell will handle it.
+    // However, when we leave the app (to onboarding), we should clear the wrapper.
+    useEffect(() => {
+        if (!pathname.startsWith('/dashboard') &&
+            !pathname.startsWith('/course') &&
+            !pathname.startsWith('/practice') &&
+            !pathname.startsWith('/profile') &&
+            !pathname.startsWith('/peer') &&
+            !pathname.startsWith('/roadmap') &&
+            !pathname.startsWith('/loopy')) {
+            setWrapper(null);
+        }
+    }, [pathname]);
+
     return (
         <ReactLenis
-            root
+            key={wrapper ? "nested" : "root"}
+            root={!wrapper}
             autoRaf={false}
             options={{
                 lerp: 0.1,
@@ -75,9 +92,10 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
                 smoothWheel: true,
                 syncTouch: true,
                 touchMultiplier: 1.5,
+                wrapper: wrapper || undefined,
             }}
             ref={(s: any) => {
-                if (s?.lenis && !lenis) {
+                if (s?.lenis) {
                     setLenis(s.lenis);
                 }
             }}
@@ -86,7 +104,8 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
                 scrollToTop,
                 scrollToBottom,
                 scrollToElement,
-                lenis
+                lenis,
+                setWrapper
             }}>
                 {children}
             </MasterScrollContext.Provider>
