@@ -120,7 +120,7 @@ export default function LiveDemoGrid() {
                     </div>
                     <GameGridIcon />
                     <h3 className="text-xl font-bold mt-4 mb-2">Daily Games</h3>
-                    <p className="text-gray-400 text-sm">Codal, Typing Tests & DSA Quizzes.</p>
+                    <p className="text-gray-400 text-sm">Codele, Typing Tests & DSA Quizzes.</p>
                 </motion.div>
 
                 {/* 4. Peers/Community */}
