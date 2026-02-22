@@ -54,7 +54,7 @@ export function GamifiedHeader() {
         joined: globalProfile?.joined_at ? new Date(globalProfile.joined_at).toLocaleDateString() : "Recently",
         level: globalProfile?.level || 1,
         xp: globalProfile?.xp || 0,
-        nextLevelXp: (globalProfile?.level || 1) * 100,
+        nextLevelXp: (globalProfile?.level || 1) * 500,
         coins: globalProfile?.coins || 0,
         avatar: globalProfile?.avatar_url || "https://github.com/shadcn.png",
         banner: globalProfile?.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
@@ -74,7 +74,7 @@ export function GamifiedHeader() {
                 joined: globalProfile.joined_at ? new Date(globalProfile.joined_at).toLocaleDateString() : "Recently",
                 level: globalProfile.level || 1,
                 xp: globalProfile.xp || 0,
-                nextLevelXp: (globalProfile.level || 1) * 100,
+                nextLevelXp: (globalProfile.level || 1) * 500,
                 coins: globalProfile.coins || 0,
                 avatar: globalProfile.avatar_url || "https://github.com/shadcn.png",
                 banner: globalProfile.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"

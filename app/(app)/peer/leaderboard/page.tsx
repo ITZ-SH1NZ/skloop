@@ -29,6 +29,7 @@ export default function LeaderboardPage() {
     const [friendsData, setFriendsData] = useState<LeaderboardUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [myFallbackRank, setMyFallbackRank] = useState<{ rank: number; xp: number; coins: number; name: string; avatarUrl: string } | null>(null);
 
     useEffect(() => {
         const fetchLeaderboard = async () => {
@@ -96,6 +97,38 @@ export default function LeaderboardPage() {
                     }
                 }
             }
+
+            // Fetch fallback rank for the current user if they are outside the top 50
+            if (user && profiles) {
+                const isInTopList = profiles.some((p: any) => p.id === user.id);
+                if (!isInTopList) {
+                    // Fetch the user's own profile
+                    const { data: myProfile } = await supabase
+                        .from('profiles')
+                        .select('id, full_name, username, avatar_url, xp, coins')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (myProfile) {
+                        // Count how many users rank above this user
+                        const { count } = await supabase
+                            .from('profiles')
+                            .select('id', { count: 'exact', head: true })
+                            .gt(metric, myProfile[metric] ?? 0);
+
+                        setMyFallbackRank({
+                            rank: (count ?? 0) + 1,
+                            xp: myProfile.xp ?? 0,
+                            coins: myProfile.coins ?? 0,
+                            name: myProfile.full_name || myProfile.username || 'You',
+                            avatarUrl: myProfile.avatar_url,
+                        });
+                    }
+                } else {
+                    setMyFallbackRank(null);
+                }
+            }
+
             setIsLoading(false);
         };
 
@@ -182,7 +215,7 @@ export default function LeaderboardPage() {
                             {/* Table */}
                             <div className="mt-8">
                                 <h3 className="text-lg font-bold text-zinc-900 mb-4 px-2">Rankings</h3>
-                                <LeaderboardTable users={rest} metric={metric} />
+                                <LeaderboardTable users={rest} metric={metric} currentUserId={currentUserId} />
                             </div>
                         </>
                     ) : (
@@ -195,26 +228,31 @@ export default function LeaderboardPage() {
                         </div>
                     )}
 
-                    {/* User's Static Rank Bar (Sticky Bottom)  */}
-                    {currentUserRank && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 hidden md:block">
-                            <div className="bg-zinc-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between border border-zinc-700/50">
-                                <div className="flex items-center gap-4">
-                                    <span className={`font-bold ${metric === "xp" ? "text-amber-500" : "text-yellow-400"}`}>#{currentUserRank.rank}</span>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar src={currentUserRank.avatarUrl} className="w-10 h-10 border-2 border-zinc-700" fallback={currentUserRank.name.charAt(0)} />
-                                        <div>
-                                            <div className="font-bold text-sm">You</div>
-                                            <div className="text-xs text-zinc-400">
-                                                {metric === "xp" ? `${currentUserRank.xp} XP` : `${currentUserRank.coins} Coins`}
+                    {/* Sticky Rank Bar — shows for in-list AND out-of-top-50 users */}
+                    {(currentUserRank || myFallbackRank) && (() => {
+                        const bar = currentUserRank ?? myFallbackRank!;
+                        return (
+                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 hidden md:block">
+                                <div className="bg-zinc-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between border border-zinc-700/50">
+                                    <div className="flex items-center gap-4">
+                                        <span className={`font-bold ${metric === "xp" ? "text-amber-500" : "text-yellow-400"}`}>#{bar.rank}</span>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar src={bar.avatarUrl} className="w-10 h-10 border-2 border-zinc-700" fallback={bar.name.charAt(0)} />
+                                            <div>
+                                                <div className="font-bold text-sm">You</div>
+                                                <div className="text-xs text-zinc-400">
+                                                    {metric === "xp" ? `${bar.xp} XP` : `${bar.coins} Coins`}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+                                    <span className="text-xs font-bold bg-zinc-800 px-3 py-1 rounded-full text-zinc-300">
+                                        {currentUserRank ? "Active" : `Rank #${bar.rank}`}
+                                    </span>
                                 </div>
-                                <span className="text-xs font-bold bg-zinc-800 px-3 py-1 rounded-full text-zinc-300">Active</span>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                 </div>
             </div>

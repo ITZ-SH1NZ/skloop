@@ -1,10 +1,79 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Flame, Clock, Trophy, Zap, Star } from "lucide-react";
-import { Button } from "@/components/ui/Button"; // Adjust path if needed
+import { ArrowRight, Flame, Clock, Trophy, Zap } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { useEffect, useState } from "react";
+import { useUser } from "@/context/UserContext";
+import { createClient } from "@/utils/supabase/client";
+
+interface ActivityEntry {
+    text: string;
+    time: string;
+    color: string;
+}
 
 export function OverviewTab() {
+    const { user, profile } = useUser();
+    const [hoursSpent, setHoursSpent] = useState<number>(0);
+    const [myRank, setMyRank] = useState<number | null>(null);
+    const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const fetchStats = async () => {
+            const supabase = createClient();
+
+            // Sum total hours from activity logs
+            const { data: logs } = await supabase
+                .from("activity_logs")
+                .select("hours_spent")
+                .eq("user_id", user.id);
+
+            if (logs) {
+                const total = logs.reduce((sum, l) => sum + parseFloat(l.hours_spent ?? "0"), 0);
+                setHoursSpent(Math.round(total * 10) / 10);
+            }
+
+            // Get recent activity log entries for the feed
+            const { data: recent } = await supabase
+                .from("activity_logs")
+                .select("focus_area, created_at")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(3);
+
+            if (recent && recent.length > 0) {
+                setRecentActivity(
+                    recent.map((entry, i) => {
+                        const colors = ["bg-blue-500", "bg-purple-500", "bg-yellow-500"];
+                        const ts = new Date(entry.created_at);
+                        const diffMs = Date.now() - ts.getTime();
+                        const diffH = Math.floor(diffMs / 3600000);
+                        const timeStr = diffH < 1 ? "just now" : diffH < 24 ? `${diffH}h ago` : `${Math.floor(diffH / 24)}d ago`;
+                        return {
+                            text: entry.focus_area || "Studied on Skloop",
+                            time: timeStr,
+                            color: colors[i % colors.length],
+                        };
+                    })
+                );
+            }
+
+            // Count how many users have more XP than this user (to get rank)
+            if (profile?.xp !== undefined) {
+                const { count } = await supabase
+                    .from("profiles")
+                    .select("id", { count: "exact", head: true })
+                    .gt("xp", profile.xp);
+                setMyRank((count ?? 0) + 1);
+            }
+        };
+
+        fetchStats();
+    }, [user, profile?.xp]);
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -19,7 +88,9 @@ export function OverviewTab() {
                     </div>
 
                     <div className="relative z-10">
-                        <h2 className="text-2xl md:text-3xl font-black mb-2 text-foreground">Welcome back!</h2>
+                        <h2 className="text-2xl md:text-3xl font-black mb-2 text-foreground">
+                            Welcome back, {profile?.full_name || profile?.username || "Learner"}!
+                        </h2>
                         <p className="text-muted-foreground font-medium mb-8 max-w-md">
                             Ready to continue your learning journey?
                         </p>
@@ -40,28 +111,28 @@ export function OverviewTab() {
                     <StatCard
                         icon={Flame}
                         label="Streak"
-                        value="12 Days"
+                        value={`${profile?.streak ?? 0} Days`}
                         color="bg-orange-50 text-orange-500"
                         delay={0.1}
                     />
                     <StatCard
                         icon={Zap}
-                        label="XP Gained"
-                        value="2.4k"
+                        label="Total XP"
+                        value={(profile?.xp ?? 0).toLocaleString()}
                         color="bg-yellow-50 text-yellow-600"
                         delay={0.2}
                     />
                     <StatCard
                         icon={Clock}
                         label="Hours"
-                        value="48.5"
+                        value={hoursSpent > 0 ? String(hoursSpent) : "—"}
                         color="bg-blue-50 text-blue-500"
                         delay={0.3}
                     />
                     <StatCard
                         icon={Trophy}
                         label="Rank"
-                        value="#42"
+                        value={myRank ? `#${myRank}` : "—"}
                         color="bg-purple-50 text-purple-500"
                         delay={0.4}
                     />
@@ -69,78 +140,29 @@ export function OverviewTab() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Upcoming Session */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-[#D4F268] p-6 rounded-[2rem] shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[200px]"
-                >
-                    <div>
-                        <div className="flex justify-between items-start mb-4">
-                            <span className="bg-black/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-black/70">Up Next</span>
-                            <Clock size={20} className="text-black/50" />
-                        </div>
-                        <h3 className="font-black text-2xl leading-tight mb-1 text-black">React Native Deep Dive</h3>
-                        <p className="font-bold text-black/60 text-sm">with Dwight Schrute</p>
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-black/5 flex justify-between items-center">
-                        <span className="font-black text-black">Today, 2:00 PM</span>
-                        <Button size="icon" className="h-10 w-10 rounded-full bg-black text-white hover:bg-black/80">
-                            <ArrowRight size={18} />
-                        </Button>
-                    </div>
-                </motion.div>
-
-                {/* Recent Achievement */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.3 }}
-                    className="bg-black text-white p-6 rounded-[2rem] shadow-lg relative overflow-hidden"
-                >
-                    <div className="absolute -bottom-6 -right-6 text-white/5">
-                        <Star size={150} />
-                    </div>
-                    <div className="relative z-10 h-full flex flex-col justify-between">
-                        <div>
-                            <div className="mb-4 inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full backdrop-blur-md">
-                                <Trophy size={12} className="text-yellow-400" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">New Badge</span>
-                            </div>
-                            <h3 className="font-black text-2xl mb-2">Regional Manager</h3>
-                            <p className="text-gray-400 text-sm font-medium">Earned 2 days ago for completing &quot;Management 101&quot;</p>
-                        </div>
-                        <Button variant="outline" className="mt-6 border-white/20 text-white hover:bg-white/10 w-full rounded-xl">
-                            View All Badges
-                        </Button>
-                    </div>
-                </motion.div>
-
-                {/* Activity Feed (Compact) */}
+                {/* Recent Activity Feed */}
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm"
+                    className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm lg:col-span-3"
                 >
                     <h3 className="font-black text-lg mb-4">Recent Activity</h3>
-                    <div className="space-y-4">
-                        {[
-                            { text: "Completed 'Intro to Sales'", time: "2h ago", color: "bg-blue-500" },
-                            { text: "Booked a session with Jim", time: "5h ago", color: "bg-purple-500" },
-                            { text: "Earned 'Early Bird' badge", time: "1d ago", color: "bg-yellow-500" },
-                        ].map((item, i) => (
-                            <div key={i} className="flex gap-3 items-start">
-                                <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${item.color}`} />
-                                <div>
-                                    <p className="text-sm font-bold text-gray-700 leading-tight">{item.text}</p>
-                                    <p className="text-[10px] font-bold text-gray-300 mt-1">{item.time}</p>
+                    {recentActivity.length > 0 ? (
+                        <div className="space-y-4">
+                            {recentActivity.map((item, i) => (
+                                <div key={i} className="flex gap-3 items-start">
+                                    <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${item.color}`} />
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-700 leading-tight">{item.text}</p>
+                                        <p className="text-[10px] font-bold text-gray-300 mt-1">{item.time}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-400 font-medium">No activity yet. Start learning to see your history here!</p>
+                    )}
                 </motion.div>
             </div>
         </div>

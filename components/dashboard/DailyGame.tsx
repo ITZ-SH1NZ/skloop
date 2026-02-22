@@ -145,18 +145,17 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
                 });
 
                 if (status === "won") {
-                    // Update XP and Coins
+                    // Update XP and Coins (Streak is handled centrally by UserContext daily login/activity)
                     const { data: profile } = await supabase
                         .from('profiles')
-                        .select('xp, coins, streak')
+                        .select('xp, coins')
                         .eq('id', user.id)
                         .single();
 
                     if (profile) {
                         await supabase.from('profiles').update({
                             xp: (profile.xp || 0) + 50,
-                            coins: (profile.coins || 0) + 10,
-                            streak: (profile.streak || 0) + 1
+                            coins: (profile.coins || 0) + 10
                         }).eq('id', user.id);
                     }
                 }

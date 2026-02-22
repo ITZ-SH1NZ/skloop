@@ -40,11 +40,9 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                 .select('id')
                 .eq('user_id', user.id)
                 .eq('activity_date', todayStr)
-                .eq('focus_area', 'Daily Login')
-                .limit(1)
-                .single();
+                .eq('focus_area', 'Daily Login');
 
-            const loginCompleted = !!activity;
+            const loginCompleted = !!activity && activity.length > 0;
 
             let codeleCompleted = false;
             const { data: dailyPuzzle } = await supabase
@@ -132,7 +130,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                 </div>
 
                 <div className="space-y-3">
-                    {quests.map((quest, i) => {
+                    {[...quests].sort((a, b) => Number(a.completed) - Number(b.completed)).map((quest, i) => {
                         const Icon = quest.icon;
                         const isDone = quest.completed;
                         const isLink = !!quest.href;

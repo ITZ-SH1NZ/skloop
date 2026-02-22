@@ -45,24 +45,29 @@ export function ActivityHeatmap() {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
+                // Aggregate hours by date string first
+                const hoursByDate = new Map<string, number>();
                 data.forEach(log => {
-                    const logDate = new Date(log.activity_date);
-                    // Time diff in days
-                    const diffTime = Math.abs(today.getTime() - logDate.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const existing = hoursByDate.get(log.activity_date) || 0;
+                    hoursByDate.set(log.activity_date, existing + parseFloat(log.hours_spent));
+                });
 
-                    // Convert days ago (diffDays) to array index
-                    // 0 days ago (today) -> index 364
-                    // 1 day ago -> index 363
+                // Apply intensities to the array
+                hoursByDate.forEach((totalHours, dateStr) => {
+                    const logDate = new Date(dateStr);
+                    logDate.setHours(0, 0, 0, 0);
+
+                    // Time diff in days
+                    const diffTime = today.getTime() - logDate.getTime();
+                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
                     const index = 364 - diffDays;
 
                     if (index >= 0 && index < 365) {
-                        // Calculate intensity category based on hours (0-4 max)
-                        const hours = parseFloat(log.hours_spent);
                         let level = 1;
-                        if (hours >= 1) level = 2;
-                        if (hours >= 3) level = 3;
-                        if (hours >= 5) level = 4;
+                        if (totalHours >= 1) level = 2;
+                        if (totalHours >= 3) level = 3;
+                        if (totalHours >= 5) level = 4;
                         newData[index] = level;
                     }
                 });

@@ -22,14 +22,18 @@ export function TaskList() {
     ]);
 
     const toggleTask = (id: string) => {
-        setTasks(prev => prev.map(t => {
-            if (t.id === id) {
-                const newState = !t.completed;
-                if (newState) toast("Task completed! 🎉", "success");
-                return { ...t, completed: newState };
-            }
-            return t;
-        }));
+        setTasks(prev => {
+            const updated = prev.map(t => {
+                if (t.id === id) {
+                    const newState = !t.completed;
+                    if (newState) toast("Task completed! 🎉", "success");
+                    return { ...t, completed: newState };
+                }
+                return t;
+            });
+            // Sort: incomplete first, completed last
+            return [...updated].sort((a, b) => Number(a.completed) - Number(b.completed));
+        });
     };
 
     const addTask = () => {

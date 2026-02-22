@@ -34,10 +34,16 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+// 500 XP per level — keep in sync with GamifiedHeader nextLevelXp formula
+function calculateLevel(xp: number): number {
+    return Math.floor(xp / 500) + 1;
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const processedRef = React.useRef<string | null>(null); // Track processed user for today to prevent duplication
     const supabase = createClient();
 
     const fetchProfile = useCallback(async (userId: string) => {
@@ -58,7 +64,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const handleDailyLogin = useCallback(async (userId: string, currentProfile: any) => {
         const todayStr = new Date().toISOString().split("T")[0];
 
-        // Check if logic already ran today (idempotent check)
         const { data: activity } = await supabase
             .from("activity_logs")
             .select("id")
@@ -69,7 +74,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             .single();
 
         if (!activity) {
-            // First login today!
             await supabase.from("activity_logs").insert({
                 user_id: userId,
                 activity_date: todayStr,
@@ -77,14 +81,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 focus_area: "Daily Login"
             });
 
-            // Grant rewards
-            await supabase.from("profiles").update({
-                xp: (currentProfile.xp || 0) + 10,
-                coins: (currentProfile.coins || 0) + 5,
-                streak: (currentProfile.streak || 0) + 1
-            }).eq("id", userId);
+            const newXp = (currentProfile.xp || 0) + 10;
+            const newCoins = (currentProfile.coins || 0) + 5;
+            const newStreak = (currentProfile.streak || 0) + 1;
+            const newLevel = calculateLevel(newXp);
 
-            // Note: The Realtime subscription will handle the UI update for the profile state
+            await supabase.from("profiles").update({
+                xp: newXp,
+                coins: newCoins,
+                streak: newStreak,
+                level: newLevel
+            }).eq("id", userId);
         }
     }, [supabase]);
 
@@ -98,7 +105,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 if (session?.user) {
                     setUser(session.user);
                     const fetchedProfile = await fetchProfile(session.user.id);
-                    if (fetchedProfile) {
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const processedKey = `${session.user.id}_${todayStr}`;
+
+                    if (fetchedProfile && processedRef.current !== processedKey) {
+                        processedRef.current = processedKey;
                         await handleDailyLogin(session.user.id, fetchedProfile);
                     }
                 }
@@ -109,7 +120,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 if (mounted) {
                     const newUser = session?.user || null;
 
-                    // If user is same as before, don't trigger a full reload flash
                     if (newUser?.id === user?.id && profile) {
                         if (newUser === null && user !== null) {
                             setUser(null);
@@ -121,7 +131,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                     if (newUser) {
                         setUser(newUser);
                         const fetchedProfile = await fetchProfile(newUser.id);
-                        if (fetchedProfile) {
+                        const todayStr = new Date().toISOString().split("T")[0];
+                        const processedKey = `${newUser.id}_${todayStr}`;
+
+                        if (fetchedProfile && processedRef.current !== processedKey) {
+                            processedRef.current = processedKey;
                             await handleDailyLogin(newUser.id, fetchedProfile);
                         }
                     } else {
@@ -137,12 +151,26 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             };
         };
 
-        const cleanupPromise = initAuth();
+        initAuth();
 
         return () => {
             mounted = false;
         };
     }, [supabase, fetchProfile, handleDailyLogin]);
+
+    // Re-fetch profile when user returns to the tab (catches missed real-time events)
+    useEffect(() => {
+        if (!user) return;
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                fetchProfile(user.id);
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, [user, fetchProfile]);
 
     // Supabase Realtime Subscription for Profile updates
     useEffect(() => {
@@ -159,7 +187,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                     filter: `id=eq.${user.id}`
                 },
                 (payload) => {
-                    setProfile(payload.new as UserProfile);
+                    if (payload.new && Object.keys(payload.new).length > 0) {
+                        const newProfile = payload.new as UserProfile;
+                        // Always recalculate level from XP to keep them in sync
+                        newProfile.level = calculateLevel(newProfile.xp);
+                        setProfile(newProfile);
+                    }
                 }
             )
             .subscribe();

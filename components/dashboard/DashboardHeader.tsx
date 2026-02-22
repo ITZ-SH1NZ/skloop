@@ -82,7 +82,7 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                                 strokeWidth="3"
                                 fill="none"
                                 strokeDasharray="88"
-                                strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 1000) / 1000))}
+                                strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 500) / 500))}
                                 strokeLinecap="round"
                             />
                         </svg>
