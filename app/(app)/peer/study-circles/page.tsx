@@ -143,7 +143,7 @@ export default function StudyCirclesPage() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-zinc-50/50">
+        <div className="flex flex-col bg-zinc-50/50">
             {/* Header Section */}
             <div className="bg-white border-b border-zinc-100 px-6 py-8 md:px-10 md:py-10">
                 <div className="max-w-6xl mx-auto">
@@ -178,7 +178,7 @@ export default function StudyCirclesPage() {
             </div>
 
             {/* Grid Content */}
-            <div className="flex-1 overflow-y-auto px-6 py-8 md:px-10">
+            <div className="flex-1 px-6 py-8 md:px-10">
                 <div className="max-w-6xl mx-auto">
                     {isLoading ? (
                         <div className="flex justify-center items-center py-20">

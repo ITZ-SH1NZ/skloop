@@ -57,7 +57,7 @@ export default function FindMentorPage() {
     });
 
     return (
-        <div className="flex flex-col h-full bg-[#FAFAFA] overflow-y-auto no-scrollbar">
+        <div className="flex flex-col bg-[#FAFAFA]">
             {/* Dark Header Section */}
             <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden shrink-0">
                 {/* Background Decor */}

@@ -10,7 +10,7 @@ export default function BecomeMentorPage() {
     const router = useRouter();
 
     return (
-        <div className="min-h-full bg-[#FAFAFA] pb-20 overflow-y-auto no-scrollbar">
+        <div className="bg-[#FAFAFA] pb-20">
             {/* Hero Section */}
             <div className="bg-zinc-900 relative overflow-hidden text-white pt-12 pb-24 md:pt-20 md:pb-32 px-6">
                 {/* Background Effects */}

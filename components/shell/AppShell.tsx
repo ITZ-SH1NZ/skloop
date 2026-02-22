@@ -1,24 +1,16 @@
 "use client";
 
 import { Sidebar } from "./Sidebar";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { useMasterScroll } from "@/components/providers/MasterScrollProvider";
+import { AppScrollProvider } from "@/components/providers/AppScrollProvider";
+import { ReactLenis } from "lenis/react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [mobileOpen, setMobileOpen] = useState(false);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const { setWrapper } = useMasterScroll();
-
-    useEffect(() => {
-        if (scrollContainerRef.current) {
-            setWrapper(scrollContainerRef.current);
-        }
-        return () => setWrapper(null);
-    }, [setWrapper]);
 
     return (
-        <div className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-start">
+        <div className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-stretch">
             {/* Mobile Header (Hidden on Desktop) */}
             <header className="md:hidden fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] bg-surface/80 backdrop-blur-md z-30 flex items-center px-4 border-b border-border/50 justify-between pt-[env(safe-area-inset-top)]">
                 <div className="flex items-center gap-3">
@@ -28,24 +20,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </Button>
                     <span className="font-bold text-lg">Skloop</span>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* Placeholder for top actions like notifications */}
-                </div>
             </header>
 
+            {/* Sidebar - Pure Native Scroll (Independent of Content Lenis) */}
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
-            {/* Main Content Area - Soft Pop Card */}
+            {/* Main Content Area - Isolated Nested Lenis */}
             <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh] pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0">
-                <div
+                <ReactLenis
+                    root={false}
+                    autoRaf={true}
+                    options={{
+                        lerp: 0.1,
+                        duration: 1.2,
+                        smoothWheel: true,
+                        syncTouch: true,
+                        touchMultiplier: 1.5,
+                    }}
+                    // This is the CRITICAL merge: ReactLenis itself is now the id="app-scroll-container"
                     id="app-scroll-container"
-                    ref={scrollContainerRef}
-                    className="flex-1 overflow-y-auto pb-0"
+                    className="flex-1 overflow-y-auto pb-0 h-full scroll-smooth outline-none no-scrollbar"
                 >
-                    {children}
-                </div>
+                    <AppScrollProvider>
+                        {children}
+                    </AppScrollProvider>
+                </ReactLenis>
             </main>
-
         </div>
     );
 }

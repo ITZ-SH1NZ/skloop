@@ -194,7 +194,7 @@ export default function MentorDashboardPage() {
     // LOCKED STATE
     if (!isMentor) {
         return (
-            <div className="min-h-full bg-zinc-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+            <div className="bg-zinc-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
                 {/* Background Decor */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
@@ -239,7 +239,7 @@ export default function MentorDashboardPage() {
     ];
 
     return (
-        <div className="min-h-full bg-[#FAFAFA] pb-24 overflow-y-auto no-scrollbar">
+        <div className="bg-[#FAFAFA] pb-24">
             {/* Header */}
             <header className="bg-zinc-900 text-white px-6 pt-12 pb-24 rounded-b-[2.5rem] relative overflow-hidden shrink-0">
                 <div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />

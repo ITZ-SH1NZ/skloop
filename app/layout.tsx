@@ -34,9 +34,7 @@ export default function RootLayout({
         <ToastProvider>
           <Suspense fallback={null}>
             <LoadingProvider>
-              <MasterScrollProvider>
-                {children}
-              </MasterScrollProvider>
+              {children}
             </LoadingProvider>
           </Suspense>
         </ToastProvider>
