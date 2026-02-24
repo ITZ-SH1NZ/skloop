@@ -99,18 +99,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         let mounted = true;
 
         const initAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            // Use getUser() instead of getSession() for more reliable auth state in App Router
+            const { data: { user: authUser }, error } = await supabase.auth.getUser();
 
             if (mounted) {
-                if (session?.user) {
-                    setUser(session.user);
-                    const fetchedProfile = await fetchProfile(session.user.id);
+                if (authUser) {
+                    setUser(authUser);
+                    const fetchedProfile = await fetchProfile(authUser.id);
                     const todayStr = new Date().toISOString().split("T")[0];
-                    const processedKey = `${session.user.id}_${todayStr}`;
+                    const processedKey = `${authUser.id}_${todayStr}`;
 
                     if (fetchedProfile && processedRef.current !== processedKey) {
                         processedRef.current = processedKey;
-                        await handleDailyLogin(session.user.id, fetchedProfile);
+                        await handleDailyLogin(authUser.id, fetchedProfile);
                     }
                 }
                 setIsLoading(false);
@@ -162,15 +163,22 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!user) return;
 
-        const handleVisibilityChange = () => {
+        const handleVisibilityChange = async () => {
             if (document.visibilityState === "visible") {
-                fetchProfile(user.id);
+                // Verify user session is still valid before fetching
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                if (authUser) {
+                    fetchProfile(authUser.id);
+                } else {
+                    setUser(null);
+                    setProfile(null);
+                }
             }
         };
 
         document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-    }, [user, fetchProfile]);
+    }, [user, fetchProfile, supabase]);
 
     // Supabase Realtime Subscription for Profile updates
     useEffect(() => {
