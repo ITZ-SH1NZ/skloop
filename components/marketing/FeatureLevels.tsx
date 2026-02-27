@@ -37,21 +37,21 @@ export default function FeatureLevels() {
                     color="bg-white"
                 >
                     {/* Mock Dashboard UI */}
-                    <div className="flex flex-col gap-4">
-                        <div className="flex justify-between items-center bg-zinc-50 p-4 rounded-xl border-2 border-zinc-200">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-zinc-300 animate-pulse border-2 border-zinc-400" />
-                                <div className="h-4 w-24 bg-zinc-300 rounded animate-pulse" />
+                    <div className="flex flex-col gap-3 md:gap-4">
+                        <div className="flex justify-between items-center bg-zinc-50 p-2.5 md:p-4 rounded-xl border-2 border-zinc-200">
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-zinc-300 animate-pulse border-2 border-zinc-400" />
+                                <div className="h-4 w-16 md:w-24 bg-zinc-300 rounded animate-pulse" />
                             </div>
-                            <div className="flex gap-4">
-                                <div className="flex items-center gap-1 font-bold text-orange-500 text-lg"><Flame className="w-5 h-5" /> 12</div>
-                                <div className="flex items-center gap-1 font-bold text-lime-500 text-lg"><Award className="w-5 h-5 text-black" /> 1.2k</div>
+                            <div className="flex gap-2 md:gap-4">
+                                <div className="flex items-center gap-1 font-bold text-orange-500 text-sm md:text-lg"><Flame className="w-4 h-4 md:w-5 md:h-5" /> 12</div>
+                                <div className="flex items-center gap-1 font-bold text-lime-500 text-sm md:text-lg"><Award className="w-4 h-4 md:w-5 md:h-5 text-black" /> 1.2k</div>
                             </div>
                         </div>
-                        <div className="h-24 bg-zinc-50 rounded-xl border-2 border-zinc-200 p-4 flex flex-col justify-center shadow-inner">
-                            <div className="text-sm font-bold text-zinc-500 mb-2 uppercase tracking-wide">Daily Quest: Arrays</div>
-                            <div className="flex items-center gap-3">
-                                <CheckCircle2 className="w-6 h-6 text-lime-500 drop-shadow-sm" />
+                        <div className="h-24 bg-zinc-50 rounded-xl border-2 border-zinc-200 p-3 md:p-4 flex flex-col justify-center shadow-inner">
+                            <div className="text-[10px] md:text-sm font-bold text-zinc-500 mb-2 uppercase tracking-wide">Daily Quest: Arrays</div>
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-lime-500 drop-shadow-sm" />
                                 <div className="h-4 flex-1 bg-zinc-300 rounded animate-pulse" />
                             </div>
                         </div>
@@ -179,13 +179,12 @@ function LevelCard({ title, description, icon, align, children, color = "bg-whit
             <div className="hidden md:block md:w-1/2" />
 
             {/* The Tactile Card */}
-            <div className={`w-full md:w-[45%] ${color} ${textColor} border-4 md:border-8 border-black rounded-[2rem] md:rounded-[3rem] shadow-[12px_12px_0_0_#000] md:shadow-[20px_20px_0_0_#000] p-6 md:p-10 relative z-10 hover:z-50 group hover:-translate-y-2 hover:shadow-[24px_24px_0_0_#000] transition-all duration-300`}>
-                <div className="flex items-center gap-4 mb-4 md:hidden">
-                    <div className="w-12 h-12 bg-white border-4 border-black rounded-full flex items-center justify-center shrink-0 shadow-[0_4px_0_0_#000]">
+            <div className={`w-full md:w-[45%] ${color} ${textColor} border-4 md:border-8 border-black rounded-[2rem] md:rounded-[3rem] shadow-[8px_8px_0_0_#000] md:shadow-[20px_20px_0_0_#000] p-5 md:p-10 relative z-10 hover:z-50 group hover:-translate-y-2 hover:shadow-[16px_16px_0_0_#000] md:hover:shadow-[24px_24px_0_0_#000] transition-all duration-300`}>
+                <div className="flex items-center gap-3 mb-3 md:hidden">
+                    <div className="w-10 h-10 bg-white border-4 border-black rounded-full flex items-center justify-center shrink-0 shadow-[0_4px_0_0_#000]">
                         {icon}
                     </div>
                 </div>
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight mb-3 select-none">{title}</h3>
                 <p className={`font-semibold text-lg md:text-xl leading-snug mb-8 ${textColor === 'text-white' ? 'text-zinc-400' : 'text-zinc-600'}`}>{description}</p>
 
                 {/* Embedded UI Mock */}

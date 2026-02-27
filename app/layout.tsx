@@ -11,6 +11,9 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "Skloop | Trade Skills",
   description: "Where skills come full circle. Trade skills, learn anything.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 import { LoadingProvider } from "@/components/LoadingProvider";
