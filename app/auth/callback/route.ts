@@ -1,38 +1,39 @@
-import { createClient } from '@/utils/supabase/server'
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { createClient } from "@/utils/supabase/server";
+import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-    const requestUrl = new URL(request.url)
-    const code = requestUrl.searchParams.get('code')
-    const token_hash = requestUrl.searchParams.get('token_hash')
-    const type = requestUrl.searchParams.get('type') as any
-
-    const supabase = await createClient()
-
-    if (token_hash && type) {
-        const { error } = await supabase.auth.verifyOtp({
-            type,
-            token_hash,
-        })
-        if (!error) {
-            const next = requestUrl.searchParams.get('next') || '/dashboard'
-            return NextResponse.redirect(new URL(next, request.url))
-        }
-        // Pass the actual Supabase error to the login page
-        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url))
-    }
+    const { searchParams, origin } = new URL(request.url);
+    const code = searchParams.get("code");
+    // 'next' is the URL to redirect to after sign in - defaults to origin
+    const next = searchParams.get("next") ?? "/dashboard";
 
     if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (!error) {
-            const next = requestUrl.searchParams.get('next') || '/dashboard'
-            return NextResponse.redirect(new URL(next, request.url))
+        const supabase = await createClient();
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (!error && data.user) {
+            const user = data.user;
+
+            // Check if this user already has a profile with a username set (returning user)
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("username")
+                .eq("id", user.id)
+                .maybeSingle();
+
+            const hasCompletedProfile = profile?.username && profile.username.trim() !== "";
+
+            if (hasCompletedProfile) {
+                // Returning user with complete profile → go straight to dashboard
+                return NextResponse.redirect(`${origin}/dashboard`);
+            } else {
+                // New Google user — profile exists (Supabase may auto-create one via trigger)
+                // but they haven't filled in their handle yet → send to profile setup
+                return NextResponse.redirect(`${origin}/auth/confirmed?new=true`);
+            }
         }
-        // Pass the actual Supabase error to the login page
-        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url))
     }
 
-    // fallback if no params
-    return NextResponse.redirect(new URL('/login?error=No+authentication+parameters+found', request.url))
+    // Auth code exchange failed - redirect to login with error message
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
 }

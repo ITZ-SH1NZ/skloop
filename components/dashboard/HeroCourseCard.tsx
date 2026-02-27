@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useUser } from "@/context/UserContext";
 import { createClient } from "@/utils/supabase/client";
+import { getHeroCourse } from "@/actions/course-actions";
 
 export default function HeroCourseCard() {
     const { user } = useUser();
@@ -13,42 +14,10 @@ export default function HeroCourseCard() {
 
     useEffect(() => {
         const fetchCourse = async () => {
-            const supabase = createClient();
             if (user) {
-                // Fetch user's pinned course or most recent
-                const { data, error } = await supabase
-                    .from('user_courses')
-                    .select('completed_lessons, is_pinned, courses(title, slug, description, total_lessons)')
-                    .eq('user_id', user.id)
-                    .order('is_pinned', { ascending: false })
-                    .order('last_accessed', { ascending: false })
-                    .limit(1)
-                    .single();
-
-                if (data && !error) {
-                    const courseData = Array.isArray(data.courses) ? data.courses[0] : data.courses as any;
-                    setCourse({
-                        title: courseData?.title,
-                        description: courseData?.description,
-                        slug: courseData?.slug,
-                        completedLessons: data.completed_lessons,
-                        totalLessons: courseData?.total_lessons
-                    });
-                } else {
-                    // Fallback to a default popular course if none started
-                    const { data: defaultCourse } = await supabase
-                        .from('courses')
-                        .select('title, slug, description, total_lessons')
-                        .limit(1)
-                        .single();
-
-                    if (defaultCourse) {
-                        setCourse({
-                            ...defaultCourse,
-                            completedLessons: 0,
-                            totalLessons: defaultCourse.total_lessons
-                        });
-                    }
+                const data = await getHeroCourse(user.id);
+                if (data) {
+                    setCourse(data);
                 }
             }
         };
@@ -82,7 +51,7 @@ export default function HeroCourseCard() {
                     </div>
 
                     <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.1]">
-                        {course.title.split(' ').map((word: string, i: number) => <span key={i}>{word}<br /></span>)}
+                        {(course.title || 'Your Course').split(' ').map((word: string, i: number) => <span key={i}>{word}<br /></span>)}
                     </h2>
 
                     <p className="text-slate-400 text-sm max-w-sm leading-relaxed">

@@ -45,7 +45,15 @@ export default function SettingsPage() {
 
                     <div className="h-px bg-gray-100 my-4" />
 
-                    <button className="flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors">
+                    <button
+                        className="flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors"
+                        onClick={async () => {
+                            const supabase = (await import("@/utils/supabase/client")).createClient();
+                            await supabase.auth.signOut();
+                            document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+                            window.location.href = "/login";
+                        }}
+                    >
                         <LogOut size={18} />
                         Log Out
                     </button>
@@ -273,19 +281,51 @@ function BillingSettings({ toast }: { toast: any }) {
 }
 
 function SecuritySettings({ toast }: { toast: any }) {
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleUpdatePassword = async () => {
+        if (!newPassword || newPassword.length < 6) {
+            toast("New password must be at least 6 characters.", "error");
+            return;
+        }
+        setIsSaving(true);
+        const supabase = (await import("@/utils/supabase/client")).createClient();
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) {
+            toast(`Failed to update password: ${error.message}`, "error");
+        } else {
+            toast("Password updated successfully!", "success");
+            setCurrentPassword("");
+            setNewPassword("");
+        }
+        setIsSaving(false);
+    };
+
     return (
         <div className="space-y-6">
             <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">Current Password</label>
-                <input type="password" className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none" />
+                <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none"
+                />
             </div>
             <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">New Password</label>
-                <input type="password" className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none" />
+                <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 font-medium outline-none"
+                />
             </div>
             <div className="pt-4">
-                <Button onClick={() => toast("Password updated!", "success")} className="w-full bg-black text-white font-bold rounded-xl">
-                    Update Password
+                <Button disabled={isSaving} onClick={handleUpdatePassword} className="w-full bg-black text-white font-bold rounded-xl">
+                    {isSaving ? "Updating..." : "Update Password"}
                 </Button>
             </div>
         </div>

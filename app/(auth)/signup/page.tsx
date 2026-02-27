@@ -77,7 +77,7 @@ export default function SignupPage() {
                 .from('profiles')
                 .select('username')
                 .eq('username', formData.handle.trim())
-                .single();
+                .maybeSingle();
 
             if (existingProcess) {
                 return "Handle already in use. Please select another.";
@@ -173,9 +173,18 @@ export default function SignupPage() {
                     ? "Aggressive pacing, harder quests, mentor work earlier."
                     : "";
 
-    const handleGoogleSignup = () => {
-        setAuthMethod("google");
-        setStep(2);
+    const handleGoogleSignup = async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: `${window.location.origin}/auth/callback`,
+            },
+        });
+        if (error) {
+            setError(error.message);
+        }
+        // Browser will redirect to Google — new users will land on /auth/confirmed?new=true
+        // where they fill in their handle. Returning users go straight to /dashboard.
     };
 
     const stepSubtitles = {

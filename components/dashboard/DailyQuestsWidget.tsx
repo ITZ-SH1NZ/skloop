@@ -5,6 +5,7 @@ import { delay, motion } from "framer-motion";
 import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { getQuestStatus } from "@/actions/task-actions";
 
 interface Quest {
     id: string;
@@ -29,40 +30,9 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
         const fetchQuestStatus = async () => {
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
-
             if (!user) return;
 
-            const todayStr = new Date().toISOString().split('T')[0];
-
-            // Only check completion, don't grant rewards (handled by UserContext)
-            const { data: activity } = await supabase
-                .from('activity_logs')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('activity_date', todayStr)
-                .eq('focus_area', 'Daily Login');
-
-            const loginCompleted = !!activity && activity.length > 0;
-
-            let codeleCompleted = false;
-            const { data: dailyPuzzle } = await supabase
-                .from('daily_puzzles')
-                .select('id')
-                .eq('puzzle_date', todayStr)
-                .single();
-
-            if (dailyPuzzle) {
-                const { data: puzzleAttempt } = await supabase
-                    .from('user_puzzle_attempts')
-                    .select('status')
-                    .eq('user_id', user.id)
-                    .eq('puzzle_id', dailyPuzzle.id)
-                    .single();
-
-                if (puzzleAttempt && puzzleAttempt.status !== 'playing') {
-                    codeleCompleted = true; // Win or lose, the quest is to 'Play'
-                }
-            }
+            const status = await getQuestStatus(user.id);
 
             setQuests([
                 {
@@ -72,7 +42,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                     icon: Flame,
                     xp: 10,
                     coins: 5,
-                    completed: loginCompleted
+                    completed: status.login
                 },
                 {
                     id: "codele",
@@ -81,7 +51,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                     icon: Terminal,
                     xp: 50,
                     coins: 10,
-                    completed: codeleCompleted,
+                    completed: status.codele,
                     onClick: onOpenCodele,
                     href: onOpenCodele ? undefined : "/practice/daily-codele"
                 }

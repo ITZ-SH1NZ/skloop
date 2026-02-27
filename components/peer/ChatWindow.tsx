@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
+import { getConversationMessages, sendMessage } from "@/actions/chat-actions";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 
@@ -62,27 +63,8 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
             if (!user) return;
             setCurrentUserId(user.id);
 
-            const { data: dbMessages } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', peer.id)
-                .order('created_at', { ascending: true });
-
-            if (dbMessages) {
-                const formatted: Message[] = dbMessages.map(m => ({
-                    id: m.id,
-                    senderId: m.user_id,
-                    text: m.content,
-                    type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
-                        : m.content.startsWith('https://') ? 'image'
-                            : 'text',
-                    mediaUrl: m.content.startsWith('https://') ? m.content : undefined,
-                    timestamp: new Date(m.created_at)
-                }));
-                // We overwrite type heuristic if we want to support true media attachments later,
-                // but for now simple checks work for the mock UI
-                setMessages(formatted);
-            }
+            const messages = await getConversationMessages(peer.id);
+            setMessages(messages);
         };
 
         fetchMessages();
@@ -96,7 +78,7 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                     const m = payload.new;
                     const newMessage: Message = {
                         id: m.id,
-                        senderId: m.user_id,
+                        senderId: m.sender_id,
                         text: m.content,
                         type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
                             : m.content.startsWith('https://') ? 'image'
@@ -147,20 +129,14 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
         setShowAttachments(false);
         setShowGifPicker(false);
 
-        const supabase = createClient();
-        const { data, error } = await supabase.from('messages').insert({
-            conversation_id: peer.id,
-            user_id: currentUserId,
-            content: content
-        }).select().single();
-
-        if (error) {
+        try {
+            const data = await sendMessage(peer.id, currentUserId, content);
+            // Replace fake id with real id
+            setMessages(prev => prev.map(m => m.id === fakeId ? { ...m, id: data.id } : m));
+        } catch (error) {
             console.error("Failed to send message", error);
             // Revert on error
             setMessages(prev => prev.filter(m => m.id !== fakeId));
-        } else {
-            // Replace fake id with real id
-            setMessages(prev => prev.map(m => m.id === fakeId ? { ...m, id: data.id } : m));
         }
     };
 

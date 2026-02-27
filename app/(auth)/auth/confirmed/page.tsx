@@ -1,17 +1,24 @@
 "use client";
 
-import AuthCard, { AuthButton } from "@/components/auth/AuthCard";
-import { CheckCircle2, Zap, ArrowRight, ShieldCheck } from "lucide-react";
+import AuthCard, { AuthButton, AuthInput } from "@/components/auth/AuthCard";
+import { CheckCircle2, Zap, ArrowRight, ShieldCheck, User, AtSign } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import confetti from "canvas-confetti";
+import { useSearchParams, useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 
-export default function AuthConfirmedPage() {
+function ConfirmedPageContent() {
     const [isRedirecting, setIsRedirecting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [formData, setFormData] = useState({ name: "", handle: "" });
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const isNewGoogleUser = searchParams.get("new") === "true";
 
     useEffect(() => {
-        // Celebration!
         confetti({
             particleCount: 150,
             spread: 70,
@@ -20,6 +27,101 @@ export default function AuthConfirmedPage() {
         });
     }, []);
 
+    const handleProfileSetup = async () => {
+        if (!formData.name.trim() || !formData.handle.trim()) {
+            setError("Please fill in both your display name and handle.");
+            return;
+        }
+        setIsSaving(true);
+        setError(null);
+
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            setError("Session expired. Please log in again.");
+            setIsSaving(false);
+            return;
+        }
+
+        // Check if handle is taken
+        const { data: existing } = await supabase
+            .from("profiles")
+            .select("username")
+            .eq("username", formData.handle.trim())
+            .maybeSingle();
+
+        if (existing) {
+            setError("That handle is already taken. Please choose another.");
+            setIsSaving(false);
+            return;
+        }
+
+        const { error: updateError } = await supabase
+            .from("profiles")
+            .update({
+                full_name: formData.name.trim(),
+                username: formData.handle.trim(),
+            })
+            .eq("id", user.id);
+
+        if (updateError) {
+            setError("Failed to save profile. Please try again.");
+            setIsSaving(false);
+            return;
+        }
+
+        router.push("/dashboard");
+    };
+
+    // New Google user — show profile setup form
+    if (isNewGoogleUser) {
+        return (
+            <AuthCard subtitle="Set Up Your Pilot">
+                <div className="flex flex-col items-center text-center mb-8">
+                    <motion.div
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", damping: 12 }}
+                        className="w-20 h-20 bg-white border-4 border-zinc-900 rounded-full flex items-center justify-center shadow-2xl mb-4"
+                    >
+                        <CheckCircle2 className="w-10 h-10 text-lime-500" strokeWidth={3} />
+                    </motion.div>
+                    <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Google Connected!</h2>
+                    <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto mt-2">
+                        Now choose your Pilot ID and callsign. These are your permanent identity on Skloop.
+                    </p>
+                </div>
+
+                <div className="space-y-4">
+                    <AuthInput
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        type="text"
+                        placeholder="Callsign (display name)"
+                        icon={<User size={20} />}
+                        autoFocus
+                    />
+                    <AuthInput
+                        value={formData.handle}
+                        onChange={(e) => setFormData(prev => ({ ...prev, handle: e.target.value }))}
+                        type="text"
+                        placeholder="Pilot ID (@handle)"
+                        icon={<AtSign size={20} />}
+                    />
+                    {error && <p className="text-sm font-bold text-red-500 text-center">{error}</p>}
+                    <AuthButton
+                        onClick={handleProfileSetup}
+                        disabled={isSaving || !formData.name.trim() || !formData.handle.trim()}
+                        className="w-full"
+                    >
+                        {isSaving ? "Saving..." : "Lock In & Begin First Run"}
+                    </AuthButton>
+                </div>
+            </AuthCard>
+        );
+    }
+
+    // Standard email-verified user — celebration screen
     return (
         <AuthCard subtitle="Authorization Success">
             <div className="flex flex-col items-center justify-center text-center py-6">
@@ -76,5 +178,19 @@ export default function AuthConfirmedPage() {
                 </p>
             </div>
         </AuthCard>
+    );
+}
+
+export default function AuthConfirmedPage() {
+    return (
+        <Suspense fallback={
+            <AuthCard subtitle="Loading...">
+                <div className="h-64 flex items-center justify-center">
+                    <div className="w-10 h-10 border-4 border-zinc-100 border-t-primary rounded-full animate-spin" />
+                </div>
+            </AuthCard>
+        }>
+            <ConfirmedPageContent />
+        </Suspense>
     );
 }

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useUser } from "@/context/UserContext";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
+import { getUserCourses } from "@/actions/course-actions";
 
 interface UserCourse {
     courseId: string;
@@ -28,23 +29,7 @@ export function LearningTab() {
         }
 
         const fetchCourses = async () => {
-            const supabase = createClient();
-
-            const { data } = await supabase
-                .from("user_courses")
-                .select(`
-                    course_id,
-                    completed_lessons,
-                    is_pinned,
-                    courses (
-                        id,
-                        title,
-                        slug,
-                        total_lessons
-                    )
-                `)
-                .eq("user_id", user.id)
-                .order("last_accessed", { ascending: false });
+            const data = await getUserCourses(user.id);
 
             if (data) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any

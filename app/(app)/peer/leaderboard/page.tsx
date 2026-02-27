@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Trophy, Globe, Users, Coins, Zap, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
+import { getGlobalLeaderboard, getFriendsLeaderboard, getUserRank } from "@/actions/leaderboard-actions";
 
 interface LeaderboardUser {
     id: string;
@@ -38,92 +39,20 @@ export default function LeaderboardPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) setCurrentUserId(user.id);
 
-            // Fetch Top 50 Global
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, username, full_name, avatar_url, role, xp, coins, streak')
-                .order(metric, { ascending: false })
-                .limit(50);
+            // 1. Fetch Global Top 50
+            const global = await getGlobalLeaderboard(metric);
+            setGlobalData(global);
 
-            if (profiles) {
-                const formattedGlobal = profiles.map((p, index) => ({
-                    id: p.id,
-                    rank: index + 1,
-                    name: p.full_name || p.username || 'User',
-                    username: p.username || '',
-                    avatarUrl: p.avatar_url,
-                    xp: p.xp || 0,
-                    coins: p.coins || 0,
-                    streak: p.streak || 0,
-                    trend: "same" as const // Could calculate from history if available
-                }));
-                setGlobalData(formattedGlobal);
+            if (user) {
+                // 2. Fetch Friends Rankings
+                const friends = await getFriendsLeaderboard(user.id, metric);
+                setFriendsData(friends);
 
-                if (user) {
-                    // Fetch Friends to filter
-                    const { data: connections } = await supabase
-                        .from('connections')
-                        .select('*')
-                        .eq('status', 'accepted')
-                        .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
-
-                    if (connections) {
-                        const friendIds = new Set(connections.map(c => c.requester_id === user.id ? c.recipient_id : c.requester_id));
-                        friendIds.add(user.id); // Include self
-
-                        // Filter the global top 50 for friends. If a friend is not in top 50, we might need a separate query, 
-                        // but for this MVP, just filtering the fetched global list is acceptable or fetching them specifically.
-                        // Let's fetch them specifically to ensure accurate local rankings.
-                        const { data: friendsProfiles } = await supabase
-                            .from('profiles')
-                            .select('id, username, full_name, avatar_url, role, xp, coins, streak')
-                            .in('id', Array.from(friendIds))
-                            .order(metric, { ascending: false });
-
-                        if (friendsProfiles) {
-                            const formattedFriends = friendsProfiles.map((p, index) => ({
-                                id: p.id,
-                                rank: index + 1,
-                                name: p.full_name || p.username || 'User',
-                                username: p.username || '',
-                                avatarUrl: p.avatar_url,
-                                xp: p.xp || 0,
-                                coins: p.coins || 0,
-                                streak: p.streak || 0,
-                                trend: "same" as const
-                            }));
-                            setFriendsData(formattedFriends);
-                        }
-                    }
-                }
-            }
-
-            // Fetch fallback rank for the current user if they are outside the top 50
-            if (user && profiles) {
-                const isInTopList = profiles.some((p: any) => p.id === user.id);
-                if (!isInTopList) {
-                    // Fetch the user's own profile
-                    const { data: myProfile } = await supabase
-                        .from('profiles')
-                        .select('id, full_name, username, avatar_url, xp, coins')
-                        .eq('id', user.id)
-                        .single();
-
-                    if (myProfile) {
-                        // Count how many users rank above this user
-                        const { count } = await supabase
-                            .from('profiles')
-                            .select('id', { count: 'exact', head: true })
-                            .gt(metric, myProfile[metric] ?? 0);
-
-                        setMyFallbackRank({
-                            rank: (count ?? 0) + 1,
-                            xp: myProfile.xp ?? 0,
-                            coins: myProfile.coins ?? 0,
-                            name: myProfile.full_name || myProfile.username || 'You',
-                            avatarUrl: myProfile.avatar_url,
-                        });
-                    }
+                // 3. Fetch user's own rank if not in the global top list
+                const isInTop50 = global.some(p => p.id === user.id);
+                if (!isInTop50) {
+                    const fallback = await getUserRank(user.id, metric);
+                    setMyFallbackRank(fallback);
                 } else {
                     setMyFallbackRank(null);
                 }

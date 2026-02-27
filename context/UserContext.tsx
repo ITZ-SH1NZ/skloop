@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { processDailyLogin, fetchUserProfile } from "@/actions/user-actions";
 
 interface UserProfile {
     id: string;
@@ -39,68 +40,42 @@ function calculateLevel(xp: number): number {
     return Math.floor(xp / 500) + 1;
 }
 
-export function UserProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const processedRef = React.useRef<string | null>(null); // Track processed user for today to prevent duplication
+export function UserProvider({
+    children,
+    initialUser = null,
+    initialProfile = null
+}: {
+    children: React.ReactNode;
+    initialUser?: User | null;
+    initialProfile?: UserProfile | null;
+}) {
+    const [user, setUser] = useState<User | null>(initialUser);
+    const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
+    const [isLoading, setIsLoading] = useState(!initialUser);
+    const processedRef = React.useRef<string | null>(null);
     const supabase = createClient();
 
     const fetchProfile = useCallback(async (userId: string) => {
-        const { data, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .single();
-
-        if (!error) {
-            const profile = data as UserProfile;
-            setProfile(profile);
-            return profile;
+        const data = await fetchUserProfile(userId);
+        if (data) {
+            const newProfile = data as UserProfile;
+            setProfile(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(newProfile)) return prev;
+                return newProfile;
+            });
+            return newProfile;
         }
         return null;
-    }, [supabase]);
+    }, []);
 
-    const handleDailyLogin = useCallback(async (userId: string, currentProfile: any) => {
-        const todayStr = new Date().toISOString().split("T")[0];
-
-        const { data: activity } = await supabase
-            .from("activity_logs")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("activity_date", todayStr)
-            .eq("focus_area", "Daily Login")
-            .limit(1)
-            .single();
-
-        if (!activity) {
-            await supabase.from("activity_logs").insert({
-                user_id: userId,
-                activity_date: todayStr,
-                hours_spent: 0.1,
-                focus_area: "Daily Login"
-            });
-
-            const newXp = (currentProfile.xp || 0) + 10;
-            const newCoins = (currentProfile.coins || 0) + 5;
-            const newStreak = (currentProfile.streak || 0) + 1;
-            const newLevel = calculateLevel(newXp);
-
-            await supabase.from("profiles").update({
-                xp: newXp,
-                coins: newCoins,
-                streak: newStreak,
-                level: newLevel
-            }).eq("id", userId);
-        }
-    }, [supabase]);
+    // handleDailyLogin is now handled via the processDailyLogin Server Action to ensure idempotency
 
     useEffect(() => {
         let mounted = true;
 
         const initAuth = async () => {
-            // Use getUser() instead of getSession() for more reliable auth state in App Router
-            const { data: { user: authUser }, error } = await supabase.auth.getUser();
+            // Re-verify auth state on mount even with SSR to catch stale sessions
+            const { data: { user: authUser } } = await supabase.auth.getUser();
 
             if (mounted) {
                 if (authUser) {
@@ -111,61 +86,69 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
                     if (fetchedProfile && processedRef.current !== processedKey) {
                         processedRef.current = processedKey;
-                        await handleDailyLogin(authUser.id, fetchedProfile);
+                        await processDailyLogin(authUser.id);
                     }
+                } else if (!initialUser) {
+                    // Only clear if we didn't have an initial SSR user
+                    setUser(null);
+                    setProfile(null);
                 }
                 setIsLoading(false);
             }
 
             const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-                if (mounted) {
-                    const newUser = session?.user || null;
+                if (!mounted) return;
 
-                    if (newUser?.id === user?.id && profile) {
-                        if (newUser === null && user !== null) {
-                            setUser(null);
-                            setProfile(null);
-                        }
-                        return;
-                    }
+                const newUser = session?.user || null;
 
-                    if (newUser) {
-                        setUser(newUser);
-                        const fetchedProfile = await fetchProfile(newUser.id);
-                        const todayStr = new Date().toISOString().split("T")[0];
-                        const processedKey = `${newUser.id}_${todayStr}`;
-
-                        if (fetchedProfile && processedRef.current !== processedKey) {
-                            processedRef.current = processedKey;
-                            await handleDailyLogin(newUser.id, fetchedProfile);
-                        }
-                    } else {
-                        setUser(null);
-                        setProfile(null);
-                    }
-                    setIsLoading(false);
+                // Only skip if it's a neutral non-change event (INITIAL_SESSION with same user)
+                if (event === 'INITIAL_SESSION' && newUser) {
+                    return; // initAuth already handled the initial load
                 }
+
+                if (newUser) {
+                    setUser(newUser);
+                    const fetchedProfile = await fetchProfile(newUser.id);
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const processedKey = `${newUser.id}_${todayStr}`;
+
+                    if (fetchedProfile && processedRef.current !== processedKey) {
+                        processedRef.current = processedKey;
+                        await processDailyLogin(newUser.id);
+                    }
+                } else {
+                    setUser(null);
+                    setProfile(null);
+                }
+                setIsLoading(false);
             });
 
-            return () => {
-                subscription.unsubscribe();
-            };
+            return subscription;
         };
 
-        initAuth();
+        let subscription: any;
+        initAuth().then(sub => { subscription = sub; });
 
         return () => {
             mounted = false;
+            subscription?.unsubscribe();
         };
-    }, [supabase, fetchProfile, handleDailyLogin]);
+    }, [supabase, fetchProfile, initialUser]);
 
-    // Re-fetch profile when user returns to the tab (catches missed real-time events)
+    // Optimized visibility change: prevents full app refresh if data is same
     useEffect(() => {
         if (!user) return;
 
+        let lastCheck = Date.now();
+        const MIN_CHECK_INTERVAL = 30000; // 30 seconds
+
         const handleVisibilityChange = async () => {
             if (document.visibilityState === "visible") {
-                // Verify user session is still valid before fetching
+                const now = Date.now();
+                // Only re-fetch if it's been a while to avoid aggressive refreshes
+                if (now - lastCheck < MIN_CHECK_INTERVAL) return;
+
+                lastCheck = now;
                 const { data: { user: authUser } } = await supabase.auth.getUser();
                 if (authUser) {
                     fetchProfile(authUser.id);
@@ -197,9 +180,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 (payload) => {
                     if (payload.new && Object.keys(payload.new).length > 0) {
                         const newProfile = payload.new as UserProfile;
-                        // Always recalculate level from XP to keep them in sync
                         newProfile.level = calculateLevel(newProfile.xp);
-                        setProfile(newProfile);
+
+                        setProfile(prev => {
+                            if (JSON.stringify(prev) === JSON.stringify(newProfile)) return prev;
+                            return newProfile;
+                        });
                     }
                 }
             )

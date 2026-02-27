@@ -48,6 +48,22 @@ function LoginForm() {
         }
     };
 
+    const handleGoogleLogin = async () => {
+        setIsLoading(true);
+        setError(null);
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: `${window.location.origin}/auth/callback`,
+            },
+        });
+        if (error) {
+            setError(error.message);
+            setIsLoading(false);
+        }
+        // On success, browser redirects to Google — no further action needed here
+    };
+
     return (
         <AuthCard subtitle="Resume Session">
             <form onSubmit={handleLogin} className="space-y-6">
@@ -96,7 +112,9 @@ function LoginForm() {
 
                 <button
                     type="button"
-                    className="w-full h-14 bg-white text-zinc-900 border-2 border-zinc-100 rounded-2xl flex items-center justify-center gap-3 hover:border-zinc-300 hover:shadow-lg transition-all duration-200 group font-bold"
+                    onClick={handleGoogleLogin}
+                    disabled={isLoading}
+                    className="w-full h-14 bg-white text-zinc-900 border-2 border-zinc-100 rounded-2xl flex items-center justify-center gap-3 hover:border-zinc-300 hover:shadow-lg transition-all duration-200 group font-bold disabled:opacity-50"
                 >
                     <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="group-hover:scale-110 transition-transform">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

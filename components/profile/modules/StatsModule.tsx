@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
+import { getUserCourses } from "@/actions/course-actions";
 
 export function StatsModule() {
     const { user } = useUser();
@@ -16,29 +17,23 @@ export function StatsModule() {
 
     useEffect(() => {
         const fetchCourses = async () => {
-            const supabase = createClient();
-
-            if (user) {
-                const { data, error } = await supabase
-                    .from('user_courses')
-                    .select('completed_lessons, courses(title, total_lessons)')
-                    .eq('user_id', user.id)
-                    .order('last_accessed', { ascending: false })
-                    .limit(3);
-
-                if (data && !error && data.length > 0) {
-                    const colors = ["bg-blue-500", "bg-purple-500", "bg-orange-500"];
-                    const formattedCourses = data.map((uc: any, index: number) => {
-                        const total = uc.courses.total_lessons || 1; // Prevent div by 0
-                        const progress = Math.round((uc.completed_lessons / total) * 100);
-                        return {
-                            name: uc.courses.title,
-                            progress: progress > 100 ? 100 : progress, // clamp
-                            color: colors[index % colors.length]
-                        };
-                    });
-                    setCourses(formattedCourses);
-                }
+            if (!user) {
+                setIsLoading(false);
+                return;
+            }
+            const data = await getUserCourses(user.id);
+            if (data && data.length > 0) {
+                const colors = ["bg-blue-500", "bg-purple-500", "bg-orange-500"];
+                const formattedCourses = data.slice(0, 3).map((uc: any, index: number) => {
+                    const total = uc.courses.total_lessons || 1;
+                    const progress = Math.round((uc.completed_lessons / total) * 100);
+                    return {
+                        name: uc.courses.title,
+                        progress: progress > 100 ? 100 : progress,
+                        color: colors[index % colors.length]
+                    };
+                });
+                setCourses(formattedCourses);
             }
             setIsLoading(false);
         };

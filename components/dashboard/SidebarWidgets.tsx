@@ -302,7 +302,7 @@ export function UpcomingWorkshop() {
                 .gte('start_time', new Date().toISOString())
                 .order('start_time', { ascending: true })
                 .limit(1)
-                .single();
+                .maybeSingle();
 
             if (data && !error) {
                 setWorkshop(data);

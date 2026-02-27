@@ -12,6 +12,7 @@ import { ActivityChart, LeaderboardWidget, UpcomingWorkshop } from "@/components
 import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
 import DailyGame from "@/components/dashboard/DailyGame";
 import { Modal } from "@/components/ui/Modal";
+import { getUserTasks, completeTask } from "@/actions/task-actions";
 
 const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -44,28 +45,8 @@ export default function DashboardPage() {
             setIsLoadingTasks(true);
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                // Fetch pending user tasks joined with the task details
-                const { data, error } = await supabase
-                    .from('user_tasks')
-                    .select(`
-                        id,
-                        status,
-                        task_id,
-                        tasks (
-                            id,
-                            title,
-                            description,
-                            xp_reward,
-                            task_type,
-                            difficulty
-                        )
-                    `)
-                    .eq('user_id', user.id)
-                    .eq('status', 'pending');
-
-                if (data && !error) {
-                    setTasks(data);
-                }
+                const data = await getUserTasks(user.id);
+                setTasks(data);
             }
             setIsLoadingTasks(false);
         };
@@ -79,29 +60,11 @@ export default function DashboardPage() {
     const handleCompleteTask = async () => {
         if (!selectedTask) return;
 
-        // 1. Update user_tasks status
-        const { error: taskError } = await supabase
-            .from('user_tasks')
-            .update({ status: 'completed', completed_at: new Date().toISOString() })
-            .eq('id', selectedTask.id);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-        if (!taskError) {
-            // 2. Fetch current profile XP and update it
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('xp')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profile) {
-                    await supabase
-                        .from('profiles')
-                        .update({ xp: profile.xp + selectedTask.tasks.xp_reward })
-                        .eq('id', user.id);
-                }
-            }
+        try {
+            await completeTask(selectedTask.id, user.id, selectedTask.tasks.xp_reward);
 
             // Remove task from state
             setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
@@ -115,6 +78,9 @@ export default function DashboardPage() {
                 });
             });
             setSelectedTask(null);
+        } catch (error) {
+            console.error("Failed to complete task", error);
+            // Optionally show error toast here
         }
     };
 
@@ -288,7 +254,7 @@ export default function DashboardPage() {
                     {/* RIGHT COLUMN (Sidebar) - Spans 4 cols */}
                     <div className="lg:col-span-4 space-y-6">
                         <motion.div variants={itemVariants}>
-                            <DailyQuestsWidget onOpenCodele={() => setIsGameOpen(true)} />
+                            <DailyQuestsWidget />
                         </motion.div>
 
                         <motion.div variants={itemVariants}>

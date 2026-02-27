@@ -178,7 +178,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             href: "#",
             subItems: [
                 { label: "My Roadmap", href: "/roadmap" },
-                { label: "Web Development", href: "/course/web-dev" },
+                { label: "Web Development", href: "/course/web-development" },
                 { label: "DSA Foundations", href: "/course/dsa" },
             ]
         },
