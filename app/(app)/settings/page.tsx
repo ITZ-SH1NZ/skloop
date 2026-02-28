@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
 
 const tabs = [
     { id: "general", label: "General", icon: User },
@@ -18,6 +19,7 @@ const tabs = [
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState("general");
     const { toast } = useToast();
+    const router = useRouter();
 
     return (
         <div className="p-4 md:p-6 xl:p-8 max-w-5xl mx-auto">
@@ -47,11 +49,12 @@ export default function SettingsPage() {
 
                     <button
                         className="flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors"
-                        onClick={async () => {
-                            const supabase = (await import("@/utils/supabase/client")).createClient();
-                            await supabase.auth.signOut();
+                        onClick={() => {
+                            // Fire and forget, then redirect immediately
+                            const supabase = createClient();
+                            supabase.auth.signOut();
                             document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-                            window.location.href = "/login";
+                            router.push("/login");
                         }}
                     >
                         <LogOut size={18} />

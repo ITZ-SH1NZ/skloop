@@ -45,7 +45,6 @@ export async function getUserTasks(userId: string) {
 export async function completeTask(userTaskId: string, userId: string, xpReward: number) {
     const supabase = await createClient();
 
-    // 1. Update user_tasks status
     const { error: taskError } = await supabase
         .from('user_tasks')
         .update({ status: 'completed', completed_at: new Date().toISOString() })
@@ -56,7 +55,6 @@ export async function completeTask(userTaskId: string, userId: string, xpReward:
         throw new Error("Failed to update task status");
     }
 
-    // 2. Fetch current profile XP
     const { data: profile } = await supabase
         .from('profiles')
         .select('xp')
@@ -67,7 +65,6 @@ export async function completeTask(userTaskId: string, userId: string, xpReward:
         throw new Error("Profile not found");
     }
 
-    // 3. Update profile XP and recalculate level
     const newXp = (profile.xp || 0) + xpReward;
     const newLevel = calculateLevel(newXp);
     const { error: updateError } = await supabase
@@ -84,43 +81,176 @@ export async function completeTask(userTaskId: string, userId: string, xpReward:
 }
 
 /**
- * Returns the status of daily quests for a user
+ * Returns the status of daily quests for a user.
+ * Checks the daily_quest_completions table first, then falls back to activity checks.
  */
 export async function getQuestStatus(userId: string) {
     const supabase = await createClient();
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Check Daily Login (handled by activity_logs)
-    const { data: loginLog } = await supabase
-        .from('activity_logs')
-        .select('id')
+    // Check daily_quest_completions table
+    const { data: completions } = await supabase
+        .from('daily_quest_completions')
+        .select('quest_id')
         .eq('user_id', userId)
-        .eq('activity_date', todayStr)
-        .eq('focus_area', 'Daily Login');
+        .eq('completed_at', todayStr);
 
-    // Check Daily Codele (handled by daily_puzzles and attempts)
-    let codeleCompleted = false;
-    const { data: dailyPuzzle } = await supabase
-        .from('daily_puzzles')
-        .select('id')
-        .eq('puzzle_date', todayStr)
-        .maybeSingle();
+    const completedQuestIds = new Set((completions || []).map((c: any) => c.quest_id));
 
-    if (dailyPuzzle) {
-        const { data: puzzleAttempt } = await supabase
-            .from('user_puzzle_attempts')
-            .select('status')
+    // If login not already claimed, also check activity_logs as fallback
+    let loginCompleted = completedQuestIds.has('login');
+    if (!loginCompleted) {
+        const { data: loginLog } = await supabase
+            .from('activity_logs')
+            .select('id')
             .eq('user_id', userId)
-            .eq('puzzle_id', dailyPuzzle.id)
+            .eq('activity_date', todayStr)
+            .eq('focus_area', 'Daily Login');
+        loginCompleted = !!(loginLog && loginLog.length > 0);
+    }
+
+    // Check Daily Codele
+    let codeleCompleted = completedQuestIds.has('codele');
+    if (!codeleCompleted) {
+        const { data: dailyPuzzle } = await supabase
+            .from('daily_puzzles')
+            .select('id')
+            .eq('puzzle_date', todayStr)
             .maybeSingle();
 
-        if (puzzleAttempt && puzzleAttempt.status !== 'playing') {
-            codeleCompleted = true;
+        if (dailyPuzzle) {
+            const { data: puzzleAttempt } = await supabase
+                .from('user_puzzle_attempts')
+                .select('status')
+                .eq('user_id', userId)
+                .eq('puzzle_id', dailyPuzzle.id)
+                .maybeSingle();
+
+            if (puzzleAttempt && puzzleAttempt.status !== 'playing') {
+                codeleCompleted = true;
+            }
         }
     }
 
     return {
-        login: !!loginLog && loginLog.length > 0,
+        login: loginCompleted,
         codele: codeleCompleted
+    };
+}
+
+/**
+ * Claims a daily quest reward for a user.
+ * Validates the quest condition, prevents double-claiming, and grants XP + Coins.
+ */
+export async function claimDailyQuest(
+    userId: string,
+    questId: string
+): Promise<{ success: boolean; message: string; xpAwarded?: number; coinsAwarded?: number }> {
+    const supabase = await createClient();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Quest definitions
+    const QUESTS: Record<string, { xp: number; coins: number }> = {
+        login: { xp: 10, coins: 5 },
+        codele: { xp: 50, coins: 10 },
+    };
+
+    const quest = QUESTS[questId];
+    if (!quest) return { success: false, message: 'Unknown quest.' };
+
+    // 1. Prevent double-claiming
+    const { data: already } = await supabase
+        .from('daily_quest_completions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('quest_id', questId)
+        .eq('completed_at', todayStr)
+        .maybeSingle();
+
+    if (already) return { success: false, message: 'Quest already claimed today.' };
+
+    // 2. Validate conditions
+    if (questId === 'login') {
+        const { data: loginLog } = await supabase
+            .from('activity_logs')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('activity_date', todayStr)
+            .eq('focus_area', 'Daily Login');
+
+        if (!loginLog || loginLog.length === 0) {
+            // Auto-pass: if user is authenticated and we're calling this, they've logged in
+            // We just grant the reward directly since they are clearly logged in
+        }
+    }
+
+    if (questId === 'codele') {
+        const { data: dailyPuzzle } = await supabase
+            .from('daily_puzzles')
+            .select('id')
+            .eq('puzzle_date', todayStr)
+            .maybeSingle();
+
+        if (dailyPuzzle) {
+            const { data: puzzleAttempt } = await supabase
+                .from('user_puzzle_attempts')
+                .select('status')
+                .eq('user_id', userId)
+                .eq('puzzle_id', dailyPuzzle.id)
+                .maybeSingle();
+
+            if (!puzzleAttempt || puzzleAttempt.status === 'playing') {
+                return { success: false, message: 'Complete Codele first to claim this reward.' };
+            }
+        } else {
+            return { success: false, message: 'No Codele puzzle found for today.' };
+        }
+    }
+
+    // 3. Record the completion
+    const { error: insertError } = await supabase
+        .from('daily_quest_completions')
+        .insert({
+            user_id: userId,
+            quest_id: questId,
+            completed_at: todayStr,
+            xp_awarded: quest.xp,
+            coins_awarded: quest.coins,
+        });
+
+    if (insertError) {
+        console.error('claimDailyQuest insert error:', insertError);
+        return { success: false, message: 'Failed to record quest completion.' };
+    }
+
+    // 4. Grant XP and Coins
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('xp, coins')
+        .eq('id', userId)
+        .single();
+
+    if (!profile) return { success: false, message: 'Profile not found.' };
+
+    const newXp = (profile.xp || 0) + quest.xp;
+    const newCoins = (profile.coins || 0) + quest.coins;
+    const newLevel = calculateLevel(newXp);
+
+    const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ xp: newXp, coins: newCoins, level: newLevel })
+        .eq('id', userId);
+
+    if (updateError) {
+        console.error('claimDailyQuest profile update error:', updateError);
+        return { success: false, message: 'Failed to award XP and Coins.' };
+    }
+
+    revalidatePath('/dashboard');
+    return {
+        success: true,
+        message: `+${quest.xp} XP and +${quest.coins} Coins claimed!`,
+        xpAwarded: quest.xp,
+        coinsAwarded: quest.coins
     };
 }

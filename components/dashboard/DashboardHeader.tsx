@@ -1,189 +1,303 @@
 "use client";
 
-import { Search, Bell, User, LogOut, Settings, HelpCircle, FileText } from "lucide-react";
+import { Search, Bell, LogOut, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import Link from "next/link";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
 import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
+import { useRouter } from "next/navigation";
+
+interface Notification {
+    id: string;
+    title: string;
+    message: string | null;
+    type: string;
+    read: boolean;
+    created_at: string;
+}
 
 export default function DashboardHeader({ initialUser }: { initialUser?: any }) {
     const { toast } = useToast();
-    const [activeDropdown, setActiveDropdown] = useState<'notifications' | 'profile' | null>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
     const supabase = createClient();
     const { profile: userProfile } = useUser();
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-    // Close dropdown on click outside
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setActiveDropdown(null);
-            }
+    // Fetch notifications from Supabase
+    const fetchNotifications = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+            .from('notifications')
+            .select('id, title, message, type, read, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (data) {
+            setNotifications(data);
+            setUnreadCount(data.filter(n => !n.read).length);
         }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    }, [supabase]);
 
-    const toggleDropdown = (type: 'notifications' | 'profile') => {
-        setActiveDropdown(activeDropdown === type ? null : type);
+    useEffect(() => {
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    const handleMarkAllRead = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('user_id', user.id)
+            .eq('read', false);
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
     };
 
-    const notifications: any[] = []; // TODO: Fetch from backend
+    const handleMarkRead = async (id: string) => {
+        await supabase.from('notifications').update({ read: true }).eq('id', id);
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+    };
+
+    // Instant logout
+    const handleLogout = async () => {
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
+        // Fire and forget signout, then redirect immediately
+        supabase.auth.signOut(); // don't await — just fire
+        document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+        router.push('/login');
+    };
+
+    const formatTimeAgo = (dateStr: string) => {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.floor(hrs / 24);
+        return `${days}d ago`;
+    };
+
+    const typeIcon = (type: string) => {
+        switch (type) {
+            case 'success': return '✅';
+            case 'warning': return '⚠️';
+            case 'error': return '❌';
+            default: return '🔔';
+        }
+    };
 
     return (
-        <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between mb-8 relative z-10">
-            <div>
-                <motion.h1
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-2xl font-bold text-slate-900"
-                >
-                    Dashboard
-                </motion.h1>
-                <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-slate-500 text-sm"
-                >
-                    Welcome back, {userProfile?.full_name || userProfile?.username || "Loading..."}!
-                </motion.p>
-            </div>
-
-
-            <div className="flex flex-wrap md:flex-nowrap flex-1 md:justify-end items-center gap-4" ref={dropdownRef}>
-                {/* Search */}
-                <div className="relative w-full md:w-auto md:max-w-md group order-last md:order-none mt-2 md:mt-0">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-[#D4F268] transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Search tracks, lessons..."
-                        className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D4F268] focus:border-transparent transition-all shadow-sm"
-                    />
-                </div>
-
-                {/* XP Widget */}
-                <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    className="flex items-center gap-3 bg-white border border-slate-200 pl-2 pr-4 py-1.5 rounded-full shadow-sm cursor-default"
-                >
-                    <div className="relative w-8 h-8 flex items-center justify-center">
-                        {/* Circular Progress */}
-                        <svg className="w-full h-full -rotate-90">
-                            <circle cx="16" cy="16" r="14" stroke="#e2e8f0" strokeWidth="3" fill="none" />
-                            <circle
-                                cx="16"
-                                cy="16"
-                                r="14"
-                                stroke="#D4F268"
-                                strokeWidth="3"
-                                fill="none"
-                                strokeDasharray="88"
-                                strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 500) / 500))}
-                                strokeLinecap="round"
-                            />
-                        </svg>
-                        <span className="absolute text-[10px] font-black text-slate-900">{userProfile?.level || 1}</span>
-                    </div>
-
-                    <div className="flex flex-col leading-none">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lvl {userProfile?.level || 1}</span>
-                        <span className="text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()} XP</span>
-                    </div>
-                </motion.div>
-
-                {/* Coin Widget */}
-                <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    className="flex items-center gap-2 bg-[#FAFAFA] border border-slate-200 px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:border-[#D4F268]/50 transition-colors"
-                >
-                    <div className="w-8 h-8 relative flex items-center justify-center">
-                        <CurrencyCoin size="sm" />
-                    </div>
-                    <span className="text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
-                </motion.div>
-
-                {/* Streak Pill */}
-                <motion.div
-                    whileHover={{ scale: 1.05, rotate: 2 }}
-                    className="flex items-center gap-2 bg-[#D4F268] px-4 py-2.5 rounded-2xl shadow-[0_4px_10px_-2px_rgba(212,242,104,0.5)] cursor-pointer"
-                    onClick={() => toast("Streak protected! Keep it up!", "success")}
-                >
-                    <span className="text-slate-900 font-bold">🔥 {userProfile?.streak || 0}</span>
-                    <span className="text-xs font-bold text-slate-900/60 uppercase tracking-wider">Day Streak</span>
-                </motion.div>
-
-                {/* Notifications */}
-                <div className="relative">
-                    <motion.button
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => toggleDropdown('notifications')}
-                        className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-colors shadow-sm relative ${activeDropdown === 'notifications' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+        <>
+            <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between mb-8 relative z-10">
+                <div>
+                    <motion.h1
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-2xl font-bold text-slate-900"
                     >
-                        <Bell className="w-4 h-4" />
-                        {notifications.length > 0 && (
-                            <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-                        )}
-                    </motion.button>
-
-                    <AnimatePresence>
-                        {activeDropdown === 'notifications' && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-[100] origin-top-right"
-                            >
-                                <div className="px-4 py-3 border-b border-slate-50 flex justify-between items-center">
-                                    <h3 className="font-bold text-slate-800 text-sm">Notifications</h3>
-                                    {notifications.length > 0 && (
-                                        <span className="text-[10px] text-[#D4F268] bg-[#1A1C1E] px-2 py-0.5 rounded font-bold">{notifications.length} New</span>
-                                    )}
-                                </div>
-                                <div className="max-h-64 overflow-y-auto w-full">
-                                    {notifications.length === 0 ? (
-                                        <div className="p-6 text-center text-zinc-400 text-sm font-medium">
-                                            <p>🎉 You're all caught up!</p>
-                                            <p className="text-xs mt-1">No new notifications.</p>
-                                        </div>
-                                    ) : (
-                                        notifications.map(n => (
-                                            <div key={n.id} className={`p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
-                                                <p className="text-sm text-slate-800 font-medium leading-tight mb-1">{n.text}</p>
-                                                <p className="text-xs text-slate-400">{n.time}</p>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                                <div className="p-2 border-t border-slate-50 text-center">
-                                    <button className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors w-full py-1">Mark all as read</button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                        Dashboard
+                    </motion.h1>
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-slate-500 text-sm"
+                    >
+                        Welcome back, {userProfile?.full_name || userProfile?.username || "Loading..."}!
+                    </motion.p>
                 </div>
 
-                {/* Profile -> Replaced with Logout */}
-                <div className="relative block">
-                    <motion.button
+                <div className="flex flex-wrap md:flex-nowrap flex-1 md:justify-end items-center gap-4">
+                    {/* Search */}
+                    <div className="relative w-full md:w-auto md:max-w-md group order-last md:order-none mt-2 md:mt-0">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-[#D4F268] transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="Search tracks, lessons..."
+                            className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D4F268] focus:border-transparent transition-all shadow-sm"
+                        />
+                    </div>
+
+                    {/* XP Widget */}
+                    <motion.div
                         whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors"
-                        onClick={async () => {
-                            await supabase.auth.signOut();
-                            // Reset onboarding for logged out users
-                            document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-                            window.location.href = "/login";
-                        }}
+                        className="flex items-center gap-3 bg-white border border-slate-200 pl-2 pr-4 py-1.5 rounded-full shadow-sm cursor-default"
                     >
-                        <LogOut size={20} className="ml-0.5" />
-                    </motion.button>
-                </div>
+                        <div className="relative w-8 h-8 flex items-center justify-center">
+                            <svg className="w-full h-full -rotate-90">
+                                <circle cx="16" cy="16" r="14" stroke="#e2e8f0" strokeWidth="3" fill="none" />
+                                <circle
+                                    cx="16" cy="16" r="14"
+                                    stroke="#D4F268" strokeWidth="3" fill="none"
+                                    strokeDasharray="88"
+                                    strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 500) / 500))}
+                                    strokeLinecap="round"
+                                />
+                            </svg>
+                            <span className="absolute text-[10px] font-black text-slate-900">{userProfile?.level || 1}</span>
+                        </div>
+                        <div className="flex flex-col leading-none">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lvl {userProfile?.level || 1}</span>
+                            <span className="text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()} XP</span>
+                        </div>
+                    </motion.div>
 
+                    {/* Coin Widget */}
+                    <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        className="flex items-center gap-2 bg-[#FAFAFA] border border-slate-200 px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:border-[#D4F268]/50 transition-colors"
+                    >
+                        <div className="w-8 h-8 relative flex items-center justify-center">
+                            <CurrencyCoin size="sm" />
+                        </div>
+                        <span className="text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
+                    </motion.div>
+
+                    {/* Streak Pill */}
+                    <motion.div
+                        whileHover={{ scale: 1.05, rotate: 2 }}
+                        className="flex items-center gap-2 bg-[#D4F268] px-4 py-2.5 rounded-2xl shadow-[0_4px_10px_-2px_rgba(212,242,104,0.5)] cursor-pointer"
+                        onClick={() => toast("Streak protected! Keep it up!", "success")}
+                    >
+                        <span className="text-slate-900 font-bold">🔥 {userProfile?.streak || 0}</span>
+                        <span className="text-xs font-bold text-slate-900/60 uppercase tracking-wider">Day Streak</span>
+                    </motion.div>
+
+                    {/* Notifications Bell */}
+                    <div className="relative">
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setNotificationsOpen(true)}
+                            className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-colors shadow-sm relative bg-white border-slate-200 hover:bg-slate-50 text-slate-600`}
+                        >
+                            <Bell className="w-4 h-4" />
+                            {unreadCount > 0 && (
+                                <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                                    <span className="sr-only">{unreadCount} new</span>
+                                </div>
+                            )}
+                        </motion.button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="relative block">
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors disabled:opacity-60"
+                            onClick={handleLogout}
+                            disabled={isLoggingOut}
+                        >
+                            {isLoggingOut ? (
+                                <span className="w-4 h-4 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
+                            ) : (
+                                <LogOut size={20} className="ml-0.5" />
+                            )}
+                        </motion.button>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            {/* Notifications Modal Overlay */}
+            <AnimatePresence>
+                {notificationsOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[200] bg-slate-900/30 backdrop-blur-sm"
+                            onClick={() => setNotificationsOpen(false)}
+                        />
+
+                        {/* Popup Panel */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
+                            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden"
+                            style={{ maxHeight: '80vh' }}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                                <div>
+                                    <h2 className="font-bold text-slate-900 text-lg">Notifications</h2>
+                                    {unreadCount > 0 && (
+                                        <p className="text-xs text-slate-500 mt-0.5">{unreadCount} unread</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    {unreadCount > 0 && (
+                                        <button
+                                            onClick={handleMarkAllRead}
+                                            className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                                        >
+                                            Mark all read
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setNotificationsOpen(false)}
+                                        className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Scrollable Notification List */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                {notifications.length === 0 ? (
+                                    <div className="py-12 text-center">
+                                        <p className="text-3xl mb-3">🎉</p>
+                                        <p className="font-bold text-slate-700">You're all caught up!</p>
+                                        <p className="text-xs text-slate-400 mt-1">No new notifications right now.</p>
+                                    </div>
+                                ) : (
+                                    notifications.map(n => (
+                                        <motion.div
+                                            key={n.id}
+                                            layout
+                                            onClick={() => !n.read && handleMarkRead(n.id)}
+                                            className={`p-4 rounded-2xl transition-colors cursor-pointer ${!n.read ? 'bg-blue-50/60 hover:bg-blue-100/60' : 'hover:bg-slate-50'}`}
+                                        >
+                                            <div className="flex gap-3 items-start">
+                                                <span className="text-xl flex-shrink-0 mt-0.5">{typeIcon(n.type)}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className={`text-sm font-bold text-slate-800 leading-tight ${!n.read ? '' : 'font-medium text-slate-600'}`}>
+                                                            {n.title}
+                                                        </p>
+                                                        {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                                                    </div>
+                                                    {n.message && (
+                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{n.message}</p>
+                                                    )}
+                                                    <p className="text-[10px] text-slate-400 font-medium mt-1.5">{formatTimeAgo(n.created_at)}</p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                )}
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
     );
 }

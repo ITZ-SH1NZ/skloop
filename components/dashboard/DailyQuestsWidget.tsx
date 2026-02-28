@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { delay, motion } from "framer-motion";
-import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
-import { getQuestStatus } from "@/actions/task-actions";
+import { getQuestStatus, claimDailyQuest } from "@/actions/task-actions";
+import { useUser } from "@/context/UserContext";
 
 interface Quest {
     id: string;
@@ -15,51 +16,79 @@ interface Quest {
     xp: number;
     coins: number;
     completed: boolean;
+    canClaim: boolean; // separate from completed — might be done but not yet claimed
     href?: string;
     onClick?: () => void;
 }
 
-import { useUser } from "@/context/UserContext";
-
 export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () => void }) {
-    const { profile } = useUser();
+    const { profile, user, refreshProfile } = useUser();
     const [quests, setQuests] = useState<Quest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [claimingId, setClaimingId] = useState<string | null>(null);
+    const [claimFeedback, setClaimFeedback] = useState<{ id: string; message: string } | null>(null);
+
+    const fetchQuestStatus = async () => {
+        const supabase = createClient();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) return;
+
+        const status = await getQuestStatus(authUser.id);
+
+        setQuests([
+            {
+                id: "login",
+                title: "Daily Login",
+                description: "Log in to Skloop and view your dashboard.",
+                icon: Flame,
+                xp: 10,
+                coins: 5,
+                completed: status.login,
+                canClaim: !status.login, // not completed yet = can claim
+            },
+            {
+                id: "codele",
+                title: "Play Daily Codele",
+                description: "Guess today's programming-related 5-letter word.",
+                icon: Terminal,
+                xp: 50,
+                coins: 10,
+                completed: status.codele,
+                canClaim: false, // codele is auto-claimed on puzzle completion
+                onClick: onOpenCodele,
+                href: onOpenCodele ? undefined : "/practice/daily-codele"
+            }
+        ]);
+        setIsLoading(false);
+    };
 
     useEffect(() => {
-        const fetchQuestStatus = async () => {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const status = await getQuestStatus(user.id);
-
-            setQuests([
-                {
-                    id: "login",
-                    title: "Daily Login",
-                    description: "Log in to Skloop and view your dashboard.",
-                    icon: Flame,
-                    xp: 10,
-                    coins: 5,
-                    completed: status.login
-                },
-                {
-                    id: "codele",
-                    title: "Play Daily Codele",
-                    description: "Guess today's programming-related 5-letter word.",
-                    icon: Terminal,
-                    xp: 50,
-                    coins: 10,
-                    completed: status.codele,
-                    onClick: onOpenCodele,
-                    href: onOpenCodele ? undefined : "/practice/daily-codele"
-                }
-            ]);
-            setIsLoading(false);
-        };
         fetchQuestStatus();
     }, [onOpenCodele]);
+
+    const handleClaimQuest = async (questId: string) => {
+        const supabase = createClient();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser || claimingId) return;
+
+        setClaimingId(questId);
+        try {
+            const result = await claimDailyQuest(authUser.id, questId);
+            if (result.success) {
+                setClaimFeedback({ id: questId, message: result.message });
+                // Optimistically update the quest list
+                setQuests(prev => prev.map(q => q.id === questId ? { ...q, completed: true, canClaim: false } : q));
+                // Refresh the profile to update XP display
+                await refreshProfile();
+                setTimeout(() => setClaimFeedback(null), 3000);
+            } else {
+                setClaimFeedback({ id: questId, message: result.message });
+                setTimeout(() => setClaimFeedback(null), 3000);
+            }
+        } finally {
+            setClaimingId(null);
+        }
+    };
 
     const allCompleted = quests.length > 0 && quests.every(q => q.completed);
 
@@ -103,7 +132,10 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                     {[...quests].sort((a, b) => Number(a.completed) - Number(b.completed)).map((quest, i) => {
                         const Icon = quest.icon;
                         const isDone = quest.completed;
-                        const isLink = !!quest.href;
+                        const isClaiming = claimingId === quest.id;
+                        const feedback = claimFeedback?.id === quest.id ? claimFeedback.message : null;
+                        const isLink = !!quest.href && !isDone;
+                        const hasOnClick = !!quest.onClick && !isDone;
 
                         const innerContent = (
                             <div className={`
@@ -125,11 +157,49 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    {!isDone && (quest.onClick || quest.href) && (
+                                    {/* Feedback message */}
+                                    <AnimatePresence>
+                                        {feedback && (
+                                            <motion.span
+                                                initial={{ opacity: 0, x: 10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: -10 }}
+                                                className="text-xs font-bold text-emerald-600"
+                                            >
+                                                {feedback}
+                                            </motion.span>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Claim button for login quest */}
+                                    {quest.id === 'login' && !isDone && (
+                                        <motion.button
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={(e) => { e.stopPropagation(); handleClaimQuest(quest.id); }}
+                                            disabled={isClaiming}
+                                            className="text-xs font-bold bg-[#D4F268] text-slate-900 px-3 py-1.5 rounded-xl hover:bg-lime-300 transition-colors disabled:opacity-70 flex items-center gap-1"
+                                        >
+                                            {isClaiming ? (
+                                                <span className="flex items-center gap-1">
+                                                    <span className="w-3 h-3 rounded-full border-2 border-slate-700 border-t-transparent animate-spin" />
+                                                    Claiming...
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-1">
+                                                    <Sparkles size={12} />
+                                                    Claim
+                                                </span>
+                                            )}
+                                        </motion.button>
+                                    )}
+
+                                    {/* Go arrow for codele */}
+                                    {!isDone && quest.id !== 'login' && (quest.onClick || quest.href) && (
                                         <span className="text-xs font-bold text-slate-400 group-hover:text-slate-600 hidden md:inline-flex items-center gap-1 transition-colors">
                                             Go <ArrowRight size={14} />
                                         </span>
                                     )}
+
                                     {isDone ? (
                                         <CheckCircle2 className="text-[#D4F268] flex-shrink-0" size={24} fill="#18181b" />
                                     ) : (
@@ -139,7 +209,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                             </div>
                         );
 
-                        if (isLink && !isDone) {
+                        if (isLink) {
                             return (
                                 <Link key={quest.id} href={quest.href as string} className="block w-full">
                                     {innerContent}
@@ -147,7 +217,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
                             );
                         }
 
-                        if (!isDone && quest.onClick) {
+                        if (hasOnClick) {
                             return (
                                 <motion.div key={quest.id} onClick={quest.onClick} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="block w-full">
                                     {innerContent}
