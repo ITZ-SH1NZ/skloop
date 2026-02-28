@@ -95,44 +95,45 @@ export default function MarketingNavbar() {
                         onClick={() => setMobileMenuOpen(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            initial={{ scale: 0.95, opacity: 0, y: 30 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
-                            className="w-full max-w-sm bg-white border-4 md:border-8 border-black rounded-[2.5rem] md:rounded-[3rem] shadow-[12px_12px_0_0_#000] md:shadow-[20px_20px_0_0_#000] p-8 flex flex-col gap-6 relative"
+                            exit={{ scale: 0.95, opacity: 0, y: 30 }}
+                            transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+                            className="w-full max-w-sm bg-zinc-900 border-4 border-zinc-800 rounded-[2rem] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <button
-                                className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full border-2 border-black hover:bg-zinc-200"
+                                className="absolute top-5 right-5 p-2 bg-zinc-800 rounded-full border-2 border-zinc-700 hover:bg-zinc-700 transition-colors"
                                 onClick={() => setMobileMenuOpen(false)}
                             >
-                                <X className="w-6 h-6 text-black" />
+                                <X className="w-5 h-5 text-zinc-300" />
                             </button>
 
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-lime-400 border-4 border-black rounded-xl shadow-[4px_4px_0_0_#000] flex items-center justify-center">
-                                    <Infinity className="w-8 h-8 text-black" />
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 bg-lime-400 border-2 border-lime-500 rounded-xl shadow-[0_0_15px_rgba(212,242,104,0.4)] flex items-center justify-center relative">
+                                    <div className="absolute inset-0 bg-white/20 rounded-xl" />
+                                    <Infinity className="w-7 h-7 text-zinc-900 relative z-10" />
                                 </div>
-                                <span className="font-black text-3xl tracking-tighter">SKLOOP</span>
+                                <span className="font-black text-3xl tracking-tighter text-white">SKLOOP</span>
                             </div>
 
-                            <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-3">
                                 <Link
                                     href="/manifesto"
-                                    className="w-full p-4 bg-zinc-50 border-4 border-zinc-200 rounded-2xl font-bold text-lg text-center active:scale-95 transition-transform"
+                                    className="w-full p-4 bg-zinc-800 border-2 border-zinc-700 text-zinc-100 rounded-2xl font-bold text-lg text-center hover:bg-zinc-700 hover:border-zinc-600 active:scale-[0.98] transition-all"
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
                                     Strategy Guide
                                 </Link>
                                 <Link
                                     href="/login"
-                                    className="w-full p-4 bg-zinc-50 border-4 border-zinc-200 rounded-2xl font-bold text-lg text-center active:scale-95 transition-transform"
+                                    className="w-full p-4 bg-zinc-800 border-2 border-zinc-700 text-zinc-100 rounded-2xl font-bold text-lg text-center hover:bg-zinc-700 hover:border-zinc-600 active:scale-[0.98] transition-all"
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
                                     Load Save
                                 </Link>
-                                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
-                                    <button className="w-full p-4 bg-lime-400 border-4 border-black rounded-2xl font-black text-xl uppercase tracking-wider text-black shadow-[0_6px_0_0_#000] active:translate-y-[6px] active:shadow-[0_0px_0_0_#000] transition-all flex items-center justify-center gap-2">
+                                <Link href="/signup" onClick={() => setMobileMenuOpen(false)} className="mt-2">
+                                    <button className="w-full h-14 bg-lime-400 text-black rounded-2xl font-black text-lg uppercase tracking-wider flex items-center justify-center gap-2 border-2 border-lime-300 shadow-[0_0_20px_rgba(212,242,104,0.3)] hover:shadow-[0_0_30px_rgba(212,242,104,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all">
                                         <Gamepad2 className="w-6 h-6" /> Play Now
                                     </button>
                                 </Link>
