@@ -46,7 +46,7 @@ export default function ParallaxBackground() {
                 <motion.div
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="w-8 h-8 md:w-12 md:h-12 bg-white rounded-full"
+                    className="w-8 h-8 md:w-12 md:h-12 bg-white rounded-lg"
                 />
             </motion.div>
 
@@ -55,7 +55,7 @@ export default function ParallaxBackground() {
                 style={{ x: bgX, y: bgY, rotate: rotate2 }}
                 className="absolute bottom-1/3 right-4 md:right-1/5 w-24 h-24 md:w-40 md:h-40 bg-zinc-900 rounded-2xl md:rounded-[2rem] shadow-xl md:shadow-2xl flex items-center justify-center -z-10"
             >
-                <div className="w-12 h-1.5 md:w-20 md:h-2 bg-lime-400 rounded-full" />
+                <div className="w-12 h-1.5 md:w-20 md:h-2 bg-lime-400 rounded-sm" />
             </motion.div>
 
             {/* The large rotating target ring */}

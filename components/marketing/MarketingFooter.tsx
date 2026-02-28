@@ -57,7 +57,7 @@ export default function MarketingFooter() {
                         © {new Date().getFullYear()} Skloop Inc. All rights reserved.
                     </p>
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-lime-400 animate-pulse" />
+                        <div className="w-2 h-2 rounded-sm bg-lime-400 animate-pulse" />
                         <span className="text-zinc-400 font-bold tracking-wider text-xs uppercase">Systems Online</span>
                     </div>
                 </div>

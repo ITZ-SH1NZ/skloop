@@ -105,7 +105,7 @@ export const InfinityHero = () => {
                         strokeWidth="12"
                         strokeLinecap="round"
                     />
-                    <circle cx="200" cy="100" r="6" fill="#D4F268" className="animate-pulse" />
+                    <rect x="194" y="94" width="12" height="12" rx="2" fill="#D4F268" className="animate-pulse" />
                 </svg>
             </div>
 
@@ -135,7 +135,7 @@ export const InfinityHero = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 3 }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900/90 md:bg-zinc-900 border border-white/10 shadow-2xl mb-12"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900/90 md:bg-zinc-900 border border-white/10 shadow-2xl mb-12"
                 >
                     <ShieldCheck size={16} className="text-primary" />
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] px-2">
@@ -173,7 +173,7 @@ export const InfinityHero = () => {
                 {/* Status Bar Mockup */}
                 <div className="mt-20 flex items-center gap-12 opacity-20 text-[10px] font-mono font-bold tracking-[0.2em] text-zinc-500 uppercase">
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        <div className="w-2 h-2 rounded-sm bg-primary" />
                         Local_Sync: OK
                     </div>
                     <div>Latency: 2ms</div>

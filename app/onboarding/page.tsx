@@ -50,7 +50,7 @@ export default function OnboardingPage() {
                                 initial={{ scale: 0, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-                                className="inline-block px-4 py-1.5 md:px-6 md:py-2 rounded-full bg-white text-black text-xs md:text-sm font-black uppercase tracking-widest shadow-lg border border-zinc-100 mb-6 md:mb-8"
+                                className="inline-block px-4 py-1.5 md:px-6 md:py-2 rounded-xl bg-white text-black text-xs md:text-sm font-black uppercase tracking-widest shadow-lg border border-zinc-100 mb-6 md:mb-8"
                             >
                                 Ready to level up?
                             </motion.div>
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
                                 className="flex flex-col sm:flex-row gap-4 md:gap-6 relative z-30 w-full sm:w-auto"
                             >
                                 <Link href="/signup" className="group w-full sm:w-auto">
-                                    <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-full bg-lime-300 text-zinc-900 text-lg md:text-xl font-black flex items-center justify-center gap-3 border-4 border-white shadow-[0_8px_0_0_#A3E635,0_10px_20px_-5px_rgba(212,242,104,0.6)] md:shadow-[0_10px_0_0_#A3E635,0_20px_40px_-10px_rgba(212,242,104,0.6)] active:shadow-[0_0px_0_0_#A3E635] active:translate-y-[8px] hover:-translate-y-1 hover:shadow-[0_10px_0_0_#A3E635,0_15px_30px_-5px_rgba(212,242,104,0.8)] md:hover:shadow-[0_12px_0_0_#A3E635,0_30px_50px_-10px_rgba(212,242,104,0.8)] transition-all uppercase tracking-wider relative overflow-hidden">
+                                    <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-lime-300 text-zinc-900 text-lg md:text-xl font-black flex items-center justify-center gap-3 border-4 border-white shadow-[0_8px_0_0_#A3E635,0_10px_20px_-5px_rgba(212,242,104,0.6)] md:shadow-[0_10px_0_0_#A3E635,0_20px_40px_-10px_rgba(212,242,104,0.6)] active:shadow-[0_0px_0_0_#A3E635] active:translate-y-[8px] hover:-translate-y-1 hover:shadow-[0_10px_0_0_#A3E635,0_15px_30px_-5px_rgba(212,242,104,0.8)] md:hover:shadow-[0_12px_0_0_#A3E635,0_30px_50px_-10px_rgba(212,242,104,0.8)] transition-all uppercase tracking-wider relative overflow-hidden">
                                         <span className="relative z-10 flex items-center gap-2">
                                             Press Start <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform" />
                                         </span>
@@ -98,7 +98,7 @@ export default function OnboardingPage() {
                                 </Link>
 
                                 <Link href="/manifesto" className="w-full sm:w-auto">
-                                    <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-full bg-white text-zinc-900 border-4 border-zinc-200 text-base md:text-lg font-bold flex items-center justify-center gap-2 shadow-[0_6px_0_0_#e5e5e5] md:shadow-[0_8px_0_0_#e5e5e5] active:shadow-[0_0px_0_0_#e5e5e5] active:translate-y-[6px] hover:-translate-y-1 transition-all">
+                                    <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-white text-zinc-900 border-4 border-zinc-200 text-base md:text-lg font-bold flex items-center justify-center gap-2 shadow-[0_6px_0_0_#e5e5e5] md:shadow-[0_8px_0_0_#e5e5e5] active:shadow-[0_0px_0_0_#e5e5e5] active:translate-y-[6px] hover:-translate-y-1 transition-all">
                                         Read Manifesto
                                     </button>
                                 </Link>

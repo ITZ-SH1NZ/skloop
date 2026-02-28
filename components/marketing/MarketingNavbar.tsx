@@ -87,13 +87,21 @@ export default function MarketingNavbar() {
             <AnimatePresence>
                 {mobileMenuOpen && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ type: "spring", bounce: 0.3 }}
-                        className="fixed inset-0 z-[60] p-6 flex flex-col items-center justify-center bg-zinc-900/40 backdrop-blur-sm"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 z-[60] p-6 flex flex-col items-center justify-center bg-zinc-900/60 backdrop-blur-md"
+                        onClick={() => setMobileMenuOpen(false)}
                     >
-                        <div className="w-full max-w-sm bg-white border-8 border-black rounded-[3rem] shadow-[20px_20px_0_0_#000] p-8 flex flex-col gap-6 relative">
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
+                            className="w-full max-w-sm bg-white border-4 md:border-8 border-black rounded-[2.5rem] md:rounded-[3rem] shadow-[12px_12px_0_0_#000] md:shadow-[20px_20px_0_0_#000] p-8 flex flex-col gap-6 relative"
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             <button
                                 className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full border-2 border-black hover:bg-zinc-200"
                                 onClick={() => setMobileMenuOpen(false)}
@@ -129,7 +137,7 @@ export default function MarketingNavbar() {
                                     </button>
                                 </Link>
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
