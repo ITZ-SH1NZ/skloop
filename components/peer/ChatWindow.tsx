@@ -63,37 +63,44 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
             if (!user) return;
             setCurrentUserId(user.id);
 
-            const messages = await getConversationMessages(peer.id);
+            // Build a deterministic conversation ID for DMs (peer-to-peer)
+            // Group chats already have a proper ID starting with 'g'
+            const conversationId = peer.id.startsWith('g')
+                ? peer.id
+                : [user.id, peer.id].sort().join('_');
+
+            const messages = await getConversationMessages(conversationId);
             setMessages(messages);
+
+            // Subscribe to real-time additions
+            const channel = supabase.channel(`messages:conv:${conversationId}`)
+                .on(
+                    'postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
+                    (payload) => {
+                        const m = payload.new;
+                        const newMessage: Message = {
+                            id: m.id,
+                            senderId: m.sender_id,
+                            text: m.content,
+                            type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
+                                : m.content.startsWith('https://') ? 'image'
+                                    : 'text',
+                            mediaUrl: m.content.startsWith('https://') ? m.content : undefined,
+                            timestamp: new Date(m.created_at)
+                        };
+                        setMessages(prev => [...prev, newMessage]);
+                    }
+                )
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
         };
 
-        fetchMessages();
-
-        // Subscribe to real-time additions
-        const channel = supabase.channel(`public:messages:conversation_id=eq.${peer.id}`)
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${peer.id}` },
-                (payload) => {
-                    const m = payload.new;
-                    const newMessage: Message = {
-                        id: m.id,
-                        senderId: m.sender_id,
-                        text: m.content,
-                        type: m.content.startsWith('https://') && m.content.includes('giphy.com') ? 'gif'
-                            : m.content.startsWith('https://') ? 'image'
-                                : 'text',
-                        mediaUrl: m.content.startsWith('https://') ? m.content : undefined,
-                        timestamp: new Date(m.created_at)
-                    };
-                    setMessages(prev => [...prev, newMessage]);
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        const cleanup = fetchMessages();
+        return () => { cleanup.then(fn => fn?.()).catch(() => { }); };
     }, [peer]);
 
     useEffect(() => {
@@ -130,7 +137,11 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
         setShowGifPicker(false);
 
         try {
-            const data = await sendMessage(peer.id, currentUserId, content);
+            // Rebuild the conversation ID the same way as in useEffect
+            const conversationId = peer.id.startsWith('g')
+                ? peer.id
+                : [currentUserId, peer.id].sort().join('_');
+            const data = await sendMessage(conversationId, currentUserId, content);
             // Replace fake id with real id
             setMessages(prev => prev.map(m => m.id === fakeId ? { ...m, id: data.id } : m));
         } catch (error) {

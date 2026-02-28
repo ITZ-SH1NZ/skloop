@@ -88,7 +88,7 @@ export default function LoopyPage() {
     };
 
     return (
-        <div className="flex flex-col bg-[#FDFCF8] font-sans relative overflow-hidden selection:bg-[#D4F268] selection:text-black">
+        <div className="flex flex-col bg-[#FDFCF8] font-sans relative overflow-hidden h-[100dvh] selection:bg-[#D4F268] selection:text-black">
 
             {/* Background Texture & Blobs */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 pointer-events-none" />
@@ -109,8 +109,8 @@ export default function LoopyPage() {
             <LoopyHeader mode={mode} setMode={setMode} rank={rank} xp={xp} />
 
             {/* Content Area - Adjusted padding: pt-24 only on mobile select mode, pb-4 for chat mode to keep input low */}
-            <main className={`flex-1 relative flex flex-col z-10 
-                ${mode === "select" ? "pt-24 pb-24 md:pt-0" : "pt-20 pb-2 md:pt-0 overflow-hidden"}
+            <main className={`flex-1 relative flex flex-col z-10 min-h-0 
+                ${mode === "select" ? "overflow-y-auto pt-24 pb-24 md:pt-0" : "pt-20 pb-2 md:pt-0 overflow-hidden"}
             `}>
                 <AnimatePresence mode="wait">
                     {mode === "select" ? (
@@ -195,7 +195,7 @@ export default function LoopyPage() {
                             key="chat"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="flex-1 flex flex-col h-full max-w-4xl mx-auto w-full px-4"
+                            className="flex-1 flex flex-col min-h-0 max-w-4xl mx-auto w-full px-4 overflow-hidden"
                         >
                             {/* Messages */}
                             <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-6 space-y-8 scroll-smooth no-scrollbar">

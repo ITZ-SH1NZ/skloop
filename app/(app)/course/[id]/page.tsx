@@ -52,84 +52,158 @@ export default function CoursePage() {
             // Get current user for progress tracking
             const { data: { user } } = await supabase.auth.getUser();
 
-            // Fetch course by slug
+            // ── Try 1: Look in the `courses` table by slug ──
             const { data: course } = await supabase
                 .from("courses")
                 .select("id, title, total_lessons")
                 .eq("slug", courseId)
-                .single();
+                .maybeSingle();
 
-            if (!course) {
+            if (course) {
+                // Course table path (original logic)
+                const { data: lessons } = await supabase
+                    .from("lessons")
+                    .select("id, title, order_index, content")
+                    .eq("course_id", course.id)
+                    .order("order_index", { ascending: true });
+
+                let completedLessonIds = new Set<string>();
+                if (user && lessons) {
+                    const { data: progress } = await supabase
+                        .from("user_lesson_progress")
+                        .select("lesson_id")
+                        .eq("user_id", user.id)
+                        .in("lesson_id", lessons.map((l) => l.id));
+                    if (progress) completedLessonIds = new Set(progress.map((p) => p.lesson_id));
+                }
+
+                const lessonList = lessons ?? [];
+                const completedCount = lessonList.filter((l) => completedLessonIds.has(l.id)).length;
+                const progress = lessonList.length > 0
+                    ? Math.round((completedCount / lessonList.length) * 100)
+                    : 0;
+
+                const LESSONS_PER_MODULE = 4;
+                const builtModules: Module[] = [];
+                for (let i = 0; i < lessonList.length; i += LESSONS_PER_MODULE) {
+                    const chunk = lessonList.slice(i, i + LESSONS_PER_MODULE);
+                    const moduleNum = Math.floor(i / LESSONS_PER_MODULE) + 1;
+                    const moduleLessons: Lesson[] = chunk.map((l) => ({
+                        id: l.id,
+                        title: l.title,
+                        order_index: l.order_index,
+                        isCompleted: completedLessonIds.has(l.id),
+                        type: "article",
+                        duration: "10 min",
+                        isLocked: false,
+                    }));
+                    const allDone = moduleLessons.every((l) => l.isCompleted);
+                    const anyDone = moduleLessons.some((l) => l.isCompleted);
+                    builtModules.push({
+                        id: moduleNum,
+                        title: `Module ${moduleNum}`,
+                        description: chunk[0]?.content || `Continue your learning journey in this module.`,
+                        lessons: moduleLessons,
+                        status: allDone ? "completed" : anyDone ? "in-progress" : "in-progress",
+                    });
+                }
+
+                const firstActive = builtModules.find((m) => m.status === "in-progress");
+                setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
+                setTrackData({
+                    title: course.title,
+                    progress,
+                    totalModules: builtModules.length,
+                    completedModules: builtModules.filter((m) => m.status === "completed").length,
+                    currentLesson: {
+                        title: lessonList.find((l) => !completedLessonIds.has(l.id))?.title ?? "Start Learning",
+                    },
+                });
+                setModules(builtModules);
                 setIsLoading(false);
                 return;
             }
 
-            // Fetch lessons for this course
-            const { data: lessons } = await supabase
-                .from("lessons")
-                .select("id, title, order_index, content")
-                .eq("course_id", course.id)
-                .order("order_index", { ascending: true });
+            // ── Try 2: Fall back to the `tracks` table (same data the Roadmap uses) ──
+            const { data: track } = await supabase
+                .from("tracks")
+                .select("id, title")
+                .eq("slug", courseId)
+                .maybeSingle();
 
-            // Fetch user progress on lessons
-            let completedLessonIds = new Set<string>();
-            if (user && lessons) {
-                const { data: progress } = await supabase
-                    .from("user_lesson_progress")
-                    .select("lesson_id")
-                    .eq("user_id", user.id)
-                    .in("lesson_id", lessons.map((l) => l.id));
-
-                if (progress) {
-                    completedLessonIds = new Set(progress.map((p) => p.lesson_id));
-                }
+            if (!track) {
+                // Neither table has this slug
+                setIsLoading(false);
+                return;
             }
 
-            const lessonList = lessons ?? [];
-            const completedCount = lessonList.filter((l) => completedLessonIds.has(l.id)).length;
-            const progress = lessonList.length > 0
-                ? Math.round((completedCount / lessonList.length) * 100)
-                : 0;
+            // Fetch modules for this track
+            const { data: dbModules } = await supabase
+                .from("modules")
+                .select("id, title, description, order_index")
+                .eq("track_id", track.id)
+                .order("order_index");
 
-            // Group lessons into modules of ~4
-            const LESSONS_PER_MODULE = 4;
-            const builtModules: Module[] = [];
-            for (let i = 0; i < lessonList.length; i += LESSONS_PER_MODULE) {
-                const chunk = lessonList.slice(i, i + LESSONS_PER_MODULE);
-                const moduleNum = Math.floor(i / LESSONS_PER_MODULE) + 1;
-                const moduleLessons: Lesson[] = chunk.map((l, idx) => ({
-                    id: l.id,
-                    title: l.title,
-                    order_index: l.order_index,
-                    isCompleted: completedLessonIds.has(l.id),
+            if (!dbModules || dbModules.length === 0) {
+                setIsLoading(false);
+                return;
+            }
+
+            // Fetch all topics for these modules
+            const { data: topics } = await supabase
+                .from("topics")
+                .select("id, module_id, title, order_index, type")
+                .in("module_id", dbModules.map((m) => m.id))
+                .order("order_index", { ascending: true });
+
+            // Fetch topic progress
+            let completedTopicIds = new Set<string>();
+            if (user && topics) {
+                const { data: progress } = await supabase
+                    .from("user_topic_progress")
+                    .select("topic_id")
+                    .eq("user_id", user.id)
+                    .eq("status", "completed")
+                    .in("topic_id", topics.map((t) => t.id));
+                if (progress) completedTopicIds = new Set(progress.map((p) => p.topic_id));
+            }
+
+            const totalTopics = topics?.length ?? 0;
+            const completedCount = topics?.filter((t) => completedTopicIds.has(t.id)).length ?? 0;
+            const progress = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
+
+            // Map modules → our Module interface (topics become lessons)
+            const builtModules: Module[] = dbModules.map((mod, idx) => {
+                const modTopics = (topics ?? []).filter((t) => t.module_id === mod.id);
+                const moduleLessons: Lesson[] = modTopics.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    order_index: t.order_index,
+                    isCompleted: completedTopicIds.has(t.id),
                     type: "article",
                     duration: "10 min",
                     isLocked: false,
                 }));
-
                 const allDone = moduleLessons.every((l) => l.isCompleted);
                 const anyDone = moduleLessons.some((l) => l.isCompleted);
-
-                builtModules.push({
-                    id: moduleNum,
-                    title: `Module ${moduleNum}`,
-                    description: chunk[0]?.content || `Continue your learning journey in this module.`,
+                return {
+                    id: idx + 1,
+                    title: mod.title,
+                    description: mod.description || `Module ${idx + 1}`,
                     lessons: moduleLessons,
                     status: allDone ? "completed" : anyDone ? "in-progress" : "in-progress",
-                });
-            }
+                };
+            });
 
-            // Find first in-progress module to expand by default
             const firstActive = builtModules.find((m) => m.status === "in-progress");
             setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
-
             setTrackData({
-                title: course.title,
+                title: track.title,
                 progress,
                 totalModules: builtModules.length,
                 completedModules: builtModules.filter((m) => m.status === "completed").length,
                 currentLesson: {
-                    title: lessonList.find((l) => !completedLessonIds.has(l.id))?.title ?? "Start Learning",
+                    title: topics?.find((t) => !completedTopicIds.has(t.id))?.title ?? "Start Learning",
                 },
             });
             setModules(builtModules);

@@ -29,6 +29,8 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
     const [srcDoc, setSrcDoc] = useState("");
     const [isValidating, setIsValidating] = useState(false);
     const [isPassed, setIsPassed] = useState(false);
+    // Mobile-only: toggle between "code" and "preview" panels
+    const [mobilePanel, setMobilePanel] = useState<"code" | "preview">("code");
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     useEffect(() => {
@@ -110,9 +112,10 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                 </div>
             </div>
 
+            {/* Mobile: only show the active panel */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Editor Section */}
-                <div className="w-1/2 flex flex-col border-r border-zinc-800">
+                {/* Editor Section - hidden on mobile when preview is active */}
+                <div className={`flex flex-col border-r border-zinc-800 ${mobilePanel === "preview" ? "hidden md:flex" : "flex"} w-full md:w-1/2`}>
                     <div className="flex-1 overflow-auto bg-zinc-950 p-4 font-mono text-sm custom-scrollbar">
                         {activeTab === "html" && (
                             <Editor
@@ -153,8 +156,8 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                     </div>
                 </div>
 
-                {/* Preview Section */}
-                <div className="w-1/2 flex flex-col bg-white">
+                {/* Preview Section - hidden on mobile when code is active */}
+                <div className={`flex flex-col bg-white ${mobilePanel === "code" ? "hidden md:flex" : "flex"} w-full md:w-1/2`}>
                     <div className="flex items-center gap-2 px-4 py-2 bg-zinc-100 border-b border-zinc-200">
                         <Eye size={14} className="text-zinc-400" />
                         <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Live Preview</span>
@@ -168,6 +171,23 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                     />
                 </div>
             </div>
+
+            {/* Mobile Toggle Bar — only visible on small screens */}
+            <div className="md:hidden flex border-t border-zinc-700 bg-zinc-900">
+                <button
+                    onClick={() => setMobilePanel("code")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${mobilePanel === "code" ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                    <Code size={15} /> Code
+                </button>
+                <button
+                    onClick={() => setMobilePanel("preview")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-widest transition-colors ${mobilePanel === "preview" ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                    <Eye size={15} /> Preview
+                </button>
+            </div>
         </div>
     );
 }
+

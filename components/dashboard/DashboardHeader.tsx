@@ -124,7 +124,9 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-colors shadow-sm relative ${activeDropdown === 'notifications' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`}
                     >
                         <Bell className="w-4 h-4" />
-                        <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                        {notifications.length > 0 && (
+                            <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                        )}
                     </motion.button>
 
                     <AnimatePresence>
@@ -133,19 +135,28 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 origin-top-right"
+                                className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-[100] origin-top-right"
                             >
                                 <div className="px-4 py-3 border-b border-slate-50 flex justify-between items-center">
                                     <h3 className="font-bold text-slate-800 text-sm">Notifications</h3>
-                                    <span className="text-[10px] text-[#D4F268] bg-[#1A1C1E] px-2 py-0.5 rounded font-bold">3 New</span>
+                                    {notifications.length > 0 && (
+                                        <span className="text-[10px] text-[#D4F268] bg-[#1A1C1E] px-2 py-0.5 rounded font-bold">{notifications.length} New</span>
+                                    )}
                                 </div>
                                 <div className="max-h-64 overflow-y-auto w-full">
-                                    {notifications.map(n => (
-                                        <div key={n.id} className={`p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
-                                            <p className="text-sm text-slate-800 font-medium leading-tight mb-1">{n.text}</p>
-                                            <p className="text-xs text-slate-400">{n.time}</p>
+                                    {notifications.length === 0 ? (
+                                        <div className="p-6 text-center text-zinc-400 text-sm font-medium">
+                                            <p>🎉 You're all caught up!</p>
+                                            <p className="text-xs mt-1">No new notifications.</p>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        notifications.map(n => (
+                                            <div key={n.id} className={`p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}>
+                                                <p className="text-sm text-slate-800 font-medium leading-tight mb-1">{n.text}</p>
+                                                <p className="text-xs text-slate-400">{n.time}</p>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                                 <div className="p-2 border-t border-slate-50 text-center">
                                     <button className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors w-full py-1">Mark all as read</button>

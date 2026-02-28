@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { X, Trophy, Target, Zap, Calendar, Clock, MapPin, ExternalLink, ArrowRight } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import confetti from "canvas-confetti";
@@ -183,6 +184,7 @@ export function ActivityChart() {
 export function LeaderboardWidget() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [users, setUsers] = useState<any[]>([]);
+    const router = useRouter();
 
     useEffect(() => {
         const fetchLeaderboard = async () => {
@@ -241,9 +243,10 @@ export function LeaderboardWidget() {
                     ))}
                 </div>
                 <button
+                    onClick={() => router.push('/peer/leaderboard')}
                     className="w-full mt-6 text-xs font-bold text-slate-400 hover:text-slate-600 py-2 transition-colors"
                 >
-                    View All Leaderboard
+                    View All Leaderboard →
                 </button>
             </div>
 

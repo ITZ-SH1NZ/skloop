@@ -68,7 +68,7 @@ export default function TrackHero({ title, description, progress }: TrackHeroPro
             {/* Sticky Minimal Header */}
             <motion.div
                 style={{ opacity: stickyHeaderOpacity, y: stickyHeaderY }}
-                className="fixed top-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-xl border-b border-zinc-200/50 z-50 flex items-center justify-between px-6 md:px-12 pointer-events-none"
+                className="fixed top-[calc(4rem+env(safe-area-inset-top))] md:top-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-xl border-b border-zinc-200/50 z-50 flex items-center justify-between px-6 md:px-12 pointer-events-none"
             >
                 <div className="font-bold text-lg text-zinc-900 truncate max-w-[50%] pointer-events-auto">
                     {title}
