@@ -121,14 +121,14 @@ body {
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Adjust Modal positioning on mobile - but NOT the loader */
-  .fixed.inset-0:not(.aperture-loader) {
+  /* Adjust Modal positioning on mobile - but NOT the loader OR centered modals */
+  .fixed.inset-0:not(.aperture-loader):not(.modal-centered) {
     padding: 1rem !important;
     align-items: flex-end !important;
     /* Sheet-like behavior */
   }
 
-  .fixed.inset-0:not(.aperture-loader)>div {
+  .fixed.inset-0:not(.aperture-loader):not(.modal-centered)>div {
     max-height: 85vh !important;
     border-bottom-left-radius: 0 !important;
     border-bottom-right-radius: 0 !important;

@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Bungee } from "next/font/google";
+import { Titan_One } from "next/font/google";
 import MarketingNavbar from "@/components/marketing/MarketingNavbar";
 import FeatureLevels from "@/components/marketing/FeatureLevels";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
@@ -12,7 +12,7 @@ import ExpandedSections from "@/components/marketing/ExpandedSections";
 import ParallaxBackground from "@/components/marketing/ParallaxBackground";
 import { MasterScrollProvider } from "@/components/providers/MasterScrollProvider";
 
-const bungee = Bungee({ weight: "400", subsets: ["latin"] });
+const titanOne = Titan_One({ weight: "400", subsets: ["latin"] });
 
 export default function OnboardingPage() {
     useEffect(() => {
@@ -58,22 +58,23 @@ export default function OnboardingPage() {
                                 Ready to level up?
                             </motion.div>
 
-                            <div className={`relative mb-6 ${bungee.className}`}>
+                            <div className={`relative mb-6 ${titanOne.className}`}>
                                 <motion.h1
                                     initial={{ y: 50, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
                                     transition={{ type: "spring", bounce: 0.4, delay: 0.1 }}
-                                    className="text-6xl sm:text-7xl md:text-[10rem] font-normal text-zinc-900 tracking-normal select-none pb-2 leading-none uppercase drop-shadow-lg"
+                                    className="text-7xl sm:text-8xl md:text-[10rem] font-normal text-zinc-900 tracking-normal select-none relative z-10 uppercase drop-shadow-[0_8px_20px_rgba(0,0,0,0.15)]"
+                                    style={{
+                                        WebkitTextStroke: "2px white",
+                                        paintOrder: "stroke fill"
+                                    }}
                                 >
                                     SKLOOP
                                 </motion.h1>
-                                {/* Shadow Layer for Depth */}
-                                <h1 className="absolute top-1 left-1 md:top-2 md:left-2 text-6xl sm:text-7xl md:text-[10rem] font-normal text-lime-400 tracking-normal select-none -z-10 blur-[1px] md:blur-[2px] opacity-60 leading-none uppercase">
+                                {/* Subtle Sticker Shadow Layer */}
+                                <div className="absolute top-1 left-1 md:top-2 md:left-2 text-7xl sm:text-8xl md:text-[10rem] font-normal text-lime-400 tracking-normal select-none -z-10 blur-[1px] md:blur-[2px] opacity-30 uppercase">
                                     SKLOOP
-                                </h1>
-                                <h1 className="absolute top-0.5 left-0.5 md:top-2 md:left-3 text-6xl sm:text-7xl md:text-[10rem] font-normal text-zinc-300 tracking-normal select-none -z-10 leading-none uppercase">
-                                    SKLOOP
-                                </h1>
+                                </div>
                             </div>
 
                             <motion.p

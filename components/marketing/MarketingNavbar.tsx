@@ -91,7 +91,7 @@ export default function MarketingNavbar() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed inset-0 z-[60] p-6 flex flex-col items-center justify-center bg-zinc-900/60 backdrop-blur-md"
+                        className="fixed inset-0 z-[60] p-4 flex items-center justify-center bg-zinc-900/60 backdrop-blur-md modal-centered"
                         onClick={() => setMobileMenuOpen(false)}
                     >
                         <motion.div
@@ -99,7 +99,7 @@ export default function MarketingNavbar() {
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.95, opacity: 0, y: 30 }}
                             transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
-                            className="w-full max-w-sm bg-zinc-900 border-4 border-zinc-800 rounded-[2rem] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden"
+                            className="w-full max-w-[340px] sm:max-w-sm bg-zinc-900 border-4 border-zinc-800 rounded-[2rem] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.8)] p-6 md:p-8 flex flex-col gap-6 relative"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <button
@@ -111,7 +111,7 @@ export default function MarketingNavbar() {
 
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="w-12 h-12 bg-lime-400 border-2 border-lime-500 rounded-xl shadow-[0_0_15px_rgba(212,242,104,0.4)] flex items-center justify-center relative">
-                                    <div className="absolute inset-0 bg-white/20 rounded-xl" />
+                                    <div className="absolute inset-0 bg-white/20 rounded-xl pointer-events-none" />
                                     <Infinity className="w-7 h-7 text-zinc-900 relative z-10" />
                                 </div>
                                 <span className="font-black text-3xl tracking-tighter text-white">SKLOOP</span>
@@ -133,7 +133,7 @@ export default function MarketingNavbar() {
                                     Load Save
                                 </Link>
                                 <Link href="/signup" onClick={() => setMobileMenuOpen(false)} className="mt-2">
-                                    <button className="w-full h-14 bg-lime-400 text-black rounded-2xl font-black text-lg uppercase tracking-wider flex items-center justify-center gap-2 border-2 border-lime-300 shadow-[0_0_20px_rgba(212,242,104,0.3)] hover:shadow-[0_0_30px_rgba(212,242,104,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+                                    <button className="w-full h-14 bg-lime-400 text-black rounded-2xl font-black text-lg uppercase tracking-wider flex items-center justify-center gap-2 border-2 border-lime-300 shadow-[0_0_20px_rgba(212,242,104,0.3)] hover:shadow-[0_0_30px_rgba(212,242,104,0.5)] active:scale-[0.98] transition-all">
                                         <Gamepad2 className="w-6 h-6" /> Play Now
                                     </button>
                                 </Link>
