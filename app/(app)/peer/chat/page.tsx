@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { PeerProfile } from "@/components/peer/PeerCard";
 import { ChatWindow } from "@/components/peer/ChatWindow";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, MessageSquarePlus, Hash, UserCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
 
@@ -176,127 +176,166 @@ export default function ChatPage() {
     );
 
     return (
-        <div className="flex h-full bg-white md:rounded-3xl overflow-hidden border border-zinc-200 shadow-sm relative">
+        <div className="flex h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
             {/* Sidebar List */}
-            <div className={`w-full md:w-96 flex flex-col border-r border-zinc-100 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
+            <div className={`w-full md:w-[380px] flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
                 {/* Mobile sidebar transition wrapper */}
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="flex flex-col h-full"
+                    className="flex flex-col h-full overflow-hidden"
                 >
-                    <div className="p-5 border-b border-zinc-50">
-                        <h2 className="text-2xl font-black text-zinc-900 tracking-tight mb-4 px-1">Messages</h2>
+                    {/* Header Setup */}
+                    <div className="pt-6 pb-4 px-5 shrink-0 bg-white">
+                        <div className="flex items-center justify-between xl:justify-start xl:gap-4 mb-5">
+                            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Chats</h2>
+                            <button className="flex items-center justify-center w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors xl:ml-auto">
+                                <MessageSquarePlus size={18} />
+                            </button>
+                        </div>
+
                         <div className="relative group">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-purple-500 transition-colors" size={18} />
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-lime-500 transition-colors" size={18} />
                             <input
                                 type="text"
-                                placeholder="Search conversations..."
+                                placeholder="Search messages..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-zinc-50/80 border-0 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/10 focus:bg-white transition-all shadow-sm placeholder:text-zinc-400"
+                                className="w-full bg-zinc-100/80 border-0 rounded-xl pl-10 pr-4 py-2.5 text-[15px] font-medium outline-none focus:ring-2 focus:ring-lime-500/50 focus:bg-white transition-all shadow-sm placeholder:text-zinc-500 text-zinc-900"
                             />
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-3 space-y-4">
-                        {/* Direct Messages Section */}
+                    <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
                         {isLoading ? (
                             <div className="flex justify-center items-center py-10">
                                 <Loader2 className="animate-spin text-zinc-300 w-6 h-6" />
                             </div>
                         ) : (
                             <>
-                                <div>
-                                    <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-3 mb-2">
-                                        Direct Messages ({dms.length})
-                                    </h3>
-                                    <div className="space-y-1">
-                                        <AnimatePresence mode="popLayout">
-                                            {filteredChats.filter(c => dms.some(d => d.id === c.id)).map((chat, index) => (
-                                                <motion.button
-                                                    layout
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.95 }}
-                                                    transition={{ delay: index * 0.05 }}
-                                                    key={chat.id}
-                                                    onClick={() => setSelectedPeerId(chat.id)}
-                                                    className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group text-left ${selectedPeerId === chat.id ? "bg-zinc-900 text-white shadow-lg shadow-zinc-900/10 scale-[1.02]" : "hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900"}`}
-                                                >
-                                                    <div className="relative shrink-0">
-                                                        <Avatar
-                                                            src={chat.avatarUrl}
-                                                            fallback={chat.name.charAt(0)}
-                                                            className={`w-12 h-12 rounded-full border-2 transition-colors ${selectedPeerId === chat.id ? "border-zinc-700" : "border-white bg-zinc-100"}`}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex justify-between items-center mb-0.5">
-                                                            <span className={`text-sm font-bold truncate ${selectedPeerId === chat.id ? "text-white" : "text-zinc-900"}`}>{chat.name}</span>
-                                                        </div>
-                                                        <div className={`text-xs truncate font-medium ${selectedPeerId === chat.id ? "text-zinc-300" : "text-zinc-500"}`}>
-                                                            @{chat.username}
-                                                        </div>
-                                                    </div>
-                                                </motion.button>
-                                            ))}
-                                            {dms.length === 0 && <p className="text-xs text-zinc-400 px-3">No direct messages yet.</p>}
-                                        </AnimatePresence>
+                                {/* Direct Messages Section */}
+                                {dms.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+                                            <UserCircle2 size={14} />
+                                            <span>Direct Messages</span>
+                                        </div>
+                                        <div className="space-y-[2px]">
+                                            <AnimatePresence mode="popLayout">
+                                                {filteredChats.filter(c => dms.some(d => d.id === c.id)).map((chat, index) => {
+                                                    const isActive = selectedPeerId === chat.id;
+                                                    return (
+                                                        <motion.button
+                                                            layout
+                                                            initial={{ opacity: 0, y: 5 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.95 }}
+                                                            transition={{ delay: index * 0.03 }}
+                                                            key={chat.id}
+                                                            onClick={() => setSelectedPeerId(chat.id)}
+                                                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 group text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
+                                                        >
+                                                            {/* Active Indicator Line */}
+                                                            {isActive && (
+                                                                <motion.div layoutId="activeDMIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
+                                                            )}
+
+                                                            <div className="relative shrink-0 ml-1">
+                                                                <Avatar
+                                                                    src={chat.avatarUrl}
+                                                                    fallback={chat.name.charAt(0)}
+                                                                    className={`w-[46px] h-[46px] rounded-full shrink-0 object-cover ${!isActive ? 'border border-zinc-200' : ''}`}
+                                                                />
+                                                                {/* Online status dot could go here */}
+                                                                <div className="absolute right-0 bottom-0 w-3 h-3 bg-lime-400 rounded-full border-2 border-white" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0 pr-1">
+                                                                <div className="flex justify-between items-baseline mb-0.5">
+                                                                    <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
+                                                                    <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-600" : "text-zinc-400"}`}>12:42 PM</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center gap-2">
+                                                                    <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                        You: Sure, let's catch up later today!
+                                                                    </span>
+                                                                    {/* Unread badge example */}
+                                                                    {chat.name.includes("Alice") && !isActive && (
+                                                                        <div className="w-4 h-4 bg-lime-400 rounded-full flex items-center justify-center text-[9px] font-bold text-black shadow-sm shrink-0">
+                                                                            2
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </motion.button>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Study Circles Section */}
-                                <div>
-                                    <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-3 mb-2 mt-4">
-                                        Study Circles ({groups.length})
-                                    </h3>
-                                    <div className="space-y-1">
-                                        <AnimatePresence mode="popLayout">
-                                            {filteredChats.filter(c => groups.some(g => g.id === c.id)).map((chat, index) => (
-                                                <motion.button
-                                                    layout
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.95 }}
-                                                    transition={{ delay: (dms.length + index) * 0.05 }}
-                                                    key={chat.id}
-                                                    onClick={() => setSelectedPeerId(chat.id)}
-                                                    className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group text-left relative overflow-hidden ${selectedPeerId === chat.id ? "bg-gradient-to-r from-lime-400 to-emerald-500 text-white shadow-lg shadow-lime-500/20 scale-[1.02]" : "hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900"}`}
-                                                >
-                                                    {/* Gradient background for circles */}
-                                                    {selectedPeerId !== chat.id && (
-                                                        <div className="absolute inset-0 bg-gradient-to-r from-lime-50 to-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                    )}
-                                                    <div className="relative shrink-0">
-                                                        <Avatar
-                                                            src={chat.avatarUrl}
-                                                            fallback={chat.name.charAt(0)}
-                                                            className={`w-12 h-12 rounded-full border-2 transition-colors ${selectedPeerId === chat.id ? "border-lime-200" : "border-white bg-gradient-to-br from-lime-100 to-emerald-100"}`}
-                                                        />
-                                                        {/* Group badge */}
-                                                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${selectedPeerId === chat.id ? "bg-lime-500 text-white" : "bg-white text-emerald-500 shadow-sm"} ring-2 ring-white`}>
-                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 relative z-10">
-                                                        <div className="flex justify-between items-center mb-0.5">
-                                                            <span className={`text-sm font-bold truncate ${selectedPeerId === chat.id ? "text-white" : "text-zinc-900"}`}>{chat.name}</span>
-                                                        </div>
-                                                        <div className={`text-xs truncate font-medium ${selectedPeerId === chat.id ? "text-lime-50/90" : "text-zinc-500"}`}>
-                                                            {chat.track}
-                                                        </div>
-                                                    </div>
-                                                </motion.button>
-                                            ))}
-                                            {groups.length === 0 && <p className="text-xs text-zinc-400 px-3">No study circles joined.</p>}
-                                        </AnimatePresence>
+                                {groups.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+                                            <Hash size={14} />
+                                            <span>Study Circles</span>
+                                        </div>
+                                        <div className="space-y-[2px]">
+                                            <AnimatePresence mode="popLayout">
+                                                {filteredChats.filter(c => groups.some(g => g.id === c.id)).map((chat, index) => {
+                                                    const isActive = selectedPeerId === chat.id;
+                                                    return (
+                                                        <motion.button
+                                                            layout
+                                                            initial={{ opacity: 0, y: 5 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.95 }}
+                                                            transition={{ delay: (dms.length + index) * 0.03 }}
+                                                            key={chat.id}
+                                                            onClick={() => setSelectedPeerId(chat.id)}
+                                                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 group text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
+                                                        >
+                                                            {/* Active Indicator Line */}
+                                                            {isActive && (
+                                                                <motion.div layoutId="activeGroupIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
+                                                            )}
+
+                                                            <div className="relative shrink-0 ml-1">
+                                                                <div className={`w-[46px] h-[46px] rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm ${isActive ? "bg-lime-400 text-black border border-lime-500/20" : "bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-500 border border-zinc-200/60"}`}>
+                                                                    {chat.name.charAt(0)}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-1 min-w-0 pr-1">
+                                                                <div className="flex justify-between items-baseline mb-0.5">
+                                                                    <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
+                                                                    <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-700" : "text-zinc-400"}`}>Yesterday</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center gap-2">
+                                                                    <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                        <span className="font-semibold text-zinc-700">Alex:</span> I just pushed the new design to staging!
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </motion.button>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {dms.length === 0 && groups.length === 0 && (
+                                    <div className="text-center py-10 px-4">
+                                        <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <MessageSquarePlus className="text-zinc-400" size={24} />
+                                        </div>
+                                        <h3 className="text-sm rounded-full font-semibold text-zinc-900 mb-1">No chats found</h3>
+                                        <p className="text-xs text-zinc-500">Search for peers to start a conversation.</p>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -309,11 +348,11 @@ export default function ChatPage() {
                     <motion.div
                         key={selectedPeer.id}
                         // Mobile: Fixed inset-0 with dVH to handle mobile bars correctly. desktop: static
-                        className="fixed inset-0 h-[100dvh] md:h-auto md:static md:inset-auto md:flex-1 md:flex md:flex-col bg-white md:bg-zinc-50/30 z-50 md:z-auto"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+                        className="fixed inset-0 h-[100dvh] md:h-auto md:static md:inset-auto md:flex-1 md:flex md:flex-col bg-white z-50 md:z-auto shadow-[-4px_0_24px_-10px_rgba(0,0,0,0.05)] md:shadow-none"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
                     >
                         <ChatWindow
                             peer={selectedPeer}
@@ -323,12 +362,23 @@ export default function ChatPage() {
                 ) : (
                     <motion.div
                         key="empty"
-                        className="hidden md:flex flex-1 flex-col h-full bg-zinc-50/30"
+                        className="hidden md:flex flex-1 flex-col h-full bg-[#f8f9fa] items-center justify-center relative overflow-hidden"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
-                        <ChatWindow peer={null} />
+                        {/* Decorative background blocks */}
+                        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-lime-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
+                        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-zinc-200 rounded-full blur-3xl opacity-40 pointer-events-none" />
+
+                        <div className="w-20 h-20 bg-white shadow-xl shadow-zinc-200/40 rounded-3xl flex items-center justify-center mb-6 border border-zinc-100 rotate-[-4deg]">
+                            <MessageSquarePlus className="text-zinc-800" size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-zinc-900 mb-2">Your Messages</h3>
+                        <p className="text-zinc-500 text-sm max-w-[260px] text-center mb-6">Connect with peers or jump into a study circle to start collaborating.</p>
+                        <button className="px-5 py-2.5 bg-lime-400 hover:bg-lime-500 text-black rounded-xl text-sm font-bold transition-colors shadow-sm">
+                            Start a New Chat
+                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>
