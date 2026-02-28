@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/shell/AppShell";
 import { UserProvider } from "@/context/UserContext";
 import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 
 export default async function AppLayout({
     children,
@@ -9,6 +10,10 @@ export default async function AppLayout({
 }) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        redirect("/");
+    }
 
     // Fetch profile on server to prevent flash
     let profile = null;
