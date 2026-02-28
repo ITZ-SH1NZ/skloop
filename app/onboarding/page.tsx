@@ -11,10 +11,13 @@ import MarketingFooter from "@/components/marketing/MarketingFooter";
 import ExpandedSections from "@/components/marketing/ExpandedSections";
 import ParallaxBackground from "@/components/marketing/ParallaxBackground";
 import { MasterScrollProvider } from "@/components/providers/MasterScrollProvider";
+import { useLoading } from "@/components/LoadingProvider";
 
 const titanOne = Titan_One({ weight: "400", subsets: ["latin"] });
 
 export default function OnboardingPage() {
+    const { isLoading } = useLoading();
+
     useEffect(() => {
         // Force scroll to top on mount/reload to ensure user starts at Hero
         window.scrollTo(0, 0);
@@ -51,7 +54,7 @@ export default function OnboardingPage() {
                         <div className="relative z-10 flex flex-col items-center px-4">
                             <motion.div
                                 initial={{ scale: 0, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
+                                animate={isLoading ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
                                 transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
                                 className="inline-block px-4 py-1.5 md:px-6 md:py-2 rounded-xl bg-white text-black text-xs md:text-sm font-black uppercase tracking-widest shadow-lg border border-zinc-100 mb-6 md:mb-8"
                             >
@@ -61,7 +64,7 @@ export default function OnboardingPage() {
                             <div className={`relative mb-6 ${titanOne.className}`}>
                                 <motion.h1
                                     initial={{ y: 50, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
+                                    animate={isLoading ? { y: 50, opacity: 0 } : { y: 0, opacity: 1 }}
                                     transition={{ type: "spring", bounce: 0.4, delay: 0.1 }}
                                     className="text-7xl sm:text-8xl md:text-[10rem] font-normal text-zinc-900 tracking-normal select-none relative z-10 uppercase drop-shadow-[0_8px_20px_rgba(0,0,0,0.15)]"
                                     style={{
@@ -79,7 +82,7 @@ export default function OnboardingPage() {
 
                             <motion.p
                                 initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
+                                animate={isLoading ? { opacity: 0 } : { opacity: 1 }}
                                 transition={{ delay: 0.6 }}
                                 className="text-zinc-700 font-bold tracking-wide text-lg sm:text-xl md:text-2xl max-w-xl mx-auto relative z-20 mb-8 md:mb-12 text-balance"
                             >
@@ -88,7 +91,7 @@ export default function OnboardingPage() {
 
                             <motion.div
                                 initial={{ y: 30, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
+                                animate={isLoading ? { y: 30, opacity: 0 } : { y: 0, opacity: 1 }}
                                 transition={{ type: "spring", bounce: 0.5, delay: 0.8 }}
                                 className="flex flex-col sm:flex-row gap-4 md:gap-6 relative z-30 w-full sm:w-auto"
                             >

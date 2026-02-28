@@ -2,8 +2,11 @@
 
 import React, { useEffect } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useLoading } from "../LoadingProvider";
 
 export default function ParallaxBackground() {
+    const { isLoading } = useLoading();
+
     // 1. Mouse Position tracking
     const mouseX = useMotionValue(0);
     const mouseY = useMotionValue(0);
@@ -36,8 +39,15 @@ export default function ParallaxBackground() {
     const rotate1 = useTransform(smoothMouseX, [-1, 1], [-15, 35]);
     const rotate2 = useTransform(smoothMouseY, [-1, 1], [5, -25]);
 
+    if (isLoading) return null; // Wait for loading flash to finish before showing these visually complex items
+
     return (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.5 }}
+            className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible"
+        >
             {/* The primary bouncing lime square */}
             <motion.div
                 style={{ x: fgX, y: fgY, rotate: rotate1 }}
@@ -66,6 +76,6 @@ export default function ParallaxBackground() {
             >
                 <div className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] border border-zinc-200 md:border-2 rounded-full border-dashed" />
             </motion.div>
-        </div>
+        </motion.div>
     );
 }

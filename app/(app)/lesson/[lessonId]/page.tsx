@@ -324,34 +324,169 @@ END ALGORITHM`
 };
 
 export default function LessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
-    // Unwrap params using React.use()
     const { lessonId } = use(params);
     const router = useRouter();
     const [lesson, setLesson] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Find lesson data
-        const data = LESSON_CONTENT_MAP[lessonId];
-        if (data) {
-            setLesson(data);
-        } else {
-            // Fallback for demo purposes if ID not found
-            setLesson({
-                id: lessonId,
-                title: "Lesson Not Found (Demo)",
-                moduleTitle: "Demo Module",
-                type: "article",
-                readTime: "1m",
-                content: `<p>Content for lesson ID <strong>${lessonId}</strong> not found in mock data.</p>`
-            });
-        }
+        const fetchLesson = async () => {
+            setLoading(true);
+
+            // 1. Check local mock map first
+            const localData = LESSON_CONTENT_MAP[lessonId];
+            if (localData) {
+                setLesson(localData);
+                setLoading(false);
+                return;
+            }
+
+            // 2. Fetch from Supabase 'topics' table
+            try {
+                // Must be imported inside the client component conditionally or at the top
+                const { createClient } = require("@/utils/supabase/client");
+                const supabase = createClient();
+
+                const { data: topic, error: topicError } = await supabase
+                    .from("topics")
+                    .select("*")
+                    .eq("id", lessonId)
+                    .maybeSingle();
+
+                if (topic) {
+                    const content = topic.content_data || {};
+
+                    const mappedLesson = {
+                        id: topic.id,
+                        title: topic.title,
+                        moduleTitle: "Track Lesson", // Fallback, could fetch module name if needed
+                        type: topic.type,
+                        // Specific fields mapped from content_data based on type
+                        videoUrl: content.youtubeId ? `https://www.youtube.com/embed/${content.youtubeId}` : undefined,
+                        summary: content.summary,
+                        content: content.markdown || content.content || "",
+                        description: content.instructions || content.description,
+                        requirements: content.requirements || [],
+                        hints: content.hints || [],
+                        initialCode: content.initialCode || { html: "", css: "", js: "" },
+                        mode: content.mode || "web",
+                        questions: content.questions || []
+                    };
+
+                    setLesson(mappedLesson);
+                    setLoading(false);
+                    return;
+                }
+
+                // 3. Fallback to `lessons` table
+                const { data: lessonData, error: lessonError } = await supabase
+                    .from("lessons")
+                    .select("*")
+                    .eq("id", lessonId)
+                    .maybeSingle();
+
+                if (lessonData) {
+                    setLesson({
+                        id: lessonData.id,
+                        title: lessonData.title,
+                        moduleTitle: "Course Lesson",
+                        type: "article", // lessons table only specifies text content and video basically
+                        videoUrl: lessonData.video_url,
+                        content: lessonData.content || "",
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                // 4. Fallback to error UI
+                setLesson({
+                    id: lessonId,
+                    title: "Lesson Not Found",
+                    moduleTitle: "Unknown Module",
+                    type: "article",
+                    content: `<p>We couldn't find lesson data for ID <strong>${lessonId}</strong>.</p>`
+                });
+            } catch (err) {
+                console.error("Error fetching lesson:", err);
+                setLesson({
+                    id: lessonId,
+                    title: "Error fetching lesson",
+                    moduleTitle: "Error",
+                    type: "article",
+                    content: `<p>An error occurred while loading this lesson.</p>`
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchLesson();
     }, [lessonId]);
 
-    if (!lesson) return null; // Or a loading spinner
+    if (loading) return (
+        <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-4 border-lime-400 border-t-transparent animate-spin" />
+        </div>
+    );
+    if (!lesson) return null;
 
-    const handleComplete = () => {
+    const handleComplete = async () => {
         console.log("Lesson Completed:", lesson.id);
-        router.push("/course/web-dev"); // Go back to course map for now
+        setLoading(true);
+
+        try {
+            const { createClient } = require("@/utils/supabase/client");
+            const supabase = createClient();
+
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                // Determine if it was a Topic or a Lesson from the older structure
+                // For Topics (Roadmap), we update user_topic_progress
+                if (lesson.type === "video" || lesson.type === "article" || lesson.type === "quiz" || lesson.type === "challenge") {
+
+                    // Mark topic as complete
+                    await supabase
+                        .from("user_topic_progress")
+                        .upsert({
+                            user_id: user.id,
+                            topic_id: lesson.id,
+                            status: "completed",
+                            completed_at: new Date().toISOString()
+                        }, { onConflict: "user_id, topic_id" });
+
+                    // Auto-award XP by fetching the topic for XP reward
+                    const { data: topicData } = await supabase
+                        .from("topics")
+                        .select("xp_reward")
+                        .eq("id", lesson.id)
+                        .maybeSingle();
+
+                    if (topicData && topicData.xp_reward) {
+                        try {
+                            await supabase.rpc("award_xp", {
+                                user_id_param: user.id,
+                                xp_amount: topicData.xp_reward
+                            }).single(); // Assuming an RPC function exists, or handle fallback
+                        } catch (e) { /* Graceful fail if RPC not set up */ }
+                    }
+                }
+
+                // Fallback for older specific Lessons
+                await supabase
+                    .from("user_lesson_progress")
+                    .upsert({
+                        user_id: user.id,
+                        lesson_id: lesson.id,
+                        status: "completed",
+                        completed_at: new Date().toISOString()
+                    }, { onConflict: "user_id, lesson_id" });
+            }
+        } catch (err) {
+            console.error("Failed to mark complete:", err);
+        } finally {
+            router.push("/course/web-development"); // Re-route to course map
+        }
     };
 
     return (

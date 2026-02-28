@@ -1,30 +1,47 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
-import ApertureLoader from "./ApertureLoader";
+import { usePathname } from "next/navigation";
+import GamifiedLoader from "./GamifiedLoader";
 import { motion, AnimatePresence } from "framer-motion";
 
 const LoadingContext = createContext({ isLoading: true });
 
+export const useLoading = () => useContext(LoadingContext);
+
+// Prevent Suspense remounts from re-triggering the huge GamifiedLoader
+let globalInitialLoadDone = false;
+
 export function LoadingProvider({ children }: { children: React.ReactNode }) {
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [isInitialLoad, setIsInitialLoad] = useState(!globalInitialLoadDone);
     const [isRouteLoading, setIsRouteLoading] = useState(false);
     const pathname = usePathname();
-    const searchParams = useSearchParams();
 
-    // Handle Route Transitions (Mini Loader)
+    const [prevPath, setPrevPath] = useState(pathname);
+
     useEffect(() => {
-        setIsRouteLoading(true);
-        const timer = setTimeout(() => setIsRouteLoading(false), 500); // Simulate minimal route transition
-        return () => clearTimeout(timer);
-    }, [pathname, searchParams]);
+        if (!isInitialLoad) {
+            globalInitialLoadDone = true;
+        }
+    }, [isInitialLoad]);
+
+    // Only show mini-loader if it's an actual changing navigation event,
+    // not just the tab regaining focus. We use a ref to track if we've mounted
+    // and only trigger route loading if the pathname actually changes from previous.
+    useEffect(() => {
+        if (pathname !== prevPath) {
+            setIsRouteLoading(true);
+            setPrevPath(pathname);
+            const timer = setTimeout(() => setIsRouteLoading(false), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [pathname, prevPath]);
 
     return (
         <LoadingContext.Provider value={{ isLoading: isInitialLoad }}>
             <AnimatePresence mode="wait">
                 {isInitialLoad && (
-                    <ApertureLoader key="loader" onComplete={() => setIsInitialLoad(false)} />
+                    <GamifiedLoader key="loader" onComplete={() => setIsInitialLoad(false)} />
                 )}
             </AnimatePresence>
 

@@ -63,11 +63,8 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
             if (!user) return;
             setCurrentUserId(user.id);
 
-            // Build a deterministic conversation ID for DMs (peer-to-peer)
-            // Group chats already have a proper ID starting with 'g'
-            const conversationId = peer.id.startsWith('g')
-                ? peer.id
-                : [user.id, peer.id].sort().join('_');
+            // In the new schema, peer.id IS the exact conversation UUID
+            const conversationId = peer.id;
 
             const messages = await getConversationMessages(conversationId);
             setMessages(messages);
@@ -138,9 +135,7 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
 
         try {
             // Rebuild the conversation ID the same way as in useEffect
-            const conversationId = peer.id.startsWith('g')
-                ? peer.id
-                : [currentUserId, peer.id].sort().join('_');
+            const conversationId = peer.id;
             const data = await sendMessage(conversationId, currentUserId, content);
             // Replace fake id with real id
             setMessages(prev => prev.map(m => m.id === fakeId ? { ...m, id: data.id } : m));
@@ -171,26 +166,26 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
 
     if (!peer) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center bg-zinc-50/50 h-full relative overflow-hidden">
-                <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(200, 200, 255, 0.1) 0%, transparent 40%), radial-gradient(circle at 80% 80%, rgba(255, 200, 200, 0.1) 0%, transparent 40%)' }} />
+            <div className="flex-1 flex flex-col items-center justify-center bg-[#FDFCF8] h-full relative overflow-hidden">
+                <div className="absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(212, 242, 104, 0.1) 0%, transparent 40%), radial-gradient(circle at 80% 80%, rgba(212, 242, 104, 0.1) 0%, transparent 40%)' }} />
                 <div className="w-24 h-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-6 rotate-3">
-                    <Send className="text-zinc-800 ml-1 mt-1" size={40} />
+                    <Send className="text-[#1A1A1A] ml-1 mt-1" size={40} />
                 </div>
-                <h3 className="text-xl font-bold text-zinc-900">Your Messages</h3>
-                <p className="text-zinc-400 mt-2 text-sm max-w-xs text-center">Select a chat from the sidebar to start messaging your peers.</p>
+                <h3 className="text-xl font-bold text-[#1A1A1A]">Your Messages</h3>
+                <p className="text-zinc-500 mt-2 text-sm max-w-xs text-center">Select a chat from the sidebar to start messaging your peers.</p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-full bg-zinc-50/30 relative">
+        <div className="flex flex-col h-full bg-[#FDFCF8] relative">
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
             {/* Header - Enhanced for Circles */}
-            <div className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-zinc-100 sticky top-0 flex-shrink-0 min-h-[60px] md:backdrop-blur-md relative overflow-hidden pt-[calc(env(safe-area-inset-top)+0.75rem)] md:pt-4 rounded-t-3xl md:rounded-none ${peer.id.startsWith("g") ? "bg-gradient-to-r from-lime-400 to-emerald-400" : "bg-white md:bg-white/80"}`}>
+            <div className={`flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-[#E5E5E0] sticky top-0 flex-shrink-0 min-h-[60px] md:backdrop-blur-md relative overflow-hidden pt-[calc(env(safe-area-inset-top)+0.75rem)] md:pt-4 rounded-t-3xl md:rounded-none ${peer.id.startsWith("g") ? "bg-[#D4F268]" : "bg-[#FDFCF8] md:bg-[#FDFCF8]/90"}`}>
                 {/* Gradient overlay for circles (subtle) */}
                 {peer.id.startsWith("g") && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-lime-400 to-emerald-400 opacity-100" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#D4F268] to-[#C3E055] opacity-100" />
                 )}
 
                 <div className="flex items-center gap-3 flex-1 relative z-10">
@@ -225,16 +220,16 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                                 className={`w-10 h-10 md:w-11 md:h-11 rounded-full border-2 shadow-sm ${peer.id.startsWith("g") ? "border-white/40 bg-white/20" : "border-white"}`}
                             />
                             <div className="flex-1 min-w-0">
-                                <div className={`font-bold text-base md:text-lg leading-tight flex items-center gap-2 ${peer.id.startsWith("g") ? "text-zinc-900" : "text-zinc-900"}`}>
+                                <div className={`font-bold text-base md:text-lg leading-tight flex items-center gap-2 text-[#1A1A1A]`}>
                                     {peer.name}
                                     {/* Circle Topic Badge */}
                                     {peer.id.startsWith("g") && (
-                                        <span className="px-2 py-0.5 rounded-full bg-white/30 text-zinc-800 text-[10px] font-bold uppercase tracking-wide border border-white/20">
+                                        <span className="px-2 py-0.5 rounded-full bg-black/10 text-[#1A1A1A] text-[10px] font-bold uppercase tracking-wide border border-black/5">
                                             Frontend
                                         </span>
                                     )}
                                 </div>
-                                <div className={`text-xs font-medium flex items-center gap-1.5 ${peer.id.startsWith("g") ? "text-zinc-800/80" : "text-zinc-500"}`}>
+                                <div className={`text-xs font-medium flex items-center gap-1.5 ${peer.id.startsWith("g") ? "text-[#1A1A1A]/80" : "text-zinc-500"}`}>
                                     {peer.id.startsWith("g") ? (
                                         <>
                                             <UsersIcon size={12} />
@@ -286,9 +281,9 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                 <div className="flex-1 flex flex-col min-w-0 relative">
                     {/* Pinned Message */}
                     {peer.id.startsWith("g") && (
-                        <div className="bg-lime-50/90 border-b border-lime-100 p-2 flex items-center justify-between text-xs px-4 md:px-6 backdrop-blur-sm sticky top-0 z-10 shadow-sm rounded-b-2xl md:rounded-none">
-                            <div className="flex items-center gap-2 text-lime-900 font-medium truncate min-w-0 flex-1">
-                                <span className="bg-lime-200 text-lime-800 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide flex-shrink-0">Pin</span>
+                        <div className="bg-[#D4F268]/10 border-b border-[#D4F268]/30 p-2 flex items-center justify-between text-xs px-4 md:px-6 backdrop-blur-sm sticky top-0 z-10 shadow-sm rounded-b-2xl md:rounded-none">
+                            <div className="flex items-center gap-2 text-[#1A1A1A] font-medium truncate min-w-0 flex-1">
+                                <span className="bg-[#D4F268] text-[#1A1A1A] px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide flex-shrink-0">Pin</span>
                                 <span className="truncate">Welcome to the React group! Please read the guidelines. 📌</span>
                             </div>
                         </div>
@@ -317,8 +312,8 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                                     <div className={`max-w-[75%] md:max-w-[70%] relative ${isMe ? "items-end" : "items-start"} flex flex-col`}>
                                         {msg.text && (
                                             <div className={`px-4 py-2 md:py-3 rounded-2xl shadow-sm text-[15px] md:text-base leading-relaxed break-words relative group/bubble transition-all duration-200 ${isMe
-                                                ? "bg-zinc-900 text-white rounded-br-sm hover:bg-zinc-800"
-                                                : "bg-white text-zinc-800 border border-zinc-100 rounded-bl-sm hover:border-zinc-200 hover:shadow-md"
+                                                ? "bg-[#D4F268] text-[#1A1A1A] font-medium rounded-br-sm hover:bg-[#C3E055]"
+                                                : "bg-white text-[#1A1A1A] border border-[#E5E5E0] rounded-bl-sm hover:border-zinc-300 hover:shadow-md"
                                                 }`}>
                                                 {msg.text}
                                             </div>
@@ -429,14 +424,14 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                             )}
                         </AnimatePresence>
 
-                        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-zinc-100 focus-within:ring-2 focus-within:ring-zinc-900/5 transition-all">
+                        <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-[#E5E5E0] focus-within:ring-2 focus-within:ring-[#D4F268]/50 transition-all">
                             <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
 
-                            <Button size="icon" type="button" className={`rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "bg-zinc-900 text-white rotate-45" : "bg-zinc-50 text-zinc-400 hover:text-zinc-600"}`} onClick={() => setShowAttachments(!showAttachments)}>
+                            <Button size="icon" type="button" className={`rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "bg-[#D4F268] text-[#1A1A1A] rotate-45" : "bg-zinc-50 text-zinc-400 hover:text-[#1A1A1A]"}`} onClick={() => setShowAttachments(!showAttachments)}>
                                 <Plus size={20} className="transition-transform duration-300" />
                             </Button>
 
-                            <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-zinc-800" />
+                            <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
 
                             <div className="flex items-center gap-1">
                                 <Button size="icon" type="button" className={`bg-transparent hover:text-pink-500 rounded-full w-9 h-9 shrink-0 transition-colors ${showGifPicker ? "text-pink-500 bg-pink-50" : "text-zinc-400"}`} onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}>
@@ -448,7 +443,7 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                                 </Button>
                             </div>
 
-                            <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-zinc-900 text-white shadow-md" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
+                            <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
                                 <Send size={18} className={inputValue.trim() ? "translate-x-0.5 ml-0.5" : ""} />
                             </Button>
                         </form>
@@ -507,14 +502,14 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                         )}
                     </AnimatePresence>
 
-                    <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-zinc-100 focus-within:ring-2 focus-within:ring-zinc-900/5 transition-all">
+                    <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-[#E5E5E0] focus-within:ring-2 focus-within:ring-[#D4F268]/50 transition-all">
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
 
-                        <Button size="icon" type="button" className={`bg-zinc-50 text-zinc-400 hover:text-zinc-600 rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "rotate-45 text-zinc-900 bg-zinc-200" : ""}`} onClick={() => setShowAttachments(!showAttachments)}>
+                        <Button size="icon" type="button" className={`rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "bg-[#D4F268] text-[#1A1A1A] rotate-45" : "bg-zinc-50 text-zinc-400 hover:text-[#1A1A1A]"}`} onClick={() => setShowAttachments(!showAttachments)}>
                             <Plus size={20} className="transition-transform duration-300" />
                         </Button>
 
-                        <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-zinc-800" />
+                        <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
 
                         <Button size="icon" type="button" className={`bg-transparent text-zinc-400 hover:text-pink-500 rounded-full w-9 h-9 shrink-0 transition-colors ${showGifPicker ? "text-pink-500 bg-pink-50" : ""}`} onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); setShowAttachments(false); }}>
                             <div className="font-bold text-[10px] border-2 border-current rounded-md px-1 pt-0.5 pb-0">GIF</div>
@@ -524,7 +519,7 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                             <Smile size={20} />
                         </Button>
 
-                        <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-zinc-900 text-white shadow-md" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
+                        <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
                             <Send size={18} className={inputValue.trim() ? "translate-x-0.5 ml-0.5" : ""} />
                         </Button>
                     </form>

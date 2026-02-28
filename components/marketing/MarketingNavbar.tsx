@@ -4,10 +4,12 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import { Menu, X, ArrowRight, Gamepad2, Infinity } from "lucide-react";
+import { useLoading } from "../LoadingProvider";
 
 export default function MarketingNavbar() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { scrollY } = useScroll();
+    const { isLoading } = useLoading();
 
     // DOCKING TRANSITIONS (Top of page -> Floating Pill)
     // 0 to 100px scroll range
@@ -34,7 +36,7 @@ export default function MarketingNavbar() {
                     translateX: "-50%"
                 }}
                 initial={{ y: -100 }}
-                animate={{ y: 0 }}
+                animate={isLoading ? { y: -100 } : { y: 0 }}
                 transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
                 className="fixed left-1/2 z-50 bg-white border-black flex items-center justify-between shadow-black"
             >
