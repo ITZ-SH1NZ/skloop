@@ -161,17 +161,62 @@ export async function claimQuestProgress(userId: string, questKey: string, type:
 
     // 4. If completed, award XP/Coins and check for Chest
     if (isNowComplete) {
-        await supabase.rpc('increment_profile_stats', {
+        const { error: rpcError } = await supabase.rpc('increment_profile_stats', {
             x_user_id: userId,
             xp_amount: questDetails.xp_reward,
             coins_amount: questDetails.coins_reward
         });
+
+        if (rpcError) {
+            console.error('Error awarding quest rewards via RPC:', rpcError);
+            // We don't fail the whole action, but log it
+        }
 
         // Check if they hit exactly 3 completions for this cycle type to award a chest
         await checkAndAwardChest(userId, type, cycleKey);
     }
 
     return { success: true, isComplete: isNowComplete };
+}
+
+/**
+ * Specifically for topics/lessons, ensures progress is recorded AND rewards are granted.
+ */
+export async function awardTopicCompletion(userId: string, topicId: string, xpReward: number) {
+    const supabase = await createClient();
+
+    // 1. Record progress
+    const { error: progressError } = await supabase
+        .from("user_topic_progress")
+        .upsert({
+            user_id: userId,
+            topic_id: topicId,
+            status: "completed",
+            completed_at: new Date().toISOString()
+        });
+
+    if (progressError) {
+        console.error('Error saving topic progress:', progressError);
+        return { success: false, error: progressError };
+    }
+
+    // 2. Grant XP
+    const { error: rpcError } = await supabase.rpc('increment_profile_stats', {
+        x_user_id: userId,
+        xp_amount: xpReward,
+        coins_amount: 0 // Topics usually only give XP unless specified
+    });
+
+    if (rpcError) {
+        console.error('Error awarding topic rewards via RPC:', rpcError);
+    }
+
+    // 3. Mark the 'lesson' daily quest as progressed if it exists
+    // Note: We use the key 'lesson' which is defined in quest_expansion_schema.sql
+    await claimQuestProgress(userId, 'lesson', 'daily', 1, 1);
+
+    revalidatePath('/dashboard');
+    return { success: true };
 }
 
 async function checkAndAwardChest(userId: string, type: QuestType, cycleKey: string) {

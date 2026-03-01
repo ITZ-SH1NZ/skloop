@@ -35,19 +35,17 @@ export default function TopicViewer({ topic, onClose, onComplete }: TopicViewerP
         setIsCompleting(true);
 
         try {
-            const { error } = await supabase
-                .from("user_topic_progress")
-                .upsert({
-                    user_id: user.id,
-                    topic_id: topic.id,
-                    status: "completed",
-                    completed_at: new Date().toISOString()
-                });
+            const { awardTopicCompletion } = await import("@/actions/quest-actions");
+            const result = await awardTopicCompletion(user.id, topic.id, topic.xp_reward || 0);
 
-            if (!error) {
+            if (result.success) {
                 onComplete();
                 onClose();
+            } else {
+                console.error("Failed to complete topic:", result.error);
             }
+        } catch (err) {
+            console.error("Error in handleComplete:", err);
         } finally {
             setIsCompleting(false);
         }
