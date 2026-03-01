@@ -21,7 +21,7 @@ interface Quest {
     onClick?: () => void;
 }
 
-export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () => void }) {
+export default function DailyQuestsWidget({ onOpenCodele, refreshKey = 0 }: { onOpenCodele?: () => void; refreshKey?: number }) {
     const { profile, user, refreshProfile } = useUser();
     const [quests, setQuests] = useState<Quest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -64,7 +64,7 @@ export default function DailyQuestsWidget({ onOpenCodele }: { onOpenCodele?: () 
 
     useEffect(() => {
         fetchQuestStatus();
-    }, [onOpenCodele]);
+    }, [onOpenCodele, refreshKey]);
 
     const handleClaimQuest = async (questId: string) => {
         const supabase = createClient();

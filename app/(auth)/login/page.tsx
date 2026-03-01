@@ -9,6 +9,7 @@ import { createClient } from "@/utils/supabase/client";
 
 function LoginForm() {
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingText, setLoadingText] = useState("Authenticating...");
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -26,6 +27,7 @@ function LoginForm() {
         e.preventDefault();
         setIsLoading(true);
         setError(null);
+        setLoadingText("Authenticating...");
 
         // Get values from the inputs
         const target = e.target as typeof e.target & {
@@ -35,16 +37,38 @@ function LoginForm() {
         const email = target.email.value;
         const password = target.password.value;
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        // Retry up to 2 times on transient "Failed to fetch" network errors
+        const MAX_RETRIES = 2;
+        const RETRY_DELAY_MS = 2000;
 
-        if (error) {
-            setError(error.message);
-            setIsLoading(false);
-        } else {
-            router.push("/dashboard");
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    // Supabase returned a real error (wrong password, etc.) — don't retry
+                    setError(error.message);
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Success
+                router.push("/dashboard");
+                return;
+            } catch (networkError: any) {
+                const isNetworkFail = networkError?.message === "Failed to fetch" || networkError instanceof TypeError;
+
+                if (isNetworkFail && attempt < MAX_RETRIES) {
+                    // Transient network error — retry after a short wait
+                    setLoadingText(`Retrying... (${attempt + 1}/${MAX_RETRIES})`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+                } else {
+                    // Exhausted retries or non-network error
+                    setError("Connection failed. Please check your internet and try again.");
+                    setIsLoading(false);
+                    return;
+                }
+            }
         }
     };
 
@@ -96,7 +120,7 @@ function LoginForm() {
                 )}
 
                 <AuthButton disabled={isLoading} className="bg-black text-white hover:bg-zinc-800">
-                    {isLoading ? "Authenticating..." : "Initialize"}
+                    {isLoading ? loadingText : "Initialize"}
                 </AuthButton>
 
                 <div className="relative py-4">

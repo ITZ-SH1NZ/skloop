@@ -37,6 +37,7 @@ export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState("grid");
     const [tasks, setTasks] = useState<any[]>([]);
     const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+    const [questRefreshKey, setQuestRefreshKey] = useState(0);
     const supabase = createClient();
 
     // Fetch User Tasks
@@ -86,7 +87,7 @@ export default function DashboardPage() {
 
     return (
         <div className="text-slate-900 font-sans p-4 md:p-8">
-            <DailyGame isOpen={isGameOpen} onClose={() => setIsGameOpen(false)} />
+            <DailyGame isOpen={isGameOpen} onClose={() => setIsGameOpen(false)} onComplete={() => setQuestRefreshKey(k => k + 1)} />
 
             {/* Task Detail Modal */}
             <Modal
@@ -254,7 +255,7 @@ export default function DashboardPage() {
                     {/* RIGHT COLUMN (Sidebar) - Spans 4 cols */}
                     <div className="lg:col-span-4 space-y-6">
                         <motion.div variants={itemVariants}>
-                            <DailyQuestsWidget />
+                            <DailyQuestsWidget refreshKey={questRefreshKey} />
                         </motion.div>
 
                         <motion.div variants={itemVariants}>

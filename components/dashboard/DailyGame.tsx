@@ -11,20 +11,93 @@ import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { useUser } from "@/context/UserContext";
 import { createClient } from "@/utils/supabase/client";
 
-const WORDS = ["REACT", "STACK", "QUEUE", "ASYNC", "CONST", "AWAIT", "FETCH", "BUILD", "DEBUG", "LOGIC"];
+// Valid words for guesses — includes all puzzle words + common English words
+// so players are never blocked on a reasonable guess attempt
+const VALID_WORDS = new Set([
+    // All puzzle words (must stay in sync with DAILY_WORDS in task-actions.ts)
+    "REACT", "STACK", "QUEUE", "ASYNC", "CONST", "AWAIT", "FETCH", "BUILD", "DEBUG", "LOGIC",
+    "ARRAY", "CLASS", "ERROR", "FLOAT", "FRAME", "INDEX", "INPUT", "PARSE", "QUERY", "ROUTE",
+    "STATE", "TABLE", "TOKEN", "UNION", "WATCH", "YIELD", "CACHE", "HOOKS", "PROPS", "MODEL",
+    "CLONE", "SCOPE", "BYTES", "MUTEX", "PROXY", "STORE", "GRAPH", "REGEX", "STRIP", "SPLIT",
+    "SLICE", "CHUNK", "TUPLE", "SUPER", "THROW", "TYPED", "LOCAL", "WRITE", "SERVE", "SPAWN",
+    "RETRY", "APPLY", "MACRO", "PRINT", "TRAIT", "SHELL", "DELTA", "PIVOT", "SHIFT", "MONAD",
+    "NONCE", "LATCH", "EVENT", "FIBER", "INODE", "ALLOC", "PATCH", "ABORT", "BLOCK", "BREAK",
+    "CATCH", "CHAIN", "CHECK", "CLEAN", "CODEC", "COUNT", "TASKS", "FLAGS", "PORTS", "BLOBS",
+    "FORKS", "INFIX", "JOINS", "LINES", "READS", "ZEROS", "LEXER", "ARITY", "WHILE", "UNTIL",
+    "LOOPS", "MERGE", "NODES", "LINKS", "TREES", "HEAPS", "GREPS", "TESTS", "MOCKS", "STUBS",
+    "TYPES", "PATHS", "EDITS", "DIFFS", "REDIS", "TIMER", "CALLS", "CODES", "GATES", "MIXIN",
+    "TRUNC", "STDIN", "VAULT", "DTYPE", "XPATH", "DATUM", "DIGIT", "FIELD", "INNER", "OUTER",
+    "USING", "MATCH", "DEPTH", "WIDTH", "ALIGN", "CHILD", "AFTER", "PRIOR", "LOWER", "UPPER",
+    "GRANT", "RANGE", "GROUP", "ORDER", "LIMIT", "ALIAS", "DEFER", "EAGER", "FLUSH", "GUARD",
+    "HOIST", "BENCH", "CLOSE", "DRAIN", "EMBED", "FLOOD", "GRUNT",
+    // Common 5-letter English words as valid guesses
+    "ABOUT", "ABOVE", "ABUSE", "ACTOR", "ACUTE", "ADMIT", "ADOPT", "ADULT", "AFTER", "AGAIN",
+    "AGENT", "AGREE", "AHEAD", "ALARM", "ALBUM", "ALERT", "ALIKE", "ALIGN", "ALIVE", "ALLEY",
+    "ALLOW", "ALONE", "ALONG", "ALTER", "ANGEL", "ANGER", "ANGLE", "ANIME", "ANNEX", "ANTIC",
+    "APART", "APPLE", "APPLY", "ARENA", "ARGUE", "ARISE", "ARMOR", "ASIDE", "ASSET", "ATLAS",
+    "ATTIC", "AUDIO", "AUDIT", "AUGUR", "AUNTS", "AVOID", "AWAKE", "AWARD", "AWFUL", "BADLY",
+    "BASIC", "BASIS", "BEAMS", "BEARD", "BEAST", "BEGIN", "BEING", "BELOW", "BENCH", "BIRTH",
+    "BITES", "BLAND", "BLANK", "BLAST", "BLAZE", "BLEND", "BLESS", "BLINK", "BLOWN", "BOARD",
+    "BONUS", "BOOST", "BOUND", "BRAIN", "BRAND", "BRAVE", "BRAVO", "BREAD", "BRIEF", "BRING",
+    "BROAD", "BROKE", "BROWN", "BRUSH", "BRUTE", "BUDDY", "BUILT", "BURST", "BUYER", "CABIN",
+    "CARDS", "CARGO", "CARRY", "CAUSE", "CEASE", "CHAIR", "CHALK", "CHARM", "CHART", "CHASE",
+    "CHEST", "CHIEF", "CLEAN", "CLEAR", "CLERK", "CLICK", "CLIFF", "CLIMB", "CLING", "CLOUD",
+    "COACH", "COLOR", "COMIC", "CORAL", "COULD", "COUNT", "COVER", "CRASH", "CRAZY", "CREEK",
+    "CRIME", "CROSS", "CROWD", "CROWN", "CRUSH", "CURVE", "CYCLE", "DANCE", "DEALT", "DECAY",
+    "DELAY", "DEMON", "DENSE", "DEPOT", "DEPTH", "DEVIL", "DIRTY", "DISCO", "DOING", "DOUBT",
+    "DOUGH", "DRAFT", "DRAIN", "DRAMA", "DRANK", "DRAWN", "DREAM", "DRESS", "DRIED", "DRINK",
+    "DRIVE", "DROVE", "DRUNK", "DRYER", "DWELT", "DYING", "EAGER", "EARLY", "EARTH", "EIGHT",
+    "ELITE", "EMPTY", "ENTER", "EQUAL", "ESSAY", "EVEN", "EVERY", "EXACT", "EXIST", "EXTRA",
+    "FAINT", "FAIRY", "FAITH", "FANCY", "FATAL", "FAULT", "FEAST", "FEWER", "FIFTH", "FIGHT",
+    "FINAL", "FIRST", "FIXED", "FLAME", "FLANK", "FLARE", "FLASH", "FLAIR", "FLEET", "FLESH",
+    "FLICK", "FLOCK", "FLOOR", "FLUTE", "FOCUS", "FORCE", "FORGE", "FORTH", "FORUM", "FOUND",
+    "FRESH", "FRONT", "FROST", "FRUIT", "FULLY", "FUNNY", "GIANT", "GIVEN", "GLASS", "GLIDE",
+    "GLOOM", "GLOSS", "GLYPH", "GOING", "GRACE", "GRADE", "GRAIN", "GRAND", "GRASP", "GRASS",
+    "GRATE", "GRAVE", "GREAT", "GREED", "GREET", "GRIEF", "GRIPE", "GROAN", "GROIN", "GROSS",
+    "GROUT", "GROVE", "GROWL", "GUESS", "GUIDE", "GUILD", "GUILT", "GUISE", "GUSTO", "HAVOC",
+    "HEART", "HEAVY", "HENCE", "HERBS", "HINGE", "HIRED", "HONOR", "HOTEL", "HOUSE", "HUMAN",
+    "HUMOR", "HURRY", "HYPER", "IDEAL", "IMPLY", "INDIE", "INPUT", "IRONY", "ISSUE", "IVORY",
+    "JUDGE", "JUICE", "JUICY", "JUMBO", "KARMA", "KINKY", "KNIFE", "KNOCK", "KNOWN", "LABEL",
+    "LARGE", "LASER", "LATER", "LEARN", "LEAVE", "LEGAL", "LEMON", "LEVEL", "LIGHT", "LINER",
+    "LIVER", "LLAMA", "LODGE", "LOOSE", "LOVER", "LOYAL", "LUCKY", "LYING", "MAGIC", "MAJOR",
+    "MAKER", "MANOR", "MAPLE", "MARCH", "MEANT", "MEDIA", "METAL", "MINOR", "MINUS", "MIXER",
+    "MONEY", "MONTH", "MORAL", "MOUNT", "MOUSE", "MOUTH", "MOVIE", "MUDDY", "MUSHY", "MUSIC",
+    "NAIVE", "NERVE", "NEVER", "NIGHT", "NOBLE", "NOISE", "NORTH", "NOTED", "NOVEL", "NURSE",
+    "OCCUR", "OFFER", "OFTEN", "OMEGA", "ONSET", "OPERA", "ORBIT", "ORGAN", "OUNCE", "OUGHT",
+    "OVARY", "PAINT", "PANIC", "PANEL", "PAPER", "PARTY", "PASTA", "PAUSE", "PEACE", "PERCH",
+    "PERIL", "PHASE", "PHONE", "PHOTO", "PIANO", "PIECE", "PILOT", "PITCH", "PLACE", "PLAIN",
+    "PLANE", "PLANT", "PLATE", "PLAZA", "PLEAD", "PLUMB", "PLUME", "PLUNK", "POINT", "POLAR",
+    "POPPY", "POSED", "POUCH", "POWER", "PRESS", "PRICE", "PRIDE", "PRIME", "PRIZE", "PRONE",
+    "PROOF", "PROSE", "PROUD", "PROVE", "PROWL", "PSALM", "PULSE", "PUPIL", "PURSE", "PUSHY",
+    "QUEEN", "QUICK", "QUIET", "QUITE", "QUOTA", "QUOTE", "RADAR", "RADIO", "RAISE", "RALLY",
+    "RAPID", "RATIO", "REACH", "REALM", "REBEL", "REFER", "REIGN", "REMIX", "REPAY", "REPEL",
+    "RERUN", "RIDER", "RIDGE", "RIGHT", "RISKY", "RIVAL", "RIVER", "ROBIN", "ROCKY", "ROUGE",
+    "ROUGH", "ROUND", "ROYAL", "RUGBY", "RULER", "RUNNY", "RURAL", "SADLY", "SAINT", "SAUCE",
+    "SAVVY", "SCENE", "SCOUT", "SENSE", "SERVE", "SHADE", "SHAKE", "SHAME", "SHAPE", "SHARE",
+    "SHARP", "SHELF", "SHIFT", "SHINE", "SHIRT", "SHOOT", "SHORE", "SHORT", "SHOUT", "SIGHT",
+    "SINCE", "SIXTH", "SIXTY", "SKULL", "SLATE", "SLEEK", "SLEEP", "SLEET", "SLEPT", "SLIDE",
+    "SLIME", "SLOPE", "SLOTH", "SLUMP", "SMALL", "SMART", "SMILE", "SNACK", "SNAKE", "SOLAR",
+    "SOLID", "SOLVE", "SONIC", "SORRY", "SOUTH", "SPACE", "SPARK", "SPEAK", "SPEAR", "SPEED",
+    "SPEND", "SPICE", "SPIKE", "SPINE", "SPITE", "SPEAK", "SPREE", "SQUAD", "STAGE", "STAKE",
+    "STALE", "STALL", "STAMP", "STAND", "STARE", "START", "STEAL", "STEEL", "STEEP", "STEER",
+    "STOKE", "STONE", "STORM", "STORY", "STOUT", "STOVE", "STRAP", "STRAW", "STRAY", "STRIP",
+    "STUDY", "STYLE", "SUGAR", "SWAMP", "SWEAR", "SWEAT", "SWEPT", "SWIFT", "SWIPE", "SWIRL",
+    "TASTE", "TEACH", "TEARS", "TEETH", "TEMPO", "TENSE", "TENTH", "TERMS", "THEFT", "THEIR",
+    "THERE", "THESE", "THICK", "THING", "THINK", "THIRD", "THORN", "THOSE", "THREE", "THROB",
+    "TIGER", "TIGHT", "TITLE", "TOAST", "TODAY", "TOUGH", "TOWEL", "TOWER", "TOXIC", "TRACK",
+    "TRADE", "TRAIL", "TRAIN", "TRAM", "TREND", "TRIAL", "TRIBE", "TRICK", "TRIED", "TROUT",
+    "TROVE", "TRUCK", "TRULY", "TRUNK", "TRUST", "TRUTH", "TWIST", "ULTRA", "UNDER", "UNION",
+    "UNITY", "UNTIL", "UNZIP", "USAGE", "USUAL", "UTTER", "VALID", "VALUE", "VALOR", "VALVE",
+    "VIDEO", "VIGOR", "VIRAL", "VIRUS", "VISIT", "VISTA", "VITAL", "VIVID", "VOICE", "VOILA",
+    "VOTER", "WALTZ", "WASTE", "WATER", "WEARY", "WEBSITE", "WEDGE", "WEIRD", "WHEEL", "WHERE",
+    "WHICH", "WHILE", "WHIRL", "WHISK", "WHITE", "WHOLE", "WIDER", "WITCH", "WOMAN", "WOMEN",
+    "WORLD", "WORRY", "WORST", "WORTH", "WOUND", "WRATH", "WRONG", "WROTE", "YACHT", "YEARS",
+    "YOUNG", "YOUTH", "ZONAL", "ZONED", "ZONES",
+]);
 
-// Valid word list for guesses (expanded list of coding terms)
-const VALID_WORDS = [
-    ...WORDS,
-    "ARRAY", "CLASS", "ERROR", "FLOAT", "FRAME", "INDEX", "INPUT", "JWTOK", "KEYOF",
-    "LOOPS", "TIMER", "MERGE", "NODES", "OUTER", "PARSE", "QUERY", "ROUTE", "STATE",
-    "TABLE", "UNION", "VALID", "WATCH", "YIELD", "CACHE", "TOKEN", "HOOKS", "PROPS",
-    "MODEL", "CLONE", "SCOPE", "BYTES", "MUTEX", "REDIS", "NGINX", "PATCH", "CLOSE",
-    "ABORT", "BLOCK", "BREAK", "CATCH", "CHAIN", "CHECK", "CLEAN", "CODEC", "COUNT"
-];
 
-export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen: boolean; onClose: () => void; inline?: boolean }) {
-    const { user } = useUser();
+export default function DailyGame({ isOpen, onClose, inline = false, onComplete }: { isOpen: boolean; onClose: () => void; inline?: boolean; onComplete?: () => void }) {
+    const { user, refreshProfile } = useUser();
     const [solution, setSolution] = useState("");
     const [guesses, setGuesses] = useState<string[]>(Array(6).fill(""));
     const [currentGuess, setCurrentGuess] = useState("");
@@ -38,23 +111,18 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
 
     useEffect(() => {
         const fetchDailyPuzzle = async () => {
-            const supabase = createClient();
+            // Auto-creates today's puzzle if it doesn't exist yet
+            const { ensureDailyPuzzle } = await import('@/actions/task-actions');
+            const puzzle = await ensureDailyPuzzle();
 
-            // Get today's date in YYYY-MM-DD
-            const today = new Date().toISOString().split('T')[0];
-
-            const { data: puzzle, error: puzzleError } = await supabase
-                .from('daily_puzzles')
-                .select('id, word')
-                .eq('puzzle_date', today)
-                .single();
-
-            if (puzzle && !puzzleError) {
+            if (puzzle) {
                 setSolution(puzzle.word.toUpperCase());
                 setPuzzleId(puzzle.id);
 
-                // Also check if user has already played today
+                // Check if user has already played today
                 if (user) {
+                    const { createClient } = await import('@/utils/supabase/client');
+                    const supabase = createClient();
                     const { data: attempt } = await supabase
                         .from('user_puzzle_attempts')
                         .select('status, attempts, last_guess')
@@ -64,11 +132,8 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
 
                     if (attempt && attempt.status !== 'playing') {
                         setGameState(attempt.status as "won" | "lost");
-                        // We don't have full guess history in schema, so we just show the game is over
                     }
                 }
-            } else {
-                setSolution("BUILD"); // Fallback
             }
         };
         fetchDailyPuzzle();
@@ -102,7 +167,7 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
 
     const submitGuess = () => {
         // Validate word is in the valid word list
-        if (!VALID_WORDS.includes(currentGuess)) {
+        if (!VALID_WORDS.has(currentGuess)) {
             setErrorMessage(`"${currentGuess}" is not part of the word list`);
             setShakeRow(true);
             setTimeout(() => {
@@ -134,32 +199,48 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
             const { createClient } = await import('@/utils/supabase/client');
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
-            if (user && puzzleId) {
-                // Upsert attempt
-                await supabase.from('user_puzzle_attempts').upsert({
-                    user_id: user.id,
-                    puzzle_id: puzzleId,
-                    attempts: finalAttempts,
-                    status: status,
-                    last_guess: finalGuess
-                });
+            if (!user) return;
 
-                if (status === "won") {
-                    // Update XP and Coins (Streak is handled centrally by UserContext daily login/activity)
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('xp, coins')
-                        .eq('id', user.id)
-                        .single();
+            // Look up today's puzzle ID directly — don't rely on puzzleId state
+            // which can be null if the server-side auto-generation failed
+            const todayStr = new Date().toISOString().split('T')[0];
+            let resolvedPuzzleId = puzzleId;
 
-                    if (profile) {
-                        await supabase.from('profiles').update({
-                            xp: (profile.xp || 0) + 50,
-                            coins: (profile.coins || 0) + 10
-                        }).eq('id', user.id);
-                    }
-                }
+            if (!resolvedPuzzleId) {
+                const { data: puzzle } = await supabase
+                    .from('daily_puzzles')
+                    .select('id')
+                    .eq('puzzle_date', todayStr)
+                    .maybeSingle();
+                resolvedPuzzleId = puzzle?.id ?? null;
             }
+
+            if (!resolvedPuzzleId) {
+                console.warn('checkGameEnd: no puzzle found for today, attempt not recorded.');
+                return;
+            }
+
+            // Record the attempt result
+            const { error: upsertError } = await supabase.from('user_puzzle_attempts').upsert({
+                user_id: user.id,
+                puzzle_id: resolvedPuzzleId,
+                attempts: finalAttempts,
+                status: status,
+                last_guess: finalGuess
+            });
+
+            if (upsertError) {
+                console.error('Failed to record puzzle attempt:', upsertError.message);
+                return;
+            }
+
+            // Win or loss both complete the quest — quitting (never reaching here) does not
+            const { claimDailyQuest } = await import('@/actions/task-actions');
+            await claimDailyQuest(user.id, 'codele');
+            // Refresh the profile so XP/coins update immediately in the UI
+            await refreshProfile();
+            // Notify parent (e.g. dashboard) so it can refresh the quests widget
+            onComplete?.();
         };
 
         if (currentGuess === solution) {
@@ -322,7 +403,7 @@ export default function DailyGame({ isOpen, onClose, inline = false }: { isOpen:
                             setCurrentRow(0);
                             setGameState("playing");
                             setLetterStatuses({});
-                            setSolution(WORDS[Math.floor(Math.random() * WORDS.length)]);
+                            // solution stays as today's puzzle word (already in state)
                         }}
                         className={`w-full font-bold py-4 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all ${inline ? "bg-zinc-900 text-white hover:bg-zinc-800" : "bg-black text-white hover:bg-zinc-800"}`}
                     >

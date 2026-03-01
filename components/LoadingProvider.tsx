@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import GamifiedLoader from "./GamifiedLoader";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,7 +17,8 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     const [isRouteLoading, setIsRouteLoading] = useState(false);
     const pathname = usePathname();
 
-    const [prevPath, setPrevPath] = useState(pathname);
+    // Use a ref for prevPath so updates don't re-trigger or cancel the timeout.
+    const lastPathname = useRef(pathname);
 
     useEffect(() => {
         if (!isInitialLoad) {
@@ -25,17 +26,17 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isInitialLoad]);
 
-    // Only show mini-loader if it's an actual changing navigation event,
-    // not just the tab regaining focus. We use a ref to track if we've mounted
-    // and only trigger route loading if the pathname actually changes from previous.
+    // Only show mini-loader when the pathname actually changes.
+    // Using a ref avoids the race where prevPath state updates re-triggered
+    // this effect and prematurely cleared the 500ms timeout.
     useEffect(() => {
-        if (pathname !== prevPath) {
+        if (pathname !== lastPathname.current) {
+            lastPathname.current = pathname;
             setIsRouteLoading(true);
-            setPrevPath(pathname);
             const timer = setTimeout(() => setIsRouteLoading(false), 500);
             return () => clearTimeout(timer);
         }
-    }, [pathname, prevPath]);
+    }, [pathname]);
 
     return (
         <LoadingContext.Provider value={{ isLoading: isInitialLoad }}>
