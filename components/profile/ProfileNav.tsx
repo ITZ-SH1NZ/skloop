@@ -14,6 +14,7 @@ const TABS = [
     { id: "stats", label: "Stats" },
     { id: "portfolio", label: "Portfolio" },
     { id: "timeline", label: "Timeline" },
+    { id: "quests", label: "Quests" },
 ];
 
 export function ProfileNav({ activeTab, onChange }: ProfileNavProps) {

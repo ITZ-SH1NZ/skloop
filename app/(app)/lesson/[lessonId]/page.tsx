@@ -8,6 +8,7 @@ import QuizView from "@/components/lesson/QuizView";
 import ChallengeView from "@/components/lesson/ChallengeView";
 import FlowchartBuilder from "@/components/lesson/FlowchartBuilder";
 import { useRouter } from "next/navigation";
+import { claimDailyQuest } from "@/actions/task-actions";
 
 // --- MOCK DATA FOR PROTOTYPE ---
 const LESSON_CONTENT_MAP: Record<string, any> = {
@@ -485,6 +486,15 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
         } catch (err) {
             console.error("Failed to mark complete:", err);
         } finally {
+            // Also log lesson completion quest background process
+            const { createClient } = require("@/utils/supabase/client");
+            const supabase = createClient();
+            supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
+                if (user) {
+                    claimDailyQuest(user.id, 'lesson').catch(err => console.error("Failed to log lesson quest", err));
+                }
+            });
+
             router.push("/course/web-development"); // Re-route to course map
         }
     };

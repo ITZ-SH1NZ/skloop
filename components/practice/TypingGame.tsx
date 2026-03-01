@@ -11,6 +11,8 @@ import ResultChart from "./ResultChart";
 import { Card } from "@/components/ui/Card";
 import TypingGameShare from "./TypingGameShare";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { useUser } from "@/context/UserContext";
+import { claimDailyQuest } from "@/actions/task-actions";
 
 // More realistic code snippets
 const CODE_SNIPPETS = [
@@ -75,6 +77,8 @@ interface HistoryPoint {
 }
 
 export default function TypingGame() {
+    const { user } = useUser();
+
     // Settings
     const [gameMode, setGameMode] = useState<GameMode>("snippet");
     const [containerWidth, setContainerWidth] = useState(0);
@@ -265,6 +269,11 @@ export default function TypingGame() {
     const endGame = () => {
         setGameState("finished");
         if (timerRef.current) clearInterval(timerRef.current);
+
+        // Log Quest Progress Background
+        if (user) {
+            claimDailyQuest(user.id, 'type_race').catch(err => console.error("Failed to log typing quest", err));
+        }
     };
 
     const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { soundManager } from "@/lib/sound";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import DSAQuizShare from "./DSAQuizShare";
+import { useUser } from "@/context/UserContext";
+import { claimDailyQuest } from "@/actions/task-actions";
 
 const QUESTIONS = [
     {
@@ -42,6 +44,8 @@ const QUESTIONS = [
 ];
 
 export default function DSAQuiz() {
+    const { user } = useUser();
+
     // Game State
     const [gameState, setGameState] = useState<"start" | "playing" | "finished">("start");
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -129,6 +133,11 @@ export default function DSAQuiz() {
             const finalTime = Math.floor((Date.now() - (startTime || Date.now())) / 1000);
             setTotalTime(finalTime);
             setGameState("finished");
+
+            // Log Quest Progress Background
+            if (user) {
+                claimDailyQuest(user.id, 'quiz_attempt').catch(err => console.error("Failed to log DSA quest", err));
+            }
         }
     };
 

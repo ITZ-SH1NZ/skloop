@@ -213,7 +213,9 @@ export async function getQuestStatus(userId: string) {
 
 /**
  * Claims a daily quest reward for a user.
- * Validates the quest condition, prevents double-claiming, and grants XP + Coins.
+/**
+ * Claims a daily quest reward for a user.
+ * This has been refactored to use the new Quest Expansion system under the hood.
  */
 export async function claimDailyQuest(
     userId: string,
@@ -222,27 +224,7 @@ export async function claimDailyQuest(
     const supabase = await createClient();
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Quest definitions
-    const QUESTS: Record<string, { xp: number; coins: number }> = {
-        login: { xp: 10, coins: 5 },
-        codele: { xp: 50, coins: 10 },
-    };
-
-    const quest = QUESTS[questId];
-    if (!quest) return { success: false, message: 'Unknown quest.' };
-
-    // 1. Prevent double-claiming
-    const { data: already } = await supabase
-        .from('daily_quest_completions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('quest_id', questId)
-        .eq('completed_at', todayStr)
-        .maybeSingle();
-
-    if (already) return { success: false, message: 'Quest already claimed today.' };
-
-    // 2. Validate conditions
+    // 1. Pre-validation for specific quest conditions
     if (questId === 'login') {
         const { data: loginLog } = await supabase
             .from('activity_logs')
@@ -250,14 +232,11 @@ export async function claimDailyQuest(
             .eq('user_id', userId)
             .eq('activity_date', todayStr)
             .eq('focus_area', 'Daily Login');
-
-        if (!loginLog || loginLog.length === 0) {
-            // Auto-pass: if user is authenticated and we're calling this, they've logged in
-            // We just grant the reward directly since they are clearly logged in
-        }
+        // Auto-pass: if user is authenticated and we're calling this, they've logged in
     }
 
     if (questId === 'codele') {
+        // Look up today's puzzle directly to avoid relying on state
         const { data: dailyPuzzle } = await supabase
             .from('daily_puzzles')
             .select('id')
@@ -272,7 +251,6 @@ export async function claimDailyQuest(
                 .eq('puzzle_id', dailyPuzzle.id)
                 .maybeSingle();
 
-            // Win or loss both earn the reward — only not having finished (still 'playing') doesn't
             if (!puzzleAttempt || puzzleAttempt.status === 'playing') {
                 return { success: false, message: 'Finish the Codele puzzle first to claim this reward.' };
             }
@@ -281,50 +259,29 @@ export async function claimDailyQuest(
         }
     }
 
-    // 3. Record the completion
-    const { error: insertError } = await supabase
-        .from('daily_quest_completions')
-        .insert({
-            user_id: userId,
-            quest_id: questId,
-            completed_at: todayStr,
-            xp_awarded: quest.xp,
-            coins_awarded: quest.coins,
-        });
+    // 2. Delegate to the new Quest Engine
+    const { claimQuestProgress } = await import('./quest-actions');
+    const result = await claimQuestProgress(userId, questId, 'daily', 1, 1);
 
-    if (insertError) {
-        console.error('claimDailyQuest insert error:', insertError);
-        return { success: false, message: 'Failed to record quest completion.' };
+    if (!result.success) {
+        return { success: false, message: result.message || 'Failed to claim quest.' };
     }
 
-    // 4. Grant XP and Coins
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('xp, coins')
-        .eq('id', userId)
+    // 3. Re-fetch quest to know how much was awarded for the return UI message
+    const { data: questDetails } = await supabase
+        .from('quests')
+        .select('xp_reward, coins_reward')
+        .eq('key', questId)
         .single();
 
-    if (!profile) return { success: false, message: 'Profile not found.' };
-
-    const newXp = (profile.xp || 0) + quest.xp;
-    const newCoins = (profile.coins || 0) + quest.coins;
-    const newLevel = calculateLevel(newXp);
-
-    const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ xp: newXp, coins: newCoins, level: newLevel })
-        .eq('id', userId);
-
-    if (updateError) {
-        console.error('claimDailyQuest profile update error:', updateError);
-        return { success: false, message: 'Failed to award XP and Coins.' };
-    }
+    const xp = questDetails?.xp_reward || 0;
+    const coins = questDetails?.coins_reward || 0;
 
     revalidatePath('/dashboard');
     return {
         success: true,
-        message: `+${quest.xp} XP and +${quest.coins} Coins claimed!`,
-        xpAwarded: quest.xp,
-        coinsAwarded: quest.coins
+        message: `+${xp} XP and +${coins} Coins claimed!`,
+        xpAwarded: xp,
+        coinsAwarded: coins
     };
 }

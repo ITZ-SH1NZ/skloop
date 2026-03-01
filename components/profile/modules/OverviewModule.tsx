@@ -7,13 +7,18 @@ import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
-
+import { TrophyCaseModal } from "../gamification/TrophyCaseModal";
+import { getSealedChests } from "@/actions/quest-actions";
 import { useUser } from "@/context/UserContext";
 
 export function OverviewModule() {
     const supabase = createClient();
-    const { profile } = useUser();
+    const { profile, user } = useUser();
     const [stats, setStats] = useState({ streak: 0, lessonsCompleted: 0, problemsSolved: 0 });
+
+    // Trophy Case State
+    const [isTrophyModalOpen, setIsTrophyModalOpen] = useState(false);
+    const [chestCount, setChestCount] = useState(0);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -50,10 +55,16 @@ export function OverviewModule() {
                     problemsSolved,
                     lessonsCompleted
                 });
+
+                // Fetch unopened chests for the badge if user is loaded
+                if (user) {
+                    const chests = await getSealedChests(user.id);
+                    setChestCount(chests.length);
+                }
             }
         };
         fetchStats();
-    }, [profile]);
+    }, [profile, user]);
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -88,9 +99,22 @@ export function OverviewModule() {
                 {/* Badges Section */}
                 <div>
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold tracking-tight">Trophy Case</h2>
-                        <span className="text-sm font-medium text-muted-foreground cursor-pointer hover:text-black">View All</span>
+                        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                            Trophy Case
+                            {chestCount > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                                    🎁 {chestCount}
+                                </span>
+                            )}
+                        </h2>
+                        <span
+                            onClick={() => setIsTrophyModalOpen(true)}
+                            className="text-sm font-bold text-slate-500 cursor-pointer hover:text-slate-900 transition-colors"
+                        >
+                            Open Case
+                        </span>
                     </div>
+                    {/* We still show the static BadgeGrid here as a preview of general app badges (not all inventory) or we can just leave it as is per instructions to keep badgegrid the same but open modal on "View All" */}
                     <BadgeGrid />
                 </div>
 
@@ -155,6 +179,11 @@ export function OverviewModule() {
                     <p className="text-xs text-muted-foreground mt-1">--</p>
                 </div> */}
             </div>
+
+            <TrophyCaseModal
+                isOpen={isTrophyModalOpen}
+                onClose={() => setIsTrophyModalOpen(false)}
+            />
         </div>
     );
 }
