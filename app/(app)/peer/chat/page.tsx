@@ -36,27 +36,40 @@ function ChatPageContent() {
                 if (initialUserId) {
                     const convoId = await getOrCreateDirectConversation(initialUserId);
                     if (convoId) {
-                        setSelectedPeerId(convoId);
-                        // Add to local DMs if not already present
+                        // Add the DM to local state FIRST (with a placeholder),
+                        // then enrich with profile data. Never gate the chat on profile fetch.
                         if (!fetchedDms.find((d: any) => d.id === convoId)) {
+                            // Add placeholder immediately so the chat window renders
+                            setDms(prev => [...prev, {
+                                id: convoId,
+                                name: 'Loading...',
+                                username: '',
+                                type: 'direct' as const,
+                                track: 'Learner',
+                                level: 0, xp: 0, streak: 0, status: 'none' as const,
+                            }]);
+
+                            // Then enrich with real profile data in the background
                             const supabase = createClient();
                             const { data: profile } = await supabase
                                 .from('profiles')
                                 .select('id, full_name, username, avatar_url, role')
                                 .eq('id', initialUserId)
                                 .single();
+
                             if (profile) {
-                                setDms(prev => [...prev, {
-                                    id: convoId,
+                                setDms(prev => prev.map(d => d.id === convoId ? {
+                                    ...d,
                                     name: profile.full_name || profile.username || 'User',
                                     username: profile.username || '',
                                     avatarUrl: profile.avatar_url,
                                     track: profile.role || 'Learner',
-                                    type: 'direct',
-                                    level: 0, xp: 0, streak: 0, status: 'none',
-                                }]);
+                                } : d));
                             }
                         }
+
+                        // Select the chat — this must happen AFTER adding to state above
+                        setSelectedPeerId(convoId);
                         router.replace('/peer/chat');
                     }
                 }
