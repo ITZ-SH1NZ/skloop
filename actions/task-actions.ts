@@ -213,9 +213,7 @@ export async function getQuestStatus(userId: string) {
 
 /**
  * Claims a daily quest reward for a user.
-/**
- * Claims a daily quest reward for a user.
- * This has been refactored to use the new Quest Expansion system under the hood.
+ * Delegates to the new Quest Expansion system under the hood.
  */
 export async function claimDailyQuest(
     userId: string,

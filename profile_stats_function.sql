@@ -56,3 +56,8 @@ EXCEPTION WHEN OTHERS THEN
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant permission so that authenticated users (via Supabase client) can call this RPC.
+-- Without this, the RPC returns 403 and XP/Coins are never awarded.
+GRANT EXECUTE ON FUNCTION public.increment_profile_stats(uuid, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.increment_profile_stats(uuid, integer, integer) TO service_role;
