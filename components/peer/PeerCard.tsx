@@ -15,6 +15,11 @@ export interface PeerProfile {
     streak: number;
     status: "friend" | "pending_incoming" | "pending_outgoing" | "none";
     isOnline?: boolean;
+    // Chat type - replaces the fragile `startsWith("g")` heuristic
+    type?: 'direct' | 'group';
+    // Last message preview for sidebar
+    lastMessage?: string;
+    lastMessageAt?: string;
 }
 
 export interface PeerCardProps {

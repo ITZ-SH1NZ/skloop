@@ -1,11 +1,12 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Hash, Calendar, LogOut, Bell, Search, MessageSquare } from "lucide-react";
+import { X, Hash, Calendar, LogOut, Bell, Search, MessageSquare, Loader2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { PeerProfile } from "./PeerCard";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getConversationMembers } from "@/actions/chat-actions";
 
 interface CircleInfoPanelProps {
     peer: PeerProfile;
@@ -13,16 +14,38 @@ interface CircleInfoPanelProps {
     onClose: () => void;
 }
 
-// Mock Members Data
-// TODO: Fetch members from backend
-const MOCK_MEMBERS: any[] = [];
+interface Member {
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl?: string;
+    role: string;
+    joinedAt: string;
+}
 
 export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps) {
     const [activeTab, setActiveTab] = useState<"members" | "resources">("members");
     const [memberSearch, setMemberSearch] = useState("");
+    const [members, setMembers] = useState<Member[]>([]);
+    const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
-    const filteredMembers = MOCK_MEMBERS.filter(m =>
-        m.name.toLowerCase().includes(memberSearch.toLowerCase())
+    useEffect(() => {
+        if (!isOpen || peer.type !== 'group') return;
+        const fetchMembers = async () => {
+            setIsLoadingMembers(true);
+            try {
+                const data = await getConversationMembers(peer.id);
+                setMembers(data as Member[]);
+            } finally {
+                setIsLoadingMembers(false);
+            }
+        };
+        fetchMembers();
+    }, [isOpen, peer.id, peer.type]);
+
+    const filteredMembers = members.filter(m =>
+        m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+        m.username.toLowerCase().includes(memberSearch.toLowerCase())
     );
 
     return (
@@ -57,18 +80,16 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                         <div className="flex-1 overflow-y-auto">
                             {/* Circle Branding */}
                             <div className="p-6 flex flex-col items-center border-b border-zinc-100 bg-zinc-50/50">
-                                <Avatar
-                                    src={peer.avatarUrl}
-                                    fallback={peer.name.charAt(0)}
-                                    className="w-24 h-24 rounded-full border-4 border-white shadow-md mb-3 bg-gradient-to-br from-lime-100 to-emerald-100"
-                                />
+                                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-lime-200 to-lime-400 flex items-center justify-center text-4xl font-black mb-3 border-4 border-white shadow-md">
+                                    {peer.name.charAt(0)}
+                                </div>
                                 <h2 className="text-xl font-black text-zinc-900 text-center leading-tight mb-1">{peer.name}</h2>
                                 <div className="flex items-center gap-2 text-sm text-zinc-500 font-medium mb-4">
                                     <span className="px-2 py-0.5 rounded-full bg-lime-100 text-lime-700 text-xs font-bold border border-lime-200">
-                                        Frontend
+                                        {peer.track}
                                     </span>
                                     <span>•</span>
-                                    <span>{peer.track || "24 members"}</span>
+                                    <span>{isLoadingMembers ? '...' : `${members.length} member${members.length !== 1 ? 's' : ''}`}</span>
                                 </div>
 
                                 <div className="flex gap-2 w-full">
@@ -87,27 +108,27 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                             <div className="p-6 border-b border-zinc-100">
                                 <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">About</h4>
                                 <p className="text-sm text-zinc-600 leading-relaxed">
-                                    A community for frontend developers learning React, Next.js and modern UI patterns. Let&apos;s build together! 🚀
+                                    {peer.track} study circle. Collaborate, ask questions, and grow together! 🚀
                                 </p>
                                 <div className="mt-4 space-y-3">
                                     <div className="flex items-center gap-3 text-sm text-zinc-600">
                                         <Hash size={16} className="text-zinc-400" />
-                                        <span>react, javascript, nextjs</span>
+                                        <span>{peer.track?.toLowerCase()}</span>
                                     </div>
                                     <div className="flex items-center gap-3 text-sm text-zinc-600">
                                         <Calendar size={16} className="text-zinc-400" />
-                                        <span>Created Jan 2026</span>
+                                        <span>Study Circle</span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Members / Resources Tabs */}
+                            {/* Tabs */}
                             <div className="sticky top-0 bg-white z-10 border-b border-zinc-100 flex">
                                 <button
                                     onClick={() => setActiveTab("members")}
                                     className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === "members" ? "border-lime-500 text-lime-700" : "border-transparent text-zinc-500 hover:text-zinc-800"}`}
                                 >
-                                    Members
+                                    Members {members.length > 0 && `(${members.length})`}
                                 </button>
                                 <button
                                     onClick={() => setActiveTab("resources")}
@@ -121,7 +142,6 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                             <div className="p-2">
                                 {activeTab === "members" && (
                                     <div className="space-y-1">
-                                        {/* Member Search */}
                                         <div className="p-2 sticky top-12 bg-white z-10">
                                             <div className="relative">
                                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -135,37 +155,34 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                                             </div>
                                         </div>
 
-                                        <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1 scrollbar-thin scrollbar-thumb-zinc-200">
-                                            {filteredMembers.map(member => (
+                                        <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1">
+                                            {isLoadingMembers ? (
+                                                <div className="flex justify-center py-8">
+                                                    <Loader2 className="animate-spin text-zinc-300 w-5 h-5" />
+                                                </div>
+                                            ) : filteredMembers.length === 0 ? (
+                                                <div className="text-center py-8 text-zinc-400 text-xs">No members found</div>
+                                            ) : filteredMembers.map(member => (
                                                 <button key={member.id} className="w-full flex items-center gap-3 p-2 hover:bg-zinc-50 rounded-xl transition-colors text-left group">
                                                     <div className="relative">
                                                         <Avatar src={member.avatarUrl} fallback={member.name[0]} className="w-9 h-9 rounded-full border border-zinc-100" />
-                                                        {member.isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-white" />}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-sm font-bold text-zinc-900 truncate">{member.name}</span>
                                                             {member.role !== "member" && (
-                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${member.role === "admin" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                                                                    }`}>
+                                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${member.role === "admin" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
                                                                     {member.role}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <p className="text-[10px] text-zinc-500 font-medium">
-                                                            {member.isOnline ? "Online" : member.lastSeen}
-                                                        </p>
+                                                        <p className="text-[10px] text-zinc-500 font-medium">@{member.username}</p>
                                                     </div>
                                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <MessageSquare size={16} className="text-zinc-400 hover:text-lime-600" />
                                                     </div>
                                                 </button>
                                             ))}
-                                            {filteredMembers.length > 5 && (
-                                                <Button variant="ghost" size="sm" className="w-full text-xs text-zinc-400 hover:text-zinc-600 mt-2">
-                                                    Show all members
-                                                </Button>
-                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -182,7 +199,7 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                             </div>
                         </div>
 
-                        {/* Footer Actions */}
+                        {/* Footer */}
                         <div className="p-4 border-t border-zinc-100 bg-zinc-50/50">
                             <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-10 rounded-xl">
                                 <LogOut size={18} className="mr-3" />
