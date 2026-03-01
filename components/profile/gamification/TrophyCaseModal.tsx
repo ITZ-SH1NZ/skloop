@@ -59,9 +59,12 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
     useEffect(() => {
         if (isOpen) {
             fetchData();
-            // Prevent Lenis from scrolling the page while modal is open.
-            // We do NOT call lenis.stop() because that also kills inner scroll containers.
-            // Instead we rely on data-lenis-prevent on the modal scroll layer.
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, user?.id]);
+
+    useEffect(() => {
+        if (isOpen) {
             document.body.style.overflow = "hidden";
         } else {
             document.body.style.overflow = "unset";
@@ -69,7 +72,7 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
         return () => {
             document.body.style.overflow = "unset";
         };
-    }, [isOpen, user, lenis]);
+    }, [isOpen]);
 
     const handleFocusChest = (chestId: string) => {
         setFocusedChestId(chestId);
@@ -326,7 +329,10 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
                                                 <p>Your trophy case is empty.<br />Complete quests to earn rewards!</p>
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                            <div
+                                                className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[420px] overflow-y-auto pr-1"
+                                                data-lenis-prevent
+                                            >
                                                 {inventory.map(item => (
                                                     <div key={item.id} className={`p-4 rounded-2xl flex flex-col items-center text-center bg-white border shadow-sm ${getRarityColor(item.rarity)}`}>
                                                         <div className="w-12 h-12 bg-white/50 rounded-xl mb-3 flex items-center justify-center">

@@ -231,8 +231,8 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                                                                 {isClaiming ? 'Claiming...' : <><Sparkles size={12} /> Claim</>}
                                                             </motion.button>
                                                         ) : !isDone && Object.keys(hrefProps).length > 0 ? (
-                                                            <Link href={(hrefProps as any).href} className="text-xs font-bold text-slate-400 group-hover:text-slate-600 hidden md:inline-flex items-center gap-1 transition-colors">
-                                                                <span className="hidden lg:inline">Go</span> <ArrowRight size={14} />
+                                                            <Link href={(hrefProps as any).href} className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors">
+                                                                <span>Go</span> <ArrowRight size={14} />
                                                             </Link>
                                                         ) : null}
 
