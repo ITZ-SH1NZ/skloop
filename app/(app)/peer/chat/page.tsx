@@ -143,8 +143,8 @@ function NewChatPicker({
                 ref={buttonRef}
                 onClick={() => setIsOpen(o => !o)}
                 className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${isOpen
-                        ? "bg-lime-400 text-zinc-900"
-                        : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                    ? "bg-lime-400 text-zinc-900"
+                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
                     }`}
                 title="New message"
             >
@@ -299,7 +299,7 @@ function ChatPageContent() {
     };
 
     return (
-        <div className="flex h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
+        <div className="flex flex-1 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
             {/* Sidebar List */}
             <div className={`w-full md:w-[380px] flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
                 <motion.div
