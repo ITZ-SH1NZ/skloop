@@ -309,3 +309,43 @@ export async function getConversationMembers(conversationId: string) {
         };
     });
 }
+
+/**
+ * Returns accepted friends (connections) with profile info.
+ * Used to populate the New Chat picker.
+ */
+export async function getFriendsList(): Promise<{
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl?: string;
+}[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data: connections } = await supabase
+        .from('connections')
+        .select('requester_id, recipient_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
+
+    if (!connections || connections.length === 0) return [];
+
+    const peerIds = connections.map((c: any) =>
+        c.requester_id === user.id ? c.recipient_id : c.requester_id
+    );
+
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', peerIds);
+
+    return (profiles ?? []).map((p: any) => ({
+        id: p.id,
+        name: p.full_name || p.username || 'User',
+        username: p.username || '',
+        avatarUrl: p.avatar_url,
+    }));
+}
+

@@ -1,14 +1,210 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PeerProfile } from "@/components/peer/PeerCard";
 import { ChatWindow } from "@/components/peer/ChatWindow";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Loader2, MessageSquarePlus, Hash, UserCircle2 } from "lucide-react";
+import { Search, Loader2, MessageSquarePlus, Hash, UserCircle2, X, PenSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
-import { getUserConversations, getOrCreateDirectConversation } from "@/actions/chat-actions";
+import { getUserConversations, getOrCreateDirectConversation, getFriendsList } from "@/actions/chat-actions";
+
+// ============================================================
+// NewChatPicker — Responsive: bottom-sheet on mobile, popover on desktop
+// ============================================================
+interface Friend { id: string; name: string; username: string; avatarUrl?: string; }
+
+function NewChatPicker({
+    onSelect,
+}: {
+    onSelect: (friend: Friend) => Promise<void>;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [friends, setFriends] = useState<Friend[]>([]);
+    const [query, setQuery] = useState("");
+    const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+    const [openingFor, setOpeningFor] = useState<string | null>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    // Fetch friends on open
+    useEffect(() => {
+        if (!isOpen) return;
+        setIsLoadingFriends(true);
+        getFriendsList().then(list => {
+            setFriends(list);
+            setIsLoadingFriends(false);
+        });
+    }, [isOpen]);
+
+    // Close on outside click (desktop)
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (
+                popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+                buttonRef.current && !buttonRef.current.contains(e.target as Node)
+            ) setIsOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [isOpen]);
+
+    // Close on Escape
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setIsOpen(false); };
+        document.addEventListener("keydown", handler);
+        return () => document.removeEventListener("keydown", handler);
+    }, [isOpen]);
+
+    const filtered = friends.filter(f =>
+        f.name.toLowerCase().includes(query.toLowerCase()) ||
+        f.username.toLowerCase().includes(query.toLowerCase())
+    );
+
+    const handleSelect = async (friend: Friend) => {
+        setOpeningFor(friend.id);
+        await onSelect(friend);
+        setOpeningFor(null);
+        setIsOpen(false);
+        setQuery("");
+    };
+
+    const pickerContent = (
+        <div className="flex flex-col overflow-hidden h-full">
+            {/* Search */}
+            <div className="p-3 border-b border-zinc-100 shrink-0">
+                <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                    <input
+                        type="text"
+                        autoFocus
+                        placeholder="Search friends..."
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        className="w-full bg-zinc-100 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-lime-500/40 placeholder:text-zinc-400"
+                    />
+                </div>
+            </div>
+
+            {/* Friend list */}
+            <div className="flex-1 overflow-y-auto p-2 min-h-0">
+                {isLoadingFriends ? (
+                    <div className="flex justify-center items-center py-10">
+                        <Loader2 className="animate-spin text-zinc-300 w-5 h-5" />
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <div className="text-center py-8 px-4">
+                        <p className="text-sm font-semibold text-zinc-800">
+                            {friends.length === 0 ? "No friends yet" : "No results"}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">
+                            {friends.length === 0
+                                ? "Add peers from the My Peers tab first"
+                                : "Try a different name"}
+                        </p>
+                    </div>
+                ) : filtered.map(friend => (
+                    <button
+                        key={friend.id}
+                        onClick={() => handleSelect(friend)}
+                        disabled={openingFor === friend.id}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 active:bg-zinc-200 transition-colors text-left group disabled:opacity-60"
+                    >
+                        <div className="relative shrink-0">
+                            <Avatar
+                                src={friend.avatarUrl}
+                                fallback={friend.name.charAt(0)}
+                                className="w-10 h-10 rounded-full border border-zinc-100"
+                            />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-lime-400 rounded-full border-2 border-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-zinc-900 truncate">{friend.name}</p>
+                            <p className="text-xs text-zinc-400 font-medium">@{friend.username}</p>
+                        </div>
+                        {openingFor === friend.id ? (
+                            <Loader2 size={16} className="animate-spin text-zinc-400 shrink-0" />
+                        ) : (
+                            <PenSquare size={15} className="text-zinc-300 group-hover:text-lime-500 transition-colors shrink-0" />
+                        )}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="relative">
+            {/* Trigger button */}
+            <button
+                ref={buttonRef}
+                onClick={() => setIsOpen(o => !o)}
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${isOpen
+                        ? "bg-lime-400 text-zinc-900"
+                        : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                    }`}
+                title="New message"
+            >
+                {isOpen ? <X size={16} /> : <MessageSquarePlus size={16} />}
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Mobile: full-screen bottom sheet */}
+                        <motion.div
+                            key="mobile-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="md:hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+                            onClick={() => setIsOpen(false)}
+                        />
+                        <motion.div
+                            key="mobile-sheet"
+                            initial={{ y: "100%" }}
+                            animate={{ y: 0 }}
+                            exit={{ y: "100%" }}
+                            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+                            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl"
+                            style={{ maxHeight: "80dvh", display: "flex", flexDirection: "column" }}
+                        >
+                            {/* Sheet handle */}
+                            <div className="flex items-center justify-between px-5 py-4 shrink-0">
+                                <h3 className="font-bold text-zinc-900 text-base">New Message</h3>
+                                <button onClick={() => setIsOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div className="flex-1 min-h-0 overflow-hidden">{pickerContent}</div>
+                        </motion.div>
+
+                        {/* Desktop: anchored popover */}
+                        <motion.div
+                            key="desktop-popover"
+                            ref={popoverRef}
+                            initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                            transition={{ duration: 0.15 }}
+                            className="hidden md:flex flex-col absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-zinc-100 z-50 overflow-hidden"
+                            style={{ maxHeight: "380px" }}
+                        >
+                            <div className="px-4 pt-3 pb-1 shrink-0">
+                                <p className="text-sm font-bold text-zinc-900">New Message</p>
+                            </div>
+                            <div className="flex-1 min-h-0 overflow-hidden">{pickerContent}</div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
 
 // ⚠️ Next.js App Router: useSearchParams() MUST be inside a <Suspense> boundary.
 // So the actual page logic lives in ChatPageContent, and the default export wraps it.
@@ -116,9 +312,36 @@ function ChatPageContent() {
                     <div className="pt-6 pb-4 px-5 shrink-0 bg-white">
                         <div className="flex items-center justify-between xl:justify-start xl:gap-4 mb-5">
                             <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Chats</h2>
-                            <button className="flex items-center justify-center w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-600 transition-colors xl:ml-auto">
-                                <MessageSquarePlus size={18} />
-                            </button>
+                            <div className="xl:ml-auto">
+                                <NewChatPicker
+                                    onSelect={async (friend) => {
+                                        // Add placeholder immediately
+                                        const existingInDms = dms.find(d => {
+                                            // We don't know convoId yet, so we can't match by id.
+                                            // Just proceed — getOrCreateDirectConversation handles deduplication.
+                                            return false;
+                                        });
+                                        const convoId = await getOrCreateDirectConversation(friend.id);
+                                        if (!convoId) return;
+
+                                        // Add or update DM in sidebar
+                                        setDms(prev => {
+                                            const exists = prev.find(d => d.id === convoId);
+                                            if (exists) return prev;
+                                            return [...prev, {
+                                                id: convoId,
+                                                name: friend.name,
+                                                username: friend.username,
+                                                avatarUrl: friend.avatarUrl,
+                                                type: 'direct' as const,
+                                                track: 'Learner',
+                                                level: 0, xp: 0, streak: 0, status: 'none' as const,
+                                            }];
+                                        });
+                                        setSelectedPeerId(convoId);
+                                    }}
+                                />
+                            </div>
                         </div>
                         <div className="relative group">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-lime-500 transition-colors" size={18} />
