@@ -44,7 +44,7 @@ const QUESTIONS = [
 ];
 
 export default function DSAQuiz() {
-    const { user } = useUser();
+    const { user, refreshProfile } = useUser();
 
     // Game State
     const [gameState, setGameState] = useState<"start" | "playing" | "finished">("start");
@@ -136,7 +136,11 @@ export default function DSAQuiz() {
 
             // Log Quest Progress Background
             if (user) {
-                claimDailyQuest(user.id, 'quiz_attempt').catch(err => console.error("Failed to log DSA quest", err));
+                import('@/actions/quest-actions').then(({ claimQuestProgress }) => {
+                    claimQuestProgress(user.id, 'quiz_attempt', 'daily', 1, 1)
+                        .then(() => refreshProfile())
+                        .catch(err => console.error("Failed to log DSA quest", err));
+                });
             }
         }
     };

@@ -235,8 +235,9 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
             }
 
             // Win or loss both complete the quest — quitting (never reaching here) does not
-            const { claimDailyQuest } = await import('@/actions/task-actions');
-            await claimDailyQuest(user.id, 'codele');
+            // We use claimQuestProgress directly to bypass UI validations that might race with the upsert above
+            const { claimQuestProgress } = await import('@/actions/quest-actions');
+            await claimQuestProgress(user.id, 'codele', 'daily', 1, 1);
             // Refresh the profile so XP/coins update immediately in the UI
             await refreshProfile();
             // Notify parent (e.g. dashboard) so it can refresh the quests widget

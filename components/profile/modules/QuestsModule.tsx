@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sunrise, Terminal, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Flame, Gift, CheckCircle2, Circle, ArrowRight } from "lucide-react";
+import { Sunrise, Terminal, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Flame, Gift, CheckCircle2, Circle, ArrowRight, Sparkles } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { getUserQuestProgress, getSealedChests, QuestProgress } from "@/actions/quest-actions";
 import { useUser } from "@/context/UserContext";
@@ -34,6 +34,10 @@ export function QuestsModule() {
     const [isLoading, setIsLoading] = useState(true);
     const [lastCourseSlug, setLastCourseSlug] = useState<string | null>(null);
 
+    const [claimingId, setClaimingId] = useState<string | null>(null);
+    const [claimFeedback, setClaimFeedback] = useState<{ id: string; message: string } | null>(null);
+    const { refreshProfile } = useUser();
+
     const fetchAllQuests = async () => {
         setIsLoading(true);
         if (!user) return;
@@ -51,6 +55,26 @@ export function QuestsModule() {
             setLastCourseSlug(resumeSlug);
         }
         setIsLoading(false);
+    };
+
+    const handleClaimQuest = async (questId: string) => {
+        if (!user || claimingId) return;
+
+        setClaimingId(questId);
+        try {
+            // Re-import dynamically or just use the same action wrapper used by widget
+            const { claimDailyQuest } = await import('@/actions/task-actions');
+            const result = await claimDailyQuest(user.id, questId);
+
+            setClaimFeedback({ id: questId, message: result.message });
+            if (result.success) {
+                await fetchAllQuests();
+                await refreshProfile();
+            }
+            setTimeout(() => setClaimFeedback(null), 3000);
+        } finally {
+            setClaimingId(null);
+        }
     };
 
     useEffect(() => {
@@ -195,10 +219,36 @@ export function QuestsModule() {
                                                 <CheckCircle2 className="text-[#D4F268]" size={28} fill="#18181b" />
                                             ) : (
                                                 <div className="flex items-center gap-4">
-                                                    {Object.keys(hrefProps).length > 0 && (
-                                                        <a {...hrefProps as any} className="text-xs font-bold text-blue-500 hover:text-blue-600 transition-colors uppercase tracking-wider bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 flex items-center gap-1">
-                                                            Go <ArrowRight size={14} />
-                                                        </a>
+                                                    {/* Feedback Message */}
+                                                    <AnimatePresence>
+                                                        {claimingId === quest.key && claimFeedback && (
+                                                            <motion.span
+                                                                initial={{ opacity: 0, x: 10 }}
+                                                                animate={{ opacity: 1, x: 0 }}
+                                                                exit={{ opacity: 0, x: -10 }}
+                                                                className="text-xs font-bold text-emerald-600 absolute right-32"
+                                                            >
+                                                                {claimFeedback.message}
+                                                            </motion.span>
+                                                        )}
+                                                    </AnimatePresence>
+
+                                                    {/* Claim Button for login (daily) */}
+                                                    {!isDone && quest.key === 'login' && activeTab === 'daily' ? (
+                                                        <motion.button
+                                                            whileTap={{ scale: 0.95 }}
+                                                            onClick={(e) => { e.stopPropagation(); handleClaimQuest(quest.key); }}
+                                                            disabled={claimingId === quest.key}
+                                                            className="text-xs font-bold bg-[#D4F268] text-slate-900 px-3 py-1.5 rounded-xl hover:bg-lime-300 transition-colors disabled:opacity-70 flex items-center gap-1"
+                                                        >
+                                                            {claimingId === quest.key ? 'Claiming...' : <><Sparkles size={14} /> Claim</>}
+                                                        </motion.button>
+                                                    ) : (
+                                                        Object.keys(hrefProps).length > 0 && (
+                                                            <a {...hrefProps as any} className="text-xs font-bold text-blue-500 hover:text-blue-600 transition-colors uppercase tracking-wider bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 flex items-center gap-1">
+                                                                Go <ArrowRight size={14} />
+                                                            </a>
+                                                        )
                                                     )}
                                                     <Circle className="text-slate-300" size={28} />
                                                 </div>

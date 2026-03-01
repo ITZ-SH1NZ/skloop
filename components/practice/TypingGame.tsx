@@ -77,7 +77,7 @@ interface HistoryPoint {
 }
 
 export default function TypingGame() {
-    const { user } = useUser();
+    const { user, refreshProfile } = useUser();
 
     // Settings
     const [gameMode, setGameMode] = useState<GameMode>("snippet");
@@ -272,7 +272,11 @@ export default function TypingGame() {
 
         // Log Quest Progress Background
         if (user) {
-            claimDailyQuest(user.id, 'type_race').catch(err => console.error("Failed to log typing quest", err));
+            import('@/actions/quest-actions').then(({ claimQuestProgress }) => {
+                claimQuestProgress(user.id, 'type_race', 'daily', 1, 1)
+                    .then(() => refreshProfile())
+                    .catch(err => console.error("Failed to log typing quest", err));
+            });
         }
     };
 
