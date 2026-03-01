@@ -95,7 +95,7 @@ export async function getOrCreateDirectConversation(targetUserId: string): Promi
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Use the efficient RPC function to look for an existing DM
+    // Try the RPC first (fast path)
     const { data: existingId, error: rpcError } = await supabase
         .rpc('get_direct_conversation', {
             user1_id: user.id,
@@ -106,7 +106,39 @@ export async function getOrCreateDirectConversation(targetUserId: string): Promi
         return existingId as string;
     }
 
-    // No existing DM — create one
+    // RPC missing or no result — do it manually:
+    // Find conversations we're in
+    const { data: myConvos } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+
+    if (myConvos && myConvos.length > 0) {
+        const myConvoIds = myConvos.map((c: any) => c.conversation_id);
+
+        // Find ones the target is also in
+        const { data: sharedConvos } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('user_id', targetUserId)
+            .in('conversation_id', myConvoIds);
+
+        if (sharedConvos && sharedConvos.length > 0) {
+            const sharedIds = sharedConvos.map((c: any) => c.conversation_id);
+            // Verify at least one is a 'direct' type
+            const { data: directConvo } = await supabase
+                .from('conversations')
+                .select('id')
+                .eq('type', 'direct')
+                .in('id', sharedIds)
+                .limit(1)
+                .single();
+
+            if (directConvo) return directConvo.id;
+        }
+    }
+
+    // No existing DM — create one.
     const { data: newConvo, error: convoError } = await supabase
         .from('conversations')
         .insert({ type: 'direct' })
@@ -118,17 +150,27 @@ export async function getOrCreateDirectConversation(targetUserId: string): Promi
         return null;
     }
 
-    // Add both participants
-    const { error: partError } = await supabase
+    // CRITICAL: Insert OUR participant row FIRST.
+    // Old RLS policy: user_id = auth.uid() OR is_participant(conversation_id)
+    // If we insert both at once, targetUserId row fails (neither condition holds yet).
+    // By inserting ourselves first, is_participant() becomes true for the second insert.
+    const { error: selfError } = await supabase
         .from('conversation_participants')
-        .insert([
-            { conversation_id: newConvo.id, user_id: user.id },
-            { conversation_id: newConvo.id, user_id: targetUserId },
-        ]);
+        .insert({ conversation_id: newConvo.id, user_id: user.id });
 
-    if (partError) {
-        console.error("Error adding participants:", partError);
+    if (selfError) {
+        console.error("Error adding self to conversation:", selfError);
         return null;
+    }
+
+    // Now insert the target — is_participant() is now true for this conversation
+    const { error: targetError } = await supabase
+        .from('conversation_participants')
+        .insert({ conversation_id: newConvo.id, user_id: targetUserId });
+
+    if (targetError) {
+        console.error("Error adding target to conversation:", targetError);
+        // We're still in the convo, just without the other person — return it anyway
     }
 
     return newConvo.id;
