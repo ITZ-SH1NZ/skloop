@@ -10,12 +10,12 @@ export async function createClient() {
         {
             cookies: {
                 async get(name: string) {
-                    const resolvedCookieStore = await cookieStore
+                    const resolvedCookieStore = await cookies()
                     return resolvedCookieStore.get(name)?.value
                 },
                 async set(name: string, value: string, options: CookieOptions) {
                     try {
-                        const resolvedCookieStore = await cookieStore
+                        const resolvedCookieStore = await cookies()
                         resolvedCookieStore.set({ name, value, ...options })
                     } catch (error) {
                         // The `set` method was called from a Server Component.
@@ -25,7 +25,7 @@ export async function createClient() {
                 },
                 async remove(name: string, options: CookieOptions) {
                     try {
-                        const resolvedCookieStore = await cookieStore
+                        const resolvedCookieStore = await cookies()
                         resolvedCookieStore.set({ name, value: '', ...options })
                     } catch (error) {
                         // The `remove` method was called from a Server Component.

@@ -31,8 +31,10 @@ function NewChatPicker({
     // Fetch friends on open
     useEffect(() => {
         if (!isOpen) return;
+        console.log("[UI] NewChatPicker opening, fetching friends...");
         setIsLoadingFriends(true);
         getFriendsList().then(list => {
+            console.log("[UI] NewChatPicker friends fetched:", list.length);
             setFriends(list);
             setIsLoadingFriends(false);
         });
@@ -65,6 +67,7 @@ function NewChatPicker({
     );
 
     const handleSelect = async (friend: Friend) => {
+        console.log("[UI] NewChatPicker: Friend selected:", friend.name, friend.id);
         setOpeningFor(friend.id);
         await onSelect(friend);
         setOpeningFor(null);
@@ -141,7 +144,10 @@ function NewChatPicker({
             {/* Trigger button */}
             <button
                 ref={buttonRef}
-                onClick={() => setIsOpen(o => !o)}
+                onClick={() => {
+                    console.log("[UI] NewChatPicker button clicked, state transition:", !isOpen);
+                    setIsOpen(o => !o);
+                }}
                 className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${isOpen
                     ? "bg-lime-400 text-zinc-900"
                     : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
@@ -222,9 +228,11 @@ function ChatPageContent() {
 
     useEffect(() => {
         const init = async () => {
+            console.log("[UI] ChatPageContent initializing...");
             setIsLoading(true);
             try {
                 const { dms: fetchedDms, groups: fetchedGroups } = await getUserConversations();
+                console.log("[UI] Conversations loaded:", { dms: fetchedDms.length, groups: fetchedGroups.length });
                 setDms(fetchedDms as PeerProfile[]);
                 setGroups(fetchedGroups as PeerProfile[]);
 
@@ -315,6 +323,7 @@ function ChatPageContent() {
                             <div className="xl:ml-auto">
                                 <NewChatPicker
                                     onSelect={async (friend) => {
+                                        console.log("[UI] ChatPageContent: onSelect triggered for:", friend.name);
                                         // Add placeholder immediately
                                         const existingInDms = dms.find(d => {
                                             // We don't know convoId yet, so we can't match by id.
@@ -322,11 +331,13 @@ function ChatPageContent() {
                                             return false;
                                         });
                                         const convoId = await getOrCreateDirectConversation(friend.id);
+                                        console.log("[UI] ChatPageContent: getOrCreateDirectConversation result:", convoId);
                                         if (!convoId) return;
 
                                         // Add or update DM in sidebar
                                         setDms(prev => {
                                             const exists = prev.find(d => d.id === convoId);
+                                            console.log("[UI] ChatPageContent: Updating local DMs state. Exists?", !!exists);
                                             if (exists) return prev;
                                             return [...prev, {
                                                 id: convoId,

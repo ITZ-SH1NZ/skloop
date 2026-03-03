@@ -47,13 +47,17 @@ export async function getConversationMessages(conversationId: string): Promise<M
         const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
         const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
         const isGif = isUrl && m.content.includes('giphy.com');
+
+        // Safety check for the 'type' column which might be added via SQL
+        const msgType = m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
+
         return {
             id: m.id,
             senderId: m.sender_id,
             senderName: profile?.full_name || profile?.username || 'User',
             senderAvatar: profile?.avatar_url,
             text: !isUrl ? m.content : undefined,
-            type: isGif ? 'gif' : isUrl ? 'image' : 'text',
+            type: msgType as any,
             mediaUrl: isUrl ? m.content : undefined,
             timestamp: new Date(m.created_at),
         } as MessageRow;
@@ -90,99 +94,45 @@ export async function sendMessage(conversationId: string, senderId: string, cont
  * Returns the conversation ID.
  */
 export async function getOrCreateDirectConversation(targetUserId: string): Promise<string | null> {
+    console.log("[Chat Action] getOrCreateDirectConversation called for target:", targetUserId);
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) {
+        console.log("[Chat Action] No authenticated user found");
+        return null;
+    }
+    console.log("[Chat Action] Authenticated user:", user.id);
 
-    // Try the RPC first (fast path)
-    const { data: existingId, error: rpcError } = await supabase
-        .rpc('get_direct_conversation', {
-            user1_id: user.id,
-            user2_id: targetUserId,
+    // Call the "God Mode" RPC to handle the entire creation flow atomically
+    console.log("[Chat Action] Calling initiate_direct_chat RPC...");
+    const { data: convoId, error: rpcError } = await supabase
+        .rpc('initiate_direct_chat', {
+            target_user_id: targetUserId,
         });
 
-    if (!rpcError && existingId) {
-        return existingId as string;
-    }
-
-    // RPC missing or no result — do it manually:
-    // Find conversations we're in
-    const { data: myConvos } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id);
-
-    if (myConvos && myConvos.length > 0) {
-        const myConvoIds = myConvos.map((c: any) => c.conversation_id);
-
-        // Find ones the target is also in
-        const { data: sharedConvos } = await supabase
-            .from('conversation_participants')
-            .select('conversation_id')
-            .eq('user_id', targetUserId)
-            .in('conversation_id', myConvoIds);
-
-        if (sharedConvos && sharedConvos.length > 0) {
-            const sharedIds = sharedConvos.map((c: any) => c.conversation_id);
-            // Verify at least one is a 'direct' type
-            const { data: directConvo } = await supabase
-                .from('conversations')
-                .select('id')
-                .eq('type', 'direct')
-                .in('id', sharedIds)
-                .limit(1)
-                .single();
-
-            if (directConvo) return directConvo.id;
-        }
-    }
-
-    // No existing DM — create one.
-    const { data: newConvo, error: convoError } = await supabase
-        .from('conversations')
-        .insert({ type: 'direct' })
-        .select()
-        .single();
-
-    if (convoError || !newConvo) {
-        console.error("Error creating conversation:", convoError);
+    if (rpcError) {
+        console.error("[Chat Action] initiate_direct_chat RPC failed:", rpcError);
+        console.error("Make sure you have run the new SQL script in the Supabase SQL Editor.");
         return null;
     }
 
-    // CRITICAL: Insert OUR participant row FIRST.
-    // Old RLS policy: user_id = auth.uid() OR is_participant(conversation_id)
-    // If we insert both at once, targetUserId row fails (neither condition holds yet).
-    // By inserting ourselves first, is_participant() becomes true for the second insert.
-    const { error: selfError } = await supabase
-        .from('conversation_participants')
-        .insert({ conversation_id: newConvo.id, user_id: user.id });
-
-    if (selfError) {
-        console.error("Error adding self to conversation:", selfError);
-        return null;
-    }
-
-    // Now insert the target — is_participant() is now true for this conversation
-    const { error: targetError } = await supabase
-        .from('conversation_participants')
-        .insert({ conversation_id: newConvo.id, user_id: targetUserId });
-
-    if (targetError) {
-        console.error("Error adding target to conversation:", targetError);
-        // We're still in the convo, just without the other person — return it anyway
-    }
-
-    return newConvo.id;
+    console.log("[Chat Action] initiate_direct_chat success! Convo ID:", convoId);
+    return convoId as string;
 }
 
 /**
  * Fetches all conversations the current user is part of, with last-message previews.
  */
 export async function getUserConversations() {
+    console.log("[Chat Action] getUserConversations called");
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { dms: [], groups: [] };
+    if (!user) {
+        console.log("[Chat Action] getUserConversations: No user found");
+        return { dms: [], groups: [] };
+    }
+    console.log("[Chat Action] getUserConversations for user:", user.id);
 
     // Get all conversation IDs for this user
     const { data: myConvos, error } = await supabase
@@ -197,8 +147,10 @@ export async function getUserConversations() {
         .order('joined_at', { ascending: false });
 
     if (error || !myConvos || myConvos.length === 0) {
+        console.log("[Chat Action] getUserConversations: No conversations found", error);
         return { dms: [], groups: [] };
     }
+    console.log("[Chat Action] getUserConversations: Found", myConvos.length, "participants/convo links");
 
     const convoIds = myConvos.map((mc: any) => mc.conversation_id);
 
@@ -320,6 +272,7 @@ export async function getFriendsList(): Promise<{
     username: string;
     avatarUrl?: string;
 }[]> {
+    console.log("[Chat Action] getFriendsList called");
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
@@ -330,7 +283,11 @@ export async function getFriendsList(): Promise<{
         .eq('status', 'accepted')
         .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
 
-    if (!connections || connections.length === 0) return [];
+    if (!connections || connections.length === 0) {
+        console.log("[Chat Action] getFriendsList: No accepted connections found");
+        return [];
+    }
+    console.log("[Chat Action] getFriendsList: Found", connections.length, "connections");
 
     const peerIds = connections.map((c: any) =>
         c.requester_id === user.id ? c.recipient_id : c.requester_id
