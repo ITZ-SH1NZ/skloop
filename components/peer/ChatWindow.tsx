@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
-import { getConversationMessages, sendMessage, MessageRow } from "@/actions/chat-actions";
+import { getConversationMessages, sendMessage, MessageRow, uploadChatFile } from "@/actions/chat-actions";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 
@@ -71,29 +71,33 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                     },
                     (payload) => {
                         const m = payload.new as any;
-                        // Skip if we already added this via optimistic update
-                        if (sentMessageIds.current.has(m.id)) return;
-
                         const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
                         const isGif = isUrl && m.content.includes('giphy.com');
                         const newMsg: MessageRow = {
                             id: m.id,
                             senderId: m.sender_id,
                             text: !isUrl ? m.content : undefined,
-                            type: isGif ? 'gif' : isUrl ? 'image' : 'text',
+                            type: m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text'),
                             mediaUrl: isUrl ? m.content : undefined,
                             timestamp: new Date(m.created_at),
                         };
-                        setMessages(prev => [...prev, newMsg]);
+                        setMessages(prev => {
+                            // If UUID is already in list, do nothing
+                            if (prev.some(existing => existing.id === m.id)) return prev;
+                            // Otherwise append
+                            return [...prev, newMsg];
+                        });
                     }
                 )
                 .subscribe();
 
-            cleanup = () => { supabase.removeChannel(channel); };
+            return () => { supabase.removeChannel(channel); };
         };
 
-        fetchMessages();
-        return () => { cleanup?.(); };
+        const fetchPromise = fetchMessages();
+        return () => {
+            fetchPromise.then(cleanup => cleanup?.());
+        };
     }, [peer?.id]);
 
     useEffect(() => {
@@ -137,22 +141,35 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
         setShowGifPicker(false);
 
         try {
-            const saved = await sendMessage(peer.id, currentUserId, content);
-            // Track the real ID so realtime doesn't duplicate it
-            sentMessageIds.current.add(saved.id);
-            // Replace temp message with real one
-            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id } : m));
+            const saved = await sendMessage(peer.id, currentUserId, content, type);
+            // Replace temp message with real one, ensuring no duplicates
+            setMessages(prev => {
+                const alreadyExists = prev.some(m => m.id === saved.id);
+                if (alreadyExists) {
+                    return prev.filter(m => m.id !== tempId);
+                }
+                return prev.map(m => m.id === tempId ? { ...m, id: saved.id } : m);
+            });
         } catch {
             // Revert on error
             setMessages(prev => prev.filter(m => m.id !== tempId));
         }
     };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const url = URL.createObjectURL(file);
-            handleSend("", "image", url);
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const publicUrl = await uploadChatFile(formData);
+                if (publicUrl) {
+                    handleSend("", "image", publicUrl);
+                }
+            } catch (err) {
+                console.error("Upload failed:", err);
+            }
         }
     };
 

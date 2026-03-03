@@ -68,7 +68,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
  * Sends a new message to a conversation.
  * Uses the authenticated user's identity from the server session.
  */
-export async function sendMessage(conversationId: string, senderId: string, content: string) {
+export async function sendMessage(conversationId: string, senderId: string, content: string, type: MessageRow['type'] = 'text') {
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -77,6 +77,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
             conversation_id: conversationId,
             sender_id: senderId,
             content: content,
+            type: type,
         })
         .select()
         .single();
@@ -304,5 +305,36 @@ export async function getFriendsList(): Promise<{
         username: p.username || '',
         avatarUrl: p.avatar_url,
     }));
+}
+
+/**
+ * Uploads a file to Supabase Storage and returns the public URL.
+ */
+export async function uploadChatFile(formData: FormData): Promise<string | null> {
+    const file = formData.get('file') as File;
+    if (!file) return null;
+
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('message_attachments')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        console.error("Error uploading file:", uploadError);
+        throw new Error("Failed to upload file");
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('message_attachments')
+        .getPublicUrl(filePath);
+
+    return publicUrl;
 }
 
