@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Send, Plus, Image as ImageIcon, Smile, X, Search, ArrowLeft, Info, Users as UsersIcon, Camera, FileText } from "lucide-react";
+import { Send, Plus, Image as ImageIcon, Smile, X, Search, ArrowLeft, Info, Users as UsersIcon, Camera, FileText, ZoomIn } from "lucide-react";
 import { PeerProfile } from "./PeerCard";
 import { CircleInfoPanel } from "./CircleInfoPanel";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,6 +31,8 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
     const [gifSearch, setGifSearch] = useState("");
     const [isLoadingGifs, setIsLoadingGifs] = useState(false);
     const [showInfoPanel, setShowInfoPanel] = useState(false);
+    const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
     const [localPeer, setLocalPeer] = useState<PeerProfile | null>(peer);
 
@@ -133,6 +135,7 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                         senderName,
                         senderAvatar,
                         text: !isUrl ? m.content : undefined,
+                        caption: m.caption || undefined,
                         type: m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text'),
                         mediaUrl: isUrl ? m.content : undefined,
                         timestamp: new Date(m.created_at),
@@ -172,6 +175,42 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
     }, [showGifPicker, gifSearch]);
 
     const handleSend = async (text: string = inputValue, type: MessageRow['type'] = "text", mediaUrl?: string) => {
+        // Special case: pending file with optional caption
+        if (pendingFile) {
+            if (!peer || !currentUserId) return;
+            const caption = inputValue.trim() || undefined;
+            const tempId = `temp-${Date.now()}`;
+            const optimisticMsg: MessageRow = {
+                id: tempId,
+                senderId: currentUserId,
+                mediaUrl: pendingFile.previewUrl, // Show local preview immediately
+                caption,
+                type: "image",
+                timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, optimisticMsg]);
+            setInputValue("");
+            setPendingFile(null);
+            setShowAttachments(false);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', pendingFile.file);
+                const publicUrl = await uploadChatFile(formData);
+                if (publicUrl) {
+                    const saved = await sendMessage(peer.id, currentUserId, publicUrl, "image", caption);
+                    setMessages(prev => {
+                        const alreadyExists = prev.some(m => m.id === saved.id);
+                        if (alreadyExists) return prev.filter(m => m.id !== tempId);
+                        return prev.map(m => m.id === tempId ? { ...m, id: saved.id, mediaUrl: publicUrl } : m);
+                    });
+                }
+            } catch {
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+            }
+            return;
+        }
+
         if ((!text && !mediaUrl) || !peer || !currentUserId) return;
         const content = mediaUrl || text;
 
@@ -207,21 +246,17 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
         }
     };
 
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-
-                const publicUrl = await uploadChatFile(formData);
-                if (publicUrl) {
-                    handleSend("", "image", publicUrl);
-                }
-            } catch (err) {
-                console.error("Upload failed:", err);
-            }
+            // Stage file for preview instead of sending immediately
+            const previewUrl = URL.createObjectURL(file);
+            setPendingFile({ file, previewUrl });
+            setShowAttachments(false);
         }
+        // Reset input so same file can be re-selected
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleEmojiSelect = (emoji: any) => {
@@ -395,8 +430,24 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                                             </div>
                                         )}
                                         {(msg.type === "image" || msg.type === "gif") && msg.mediaUrl && (
-                                            <div className="relative rounded-2xl overflow-hidden border border-zinc-100 shadow-sm mt-1">
-                                                <img src={msg.mediaUrl} alt={msg.type === 'gif' ? 'GIF' : 'Attachment'} className="max-w-full w-64 h-auto object-cover" />
+                                            <div className="mt-1">
+                                                <div
+                                                    className="relative rounded-2xl overflow-hidden border border-zinc-100 shadow-sm cursor-zoom-in group/img"
+                                                    onClick={() => msg.type === 'image' && setLightboxUrl(msg.mediaUrl!)}
+                                                >
+                                                    <img src={msg.mediaUrl} alt={msg.type === 'gif' ? 'GIF' : 'Attachment'} className="max-w-full w-64 h-auto object-cover" />
+                                                    {msg.type === 'image' && (
+                                                        <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-all flex items-center justify-center">
+                                                            <ZoomIn size={24} className="text-white opacity-0 group-hover/img:opacity-100 transition-opacity drop-shadow-lg" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {msg.caption && (
+                                                    <div className={`px-3 py-1.5 mt-1 rounded-xl text-sm font-medium break-words ${isMe ? 'bg-[#D4F268]/80 text-[#1A1A1A]' : 'bg-white border border-[#E5E5E0] text-zinc-800'
+                                                        }`}>
+                                                        {msg.caption}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         <span className={`text-[10px] mt-0.5 font-medium opacity-0 group-hover:opacity-100 transition-opacity ${isMe ? "text-zinc-400 mr-1 self-end" : "text-zinc-400 ml-1"}`}>
@@ -448,12 +499,40 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                             )}
                         </AnimatePresence>
 
+                        {/* Pending File Preview */}
+                        <AnimatePresence>
+                            {pendingFile && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="mb-2 mx-1"
+                                >
+                                    <div className="relative inline-block">
+                                        <img
+                                            src={pendingFile.previewUrl}
+                                            alt="Pending"
+                                            className="h-24 w-auto max-w-[200px] rounded-2xl object-cover border-2 border-[#D4F268] shadow-md"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => { setPendingFile(null); }}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-black text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-zinc-400 mt-1 ml-1">Add a caption below and press send</p>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-[#E5E5E0] focus-within:ring-2 focus-within:ring-[#D4F268]/50 transition-all">
                             <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileUpload} />
                             <Button size="icon" type="button" className={`rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "bg-[#D4F268] text-[#1A1A1A] rotate-45" : "bg-zinc-50 text-zinc-400 hover:text-[#1A1A1A]"}`} onClick={() => setShowAttachments(!showAttachments)}>
                                 <Plus size={20} className="transition-transform duration-300" />
                             </Button>
-                            <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder={`Message ${isGroup ? peer.name : peer.name.split(' ')[0]}...`} className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
+                            <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder={pendingFile ? "Add a caption..." : `Message ${isGroup ? peer.name : peer.name.split(' ')[0]}...`} className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
                             <div className="flex items-center gap-1">
                                 <Button size="icon" type="button" className={`bg-transparent hover:text-pink-500 rounded-full w-9 h-9 shrink-0 transition-colors ${showGifPicker ? "text-pink-500 bg-pink-50" : "text-zinc-400"}`} onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}>
                                     <div className="font-bold text-[10px] border-2 border-current rounded-md px-1 pt-0.5 pb-0">GIF</div>
@@ -462,8 +541,8 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                                     <Smile size={20} />
                                 </Button>
                             </div>
-                            <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
-                                <Send size={18} className={inputValue.trim() ? "translate-x-0.5 ml-0.5" : ""} />
+                            <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${(inputValue.trim() || pendingFile) ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim() && !pendingFile}>
+                                <Send size={18} className={(inputValue.trim() || pendingFile) ? "translate-x-0.5 ml-0.5" : ""} />
                             </Button>
                         </form>
                     </div>
@@ -499,17 +578,44 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                         )}
                     </AnimatePresence>
 
+                    {/* Pending File Preview - Mobile */}
+                    <AnimatePresence>
+                        {pendingFile && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className="mb-2 mx-1"
+                            >
+                                <div className="relative inline-block">
+                                    <img
+                                        src={pendingFile.previewUrl}
+                                        alt="Pending"
+                                        className="h-20 w-auto max-w-[160px] rounded-2xl object-cover border-2 border-[#D4F268] shadow-md"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingFile(null)}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-black text-white rounded-full flex items-center justify-center shadow-lg"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-center gap-2 p-1.5 pl-3 bg-white rounded-[2rem] shadow-lg border border-[#E5E5E0] focus-within:ring-2 focus-within:ring-[#D4F268]/50 transition-all">
                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                         <Button size="icon" type="button" className={`rounded-full w-9 h-9 shrink-0 transition-colors ${showAttachments ? "bg-[#D4F268] text-[#1A1A1A] rotate-45" : "bg-zinc-50 text-zinc-400 hover:text-[#1A1A1A]"}`} onClick={() => setShowAttachments(!showAttachments)}>
                             <Plus size={20} />
                         </Button>
-                        <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
+                        <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder={pendingFile ? "Add a caption..." : "Message..."} className="flex-1 bg-transparent border-0 py-3 text-[15px] outline-none placeholder:text-zinc-400 font-medium text-[#1A1A1A]" />
                         <Button size="icon" type="button" className={`bg-transparent text-zinc-400 hover:text-pink-500 rounded-full w-9 h-9 shrink-0 transition-colors ${showGifPicker ? "text-pink-500 bg-pink-50" : ""}`} onClick={() => { setShowGifPicker(!showGifPicker); }}>
                             <div className="font-bold text-[10px] border-2 border-current rounded-md px-1 pt-0.5 pb-0">GIF</div>
                         </Button>
-                        <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${inputValue.trim() ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim()}>
-                            <Send size={18} className={inputValue.trim() ? "translate-x-0.5 ml-0.5" : ""} />
+                        <Button size="icon" type="submit" className={`rounded-full w-10 h-10 shrink-0 transition-all flex items-center justify-center ${(inputValue.trim() || pendingFile) ? "bg-[#D4F268] text-[#1A1A1A] shadow-md hover:bg-[#C3E055]" : "bg-zinc-100 text-zinc-300"}`} disabled={!inputValue.trim() && !pendingFile}>
+                            <Send size={18} className={(inputValue.trim() || pendingFile) ? "translate-x-0.5 ml-0.5" : ""} />
                         </Button>
                     </form>
                 </div>
@@ -540,6 +646,40 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                     />
                 )}
             </div>
+
+            {/* Lightbox */}
+            <AnimatePresence>
+                {lightboxUrl && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md"
+                        onClick={() => setLightboxUrl(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.85, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.85, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="relative max-w-[90vw] max-h-[90vh]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <img
+                                src={lightboxUrl}
+                                alt="Full view"
+                                className="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl"
+                            />
+                            <button
+                                onClick={() => setLightboxUrl(null)}
+                                className="absolute -top-4 -right-4 w-9 h-9 bg-white text-black rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform"
+                            >
+                                <X size={18} />
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

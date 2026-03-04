@@ -8,6 +8,7 @@ export interface MessageRow {
     senderName?: string;
     senderAvatar?: string;
     text?: string;
+    caption?: string;
     mediaUrl?: string;
     type: "text" | "image" | "sticker" | "gif";
     timestamp: Date;
@@ -25,6 +26,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             id,
             sender_id,
             content,
+            caption,
             type,
             created_at,
             profiles (
@@ -57,6 +59,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             senderName: profile?.full_name || profile?.username || 'User',
             senderAvatar: profile?.avatar_url,
             text: !isUrl ? m.content : undefined,
+            caption: m.caption || undefined,
             type: msgType as any,
             mediaUrl: isUrl ? m.content : undefined,
             timestamp: new Date(m.created_at),
@@ -68,7 +71,13 @@ export async function getConversationMessages(conversationId: string): Promise<M
  * Sends a new message to a conversation.
  * Uses the authenticated user's identity from the server session.
  */
-export async function sendMessage(conversationId: string, senderId: string, content: string, type: MessageRow['type'] = 'text') {
+export async function sendMessage(
+    conversationId: string,
+    senderId: string,
+    content: string,
+    type: MessageRow['type'] = 'text',
+    caption?: string
+) {
     const supabase = await createClient();
 
     const { data, error } = await supabase
@@ -78,6 +87,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
             sender_id: senderId,
             content: content,
             type: type,
+            ...(caption ? { caption } : {}),
         })
         .select()
         .single();
