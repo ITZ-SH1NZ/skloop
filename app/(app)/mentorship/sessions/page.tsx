@@ -1,377 +1,231 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, Video, Star, User, PlayCircle, Clock, CheckCircle2, MoreHorizontal, FileText, Sparkles, TrendingUp, Zap, Award, Loader2 } from "lucide-react";
+import { Play, Clock, Star, Video, CheckCircle2, Loader2, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/utils/supabase/client";
-
-// Types
-interface Session {
-    id: string;
-    mentor: {
-        name: string;
-        role: string;
-        company: string;
-        avatarUrl: string;
-    };
-    submittedDate: string;
-    completedDate?: string;
-    status: "PENDING" | "IN_PROGRESS" | "COMPLETED";
-    topic: string;
-    description: string;
-    videoDuration?: string;
-    rating?: number | null;
-    videoUrl?: string; // Add url for videos
-}
+import { getMySessionsAsMentee, submitReview, type MentorSession } from "@/actions/mentorship-actions";
 
 export default function MySessionsPage() {
-    const [activeTab, setActiveTab] = useState<"requests" | "library">("requests");
-    const [pendingRequests, setPendingRequests] = useState<Session[]>([]);
-    const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
+    const [activeTab, setActiveTab] = useState<"pending" | "library">("pending");
+    const [sessions, setSessions] = useState<MentorSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [reviewingId, setReviewingId] = useState<string | null>(null);
+    const [rating, setRating] = useState(0);
+    const [comment, setComment] = useState("");
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
     useEffect(() => {
-        const fetchSessions = async () => {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (user) {
-                // Fetch Pending/In-Progress Requests
-                const { data: requests } = await supabase
-                    .from('mentorship_requests')
-                    .select('*, mentor:profiles!mentorship_requests_mentor_id_fkey(full_name, username, avatar_url, role, company)')
-                    .eq('mentee_id', user.id)
-                    .neq('status', 'declined') // Show pending and maybe accepted (in_progress)
-                    .order('created_at', { ascending: false });
-
-                if (requests) {
-                    setPendingRequests(requests.map(r => ({
-                        id: r.id,
-                        mentor: {
-                            name: r.mentor?.full_name || r.mentor?.username || 'Mentor',
-                            role: r.mentor?.role || 'Expert',
-                            company: r.mentor?.company || 'Skloop',
-                            avatarUrl: r.mentor?.avatar_url
-                        },
-                        submittedDate: new Date(r.created_at).toLocaleDateString(),
-                        status: r.status === 'accepted' ? 'IN_PROGRESS' : 'PENDING',
-                        topic: 'Mentorship Session',
-                        description: r.message || 'Waiting for mentor review.'
-                    })));
-                }
-
-                // Fetch Completed Video Library (peer_sessions where they are mentee and video exists)
-                const { data: pastSessions } = await supabase
-                    .from('peer_sessions')
-                    .select('*, mentor:profiles!peer_sessions_user1_id_fkey(full_name, username, avatar_url, role, company)') // Assuming user1 is mentor who created it
-                    .eq('user2_id', user.id)
-                    .eq('status', 'completed')
-                    .not('meeting_url', 'is', null) // Must have a video link
-                    .order('start_time', { ascending: false });
-
-                if (pastSessions) {
-                    setCompletedSessions(pastSessions.map(s => ({
-                        id: s.id,
-                        mentor: {
-                            name: s.mentor?.full_name || s.mentor?.username || 'Mentor',
-                            role: s.mentor?.role || 'Expert',
-                            company: s.mentor?.company || 'Skloop',
-                            avatarUrl: s.mentor?.avatar_url
-                        },
-                        submittedDate: new Date(s.start_time).toLocaleDateString(),
-                        status: 'COMPLETED',
-                        topic: s.topic || 'Mentoship Session',
-                        description: 'Completed video session.',
-                        videoDuration: `${s.duration_minutes || 60}m`,
-                        rating: null,
-                        videoUrl: s.meeting_url
-                    })));
-                }
-            }
+        getMySessionsAsMentee().then(data => {
+            setSessions(data);
             setIsLoading(false);
-        };
-
-        fetchSessions();
+        });
     }, []);
 
+    const pending = sessions.filter(s => s.status === "pending" || s.status === "accepted");
+    const library = sessions.filter(s => s.status === "published" || (s.status === "accepted" && s.videoUrl));
+    const displayed = activeTab === "pending" ? pending : library;
+
+    const handleSubmitReview = async (sessionId: string) => {
+        if (!rating) return;
+        setIsSubmittingReview(true);
+        try {
+            await submitReview(sessionId, rating, comment);
+            setReviewingId(null);
+            setRating(0);
+            setComment("");
+        } catch { }
+        setIsSubmittingReview(false);
+    };
+
     return (
-        <div className="bg-[#FAFAFA]">
-            {/* Dark Header Section */}
-            <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden shrink-0">
-                {/* Background Decor */}
+        <div className="bg-[#FAFAFA] min-h-full">
+            {/* Header */}
+            <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                <div className="max-w-5xl mx-auto relative z-10">
+                    <span className="px-3 py-1 bg-[#D4F268] text-black text-xs font-black uppercase tracking-wider rounded-full">Member Pass</span>
+                    <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mt-3 mb-3">
+                        My <span className="text-[#D4F268]">Sessions</span>
+                    </h1>
+                    <p className="text-zinc-400 font-medium text-base max-w-xl">
+                        Track your mentorship requests and watch video responses from your mentors.
+                    </p>
 
-                <div className="max-w-6xl mx-auto relative z-10">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-                        <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="px-3 py-1 bg-[#D4F268] text-black text-xs font-black uppercase tracking-wider rounded-full">
-                                    Member Pass
-                                </span>
-                                <span className="text-zinc-400 text-sm font-medium">Premium Access</span>
-                            </div>
-                            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">
-                                Mentorship <span className="text-[#D4F268]">Hub</span>
-                            </h1>
-                            <p className="text-zinc-400 font-medium text-lg max-w-xl leading-relaxed">
-                                Your personal growth dashboard. Track requests and learn from personalized video responses.
-                            </p>
+                    {/* Stats */}
+                    <div className="flex gap-4 mt-8">
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[130px]">
+                            <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Requests</div>
+                            <div className="text-3xl font-black text-white">{pending.length}</div>
                         </div>
-
-                        {/* High Impact Stats */}
-                        <div className="flex gap-4">
-                            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 rounded-2xl min-w-[140px]">
-                                <div className="flex items-center gap-2 text-zinc-400 mb-1">
-                                    <Video size={14} />
-                                    <span className="text-xs font-bold uppercase tracking-wider">Sessions</span>
-                                </div>
-                                <div className="text-3xl font-black text-white">12</div>
-                            </div>
-                            <div className="bg-[#D4F268] p-4 rounded-2xl min-w-[140px] shadow-[0_0_20px_rgba(212,242,104,0.3)]">
-                                <div className="flex items-center gap-2 text-black/60 mb-1">
-                                    <Zap size={14} className="fill-black/60" />
-                                    <span className="text-xs font-bold uppercase tracking-wider">Impact</span>
-                                </div>
-                                <div className="text-3xl font-black text-black leading-none">Top 5%</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Quick Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-10">
-                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-colors cursor-pointer group">
-                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-[#D4F268] group-hover:text-black transition-colors">
-                                <Clock size={18} />
-                            </div>
-                            <div>
-                                <div className="text-zinc-400 text-xs font-bold uppercase">Hours Watched</div>
-                                <div className="text-white font-bold text-lg">4.5h</div>
-                            </div>
-                        </div>
-                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-colors cursor-pointer group">
-                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-[#D4F268] group-hover:text-black transition-colors">
-                                <TrendingUp size={18} />
-                            </div>
-                            <div>
-                                <div className="text-zinc-400 text-xs font-bold uppercase">Growth Rate</div>
-                                <div className="text-white font-bold text-lg">+12%</div>
-                            </div>
-                        </div>
-                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-colors cursor-pointer group md:col-span-2">
-                            <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center group-hover:bg-[#D4F268] group-hover:text-black transition-colors shrink-0">
-                                <Sparkles size={18} className="text-[#D4F268] group-hover:text-black fill-[#D4F268] group-hover:fill-black" />
-                            </div>
-                            <div>
-                                <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Weekly Focus</div>
-                                <div className="text-white font-bold text-sm">Reviewing System Design Patterns</div>
-                            </div>
-                            <Button size="sm" variant="ghost" className="ml-auto text-[#D4F268] hover:text-[#D4F268] hover:bg-white/5 uppercase text-xs font-bold tracking-wider">
-                                View Plan
-                            </Button>
+                        <div className="bg-[#D4F268] p-4 rounded-2xl min-w-[130px] shadow-[0_0_20px_rgba(212,242,104,0.3)]">
+                            <div className="text-black/60 text-xs font-bold uppercase mb-1">Completed</div>
+                            <div className="text-3xl font-black text-black">{library.length}</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="px-6 py-8 md:px-10 pb-32">
-                <div className="max-w-6xl mx-auto">
-                    {/* Floating Tabs */}
-                    <div className="flex items-center justify-center mb-8">
-                        <div className="flex items-center p-1.5 bg-white rounded-full border border-zinc-200 shadow-sm">
-                            <button
-                                onClick={() => setActiveTab("requests")}
-                                className={`px-8 py-3 rounded-full text-sm font-bold transition-all relative ${activeTab === "requests" ? "text-black" : "text-zinc-500 hover:text-zinc-800"
-                                    }`}
-                            >
-                                {activeTab === "requests" && (
-                                    <motion.div
-                                        layoutId="pill"
-                                        className="absolute inset-0 bg-[#D4F268] rounded-full shadow-sm"
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                    />
+            <div className="px-6 py-8 md:px-10 pb-32 max-w-5xl mx-auto">
+                {/* Tabs */}
+                <div className="flex items-center justify-center mb-8">
+                    <div className="flex items-center p-1.5 bg-white rounded-full border border-zinc-200 shadow-sm">
+                        {(["pending", "library"] as const).map(t => (
+                            <button key={t} onClick={() => setActiveTab(t)}
+                                className={`px-8 py-3 rounded-full text-sm font-bold transition-all relative ${activeTab === t ? "text-black" : "text-zinc-500 hover:text-zinc-800"}`}>
+                                {activeTab === t && (
+                                    <motion.div layoutId="sessionPill" className="absolute inset-0 bg-[#D4F268] rounded-full shadow-sm" transition={{ type: "spring", bounce: 0.2 }} />
                                 )}
                                 <span className="relative z-10 flex items-center gap-2">
-                                    In Progress
-                                    {pendingRequests.length > 0 && <span className="bg-black text-[#D4F268] text-[10px] px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>}
+                                    {t === "pending" ? "In Progress" : "Video Library"}
+                                    {t === "pending" && pending.length > 0 && (
+                                        <span className="bg-black text-[#D4F268] text-[10px] px-1.5 py-0.5 rounded-full">{pending.length}</span>
+                                    )}
                                 </span>
                             </button>
-                            <button
-                                onClick={() => setActiveTab("library")}
-                                className={`px-8 py-3 rounded-full text-sm font-bold transition-all relative ${activeTab === "library" ? "text-black" : "text-zinc-500 hover:text-zinc-800"
-                                    }`}
-                            >
-                                {activeTab === "library" && (
-                                    <motion.div
-                                        layoutId="pill"
-                                        className="absolute inset-0 bg-[#D4F268] rounded-full shadow-sm"
-                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                    />
-                                )}
-                                <span className="relative z-10">Video Library</span>
+                        ))}
+                    </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+                    <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                        {isLoading ? (
+                            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-zinc-400" /></div>
+                        ) : displayed.length === 0 ? (
+                            <div className="text-center py-20 bg-white rounded-[2rem] border border-zinc-100">
+                                <Video size={40} className="mx-auto text-zinc-200 mb-4" />
+                                <p className="text-zinc-500 font-medium">
+                                    {activeTab === "pending" ? "No active requests." : "No videos in your library yet."}
+                                </p>
+                            </div>
+                        ) : activeTab === "pending" ? (
+                            <div className="space-y-4">
+                                {displayed.map(session => (
+                                    <div key={session.id} className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[2rem] ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-100"}`} />
+                                        <div className="flex flex-col md:flex-row gap-6 pl-4">
+                                            <div className="flex items-center gap-4 shrink-0">
+                                                <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-14 h-14 rounded-2xl border-4 border-white shadow-md" />
+                                                <div>
+                                                    <div className="font-bold text-zinc-900 text-sm">{session.mentorName}</div>
+                                                    <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${session.status === "accepted" ? "text-amber-600" : "text-zinc-400"}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${session.status === "accepted" ? "bg-amber-500 animate-pulse" : "bg-zinc-300"}`} />
+                                                        {session.status === "accepted" ? "In Progress" : "Pending"}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 border-l border-dashed border-zinc-100 pl-0 md:pl-6">
+                                                <h3 className="text-xl font-black text-zinc-900 mb-2">{session.title}</h3>
+                                                {session.message && <p className="text-zinc-500 text-sm leading-relaxed font-medium">{session.message}</p>}
+                                                <div className="text-xs font-medium text-zinc-400 mt-3">Sent {new Date(session.createdAt).toLocaleDateString()}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {displayed.map(session => (
+                                    <div key={session.id}>
+                                        <SessionVideoCard session={session} onRate={() => setReviewingId(session.id)} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+
+            {/* Review Modal */}
+            <AnimatePresence>
+                {reviewingId && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+                            onClick={() => setReviewingId(null)} />
+                        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+                            <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
+                                className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
+                                <h3 className="text-2xl font-black text-zinc-900 mb-2">Rate this session</h3>
+                                <p className="text-zinc-500 text-sm mb-6">Your feedback helps mentors improve</p>
+
+                                <div className="flex gap-2 mb-6 justify-center">
+                                    {[1, 2, 3, 4, 5].map(s => (
+                                        <button key={s} onClick={() => setRating(s)}
+                                            className={`w-12 h-12 rounded-2xl text-2xl transition-all ${s <= rating ? "bg-[#D4F268] scale-110" : "bg-zinc-50 hover:bg-zinc-100"}`}>
+                                            ★
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <textarea value={comment} onChange={e => setComment(e.target.value)}
+                                    placeholder="Share your thoughts... (optional)"
+                                    className="w-full border border-zinc-200 rounded-2xl p-4 text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-[#D4F268] mb-4 h-24" />
+
+                                <div className="flex gap-3">
+                                    <Button onClick={() => setReviewingId(null)} variant="ghost" className="flex-1 rounded-xl font-bold text-zinc-500">Cancel</Button>
+                                    <Button onClick={() => handleSubmitReview(reviewingId)} disabled={!rating || isSubmittingReview}
+                                        className="flex-1 rounded-xl bg-zinc-900 text-white font-bold hover:bg-[#D4F268] hover:text-black transition-colors">
+                                        {isSubmittingReview ? <Loader2 size={16} className="animate-spin" /> : "Submit"}
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}
+
+function SessionVideoCard({ session, onRate }: { session: MentorSession; onRate: () => void }) {
+    const [showEmbed, setShowEmbed] = useState(false);
+    const ytId = extractYouTubeId(session.videoUrl || "");
+
+    return (
+        <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-2xl transition-all group flex flex-col overflow-hidden">
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem]">
+                {showEmbed && ytId ? (
+                    <iframe src={`https://www.youtube.com/embed/${ytId}?autoplay=1`} className="absolute inset-0 w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                ) : (
+                    <>
+                        {session.thumbnailUrl
+                            ? <img src={session.thumbnailUrl} alt={session.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            : <div className="absolute inset-0 bg-gradient-to-br from-zinc-700 to-zinc-900" />
+                        }
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => ytId ? setShowEmbed(true) : window.open(session.videoUrl, "_blank")}
+                                className="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                                <Play size={20} className="text-zinc-900 fill-zinc-900 ml-1" />
                             </button>
                         </div>
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                        {/* ACTIVE REQUESTS */}
-                        {activeTab === "requests" && (
-                            <motion.div
-                                key="requests"
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -5, transition: { duration: 0.1 } }}
-                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                className="space-y-4"
-                            >
-                                {isLoading ? (
-                                    <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-zinc-900" /></div>
-                                ) : pendingRequests.length === 0 ? (
-                                    <div className="text-center py-20 bg-white rounded-[2rem] border border-zinc-100">
-                                        <p className="text-zinc-500 font-medium">No active requests.</p>
-                                    </div>
-                                ) : pendingRequests.map(session => (
-                                    <div key={session.id} className="bg-white rounded-[2rem] p-8 border border-zinc-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
-                                        {/* Status Accent Line */}
-                                        <div className={`absolute left-0 top-0 bottom-0 w-2 ${session.status === "IN_PROGRESS" ? "bg-[#D4F268]" : "bg-zinc-100"
-                                            }`} />
-
-                                        <div className="flex flex-col md:flex-row gap-8 pl-4">
-                                            {/* Status Column */}
-                                            <div className="w-full md:w-56 shrink-0 flex flex-col justify-between">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <Avatar
-                                                        src={session.mentor.avatarUrl}
-                                                        fallback={session.mentor.name.slice(0, 2).toUpperCase()}
-                                                        className="w-14 h-14 rounded-2xl border-4 border-white shadow-sm"
-                                                    />
-                                                    <div>
-                                                        <div className="text-sm font-bold text-zinc-900 leading-tight">{session.mentor.name}</div>
-                                                        <div className="text-xs text-zinc-500 font-medium">{session.mentor.company}</div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <div className={`w-2 h-2 rounded-full ${session.status === "IN_PROGRESS" ? "bg-amber-500 animate-pulse" : "bg-zinc-300"
-                                                            }`} />
-                                                        <span className="text-xs font-bold text-zinc-700 tracking-wide uppercase">
-                                                            {session.status.replace("_", " ")}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-xs font-medium text-zinc-400">
-                                                        Sent {session.submittedDate}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Content Column */}
-                                            <div className="flex-1 border-l border-dashed border-zinc-100 pl-0 md:pl-8">
-                                                <h3 className="text-2xl font-black text-zinc-900 mb-3 tracking-tight">{session.topic}</h3>
-                                                <p className="text-zinc-600 text-sm leading-relaxed mb-6 font-medium">
-                                                    {session.description}
-                                                </p>
-
-                                                <div className="flex items-center gap-4">
-                                                    {session.status === "IN_PROGRESS" ? (
-                                                        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-2 rounded-full">
-                                                            <Video size={16} className="animate-pulse" />
-                                                            <span className="text-xs font-bold">{session.mentor.name} is recording...</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-xs font-bold text-zinc-400 bg-zinc-50 px-4 py-2 rounded-full">
-                                                            Waiting for acceptance
-                                                        </div>
-                                                    )}
-                                                    <Button variant="ghost" size="sm" className="ml-auto text-zinc-400 hover:text-zinc-900">
-                                                        View Details
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </motion.div>
-                        )}
-
-                        {/* VIDEO LIBRARY */}
-                        {activeTab === "library" && (
-                            <motion.div
-                                key="library"
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -5, transition: { duration: 0.1 } }}
-                                transition={{ duration: 0.2, ease: "easeOut" }}
-                                className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                            >
-                                {isLoading ? (
-                                    <div className="flex justify-center py-20 col-span-2"><Loader2 className="w-8 h-8 animate-spin text-zinc-900" /></div>
-                                ) : completedSessions.length === 0 ? (
-                                    <div className="text-center py-20 bg-white col-span-2 rounded-[2rem] border border-zinc-100">
-                                        <p className="text-zinc-500 font-medium">No videos in your library yet.</p>
-                                    </div>
-                                ) : completedSessions.map(session => (
-                                    <div key={session.id} className="bg-white rounded-[2rem] p-3 border border-zinc-100 shadow-sm hover:shadow-2xl hover:shadow-zinc-900/5 transition-all group flex flex-col">
-                                        {/* Thumbnail Area */}
-                                        <div className="bg-zinc-900 aspect-video rounded-3xl relative flex items-center justify-center overflow-hidden">
-                                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                                            {/* Gradient Overlay */}
-                                            <div className="absolute inset-0 bg-gradient-to-tr from-[#D4F268]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                                            <PlayCircle size={64} className="text-white fill-white/10 group-hover:scale-110 group-hover:fill-[#D4F268]/20 group-hover:text-[#D4F268] transition-all duration-300 relative z-10" />
-
-                                            <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full z-10 flex items-center gap-1.5 border border-white/10">
-                                                <Clock size={12} />
-                                                {session.videoDuration}
-                                            </div>
-                                            <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-                                                <Avatar
-                                                    src={session.mentor.avatarUrl}
-                                                    fallback={session.mentor.name.slice(0, 2).toUpperCase()}
-                                                    className="w-8 h-8 rounded-full border border-white/20"
-                                                />
-                                                <span className="text-white text-xs font-bold shadow-sm">{session.mentor.name}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Content */}
-                                        <div className="px-4 py-5 flex-1 flex flex-col">
-                                            <div className="flex items-start justify-between mb-3">
-                                                <h3 className="text-lg font-black text-zinc-900 leading-tight tracking-tight">{session.topic}</h3>
-                                                {session.rating && (
-                                                    <div className="flex gap-0.5 mt-1">
-                                                        <Star size={14} className="fill-[#D4F268] text-[#D4F268]" />
-                                                        <span className="text-xs font-bold text-zinc-900 ml-1">{session.rating}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <p className="text-zinc-500 text-xs line-clamp-2 mb-6 flex-1 font-medium">
-                                                {session.description}
-                                            </p>
-
-                                            <div className="flex items-center gap-3 mt-auto">
-                                                <a href={session.videoUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                                                    <Button className="w-full rounded-xl font-bold bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-black transition-colors">
-                                                        Watch Video
-                                                    </Button>
-                                                </a>
-                                                {!session.rating && (
-                                                    <Button variant="outline" className="rounded-xl font-bold border-zinc-200">
-                                                        Rate
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    </>
+                )}
+                <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-7 h-7 rounded-full border border-white/30" />
+                    <span className="text-white text-xs font-bold">{session.mentorName}</span>
+                </div>
+            </div>
+            <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-black text-zinc-900 text-base leading-tight mb-1 line-clamp-2">{session.title}</h3>
+                {session.topic && <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-3">{session.topic}</p>}
+                <div className="flex items-center gap-3 mt-auto">
+                    <Button className="flex-1 rounded-xl bg-zinc-900 text-white font-bold hover:bg-[#D4F268] hover:text-black transition-colors text-sm"
+                        onClick={() => ytId ? setShowEmbed(true) : window.open(session.videoUrl, "_blank")}>
+                        <Play size={14} className="mr-1.5" /> Watch
+                    </Button>
+                    <Button variant="outline" className="rounded-xl font-bold border-zinc-200 text-sm" onClick={onRate}>
+                        <Star size={14} className="mr-1.5" /> Rate
+                    </Button>
                 </div>
             </div>
         </div>
     );
+}
+
+function extractYouTubeId(url: string): string | null {
+    const regex = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    return url.match(regex)?.[1] ?? null;
 }

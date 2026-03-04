@@ -1,107 +1,103 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Star, Clock, MapPin, CheckCircle, ChevronRight, Briefcase, X, Loader2 } from "lucide-react";
+import { Search, Filter, Star, CheckCircle, X, Loader2, Play, Users, Award } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/utils/supabase/client";
+import { getMentors, getPublicSessions, type MentorCard, type MentorSession } from "@/actions/mentorship-actions";
 
 export default function FindMentorPage() {
+    const [tab, setTab] = useState<"mentors" | "videos">("mentors");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSkill, setSelectedSkill] = useState("All");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [mentors, setMentors] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [mentors, setMentors] = useState<MentorCard[]>([]);
+    const [videos, setVideos] = useState<MentorSession[]>([]);
     const [allSkills, setAllSkills] = useState<string[]>(["All"]);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchMentors = async () => {
-            const supabase = createClient();
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('is_mentor', true);
-
-            if (data && !error) {
-                const formatted = data.map(p => ({
-                    id: p.id,
-                    name: p.full_name || p.username || 'Mentor',
-                    role: p.role || 'Mentor',
-                    company: p.company || 'Skloop',
-                    skills: p.skills || [],
-                    bio: p.bio || 'Experienced professional ready to help you grow.',
-                    hourlyRate: p.hourly_rate || 0,
-                    avatarUrl: p.avatar_url,
-                    rating: 5.0, // Mock for now
-                    reviews: 12, // Mock
-                    isVerified: true
-                }));
-                setMentors(formatted);
-
-                // Extract unique skills
-                const uniqueSkills = new Set<string>();
-                formatted.forEach(m => m.skills.forEach((s: string) => uniqueSkills.add(s)));
-                setAllSkills(["All", ...Array.from(uniqueSkills)]);
-            }
+        const load = async () => {
+            setIsLoading(true);
+            const [m, v] = await Promise.all([getMentors(), getPublicSessions()]);
+            setMentors(m);
+            setVideos(v);
+            const skills = new Set<string>();
+            m.forEach(mentor => mentor.skills.forEach(s => skills.add(s)));
+            setAllSkills(["All", ...Array.from(skills)]);
             setIsLoading(false);
         };
-        fetchMentors();
+        load();
     }, []);
 
-    const filteredMentors = mentors.filter(mentor => {
-        const searchTarget = `${mentor.name} ${mentor.role} ${mentor.company}`.toLowerCase();
-        const matchesSearch = searchTarget.includes(searchTerm.toLowerCase());
-        const matchesSkill = selectedSkill === "All" || mentor.skills.includes(selectedSkill);
-        return matchesSearch && matchesSkill;
+    const filteredMentors = mentors.filter(m => {
+        const target = `${m.name} ${m.headline || ""} ${m.skills.join(" ")}`.toLowerCase();
+        const matchSearch = target.includes(searchTerm.toLowerCase());
+        const matchSkill = selectedSkill === "All" || m.skills.includes(selectedSkill);
+        return matchSearch && matchSkill;
+    });
+
+    const filteredVideos = videos.filter(v => {
+        const target = `${v.title} ${v.topic || ""} ${v.description || ""} ${v.mentorName}`.toLowerCase();
+        return target.includes(searchTerm.toLowerCase());
     });
 
     return (
-        <div className="flex flex-col bg-[#FAFAFA]">
-            {/* Dark Header Section */}
+        <div className="flex flex-col bg-[#FAFAFA] min-h-full">
+            {/* Dark Header */}
             <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden shrink-0">
-                {/* Background Decor */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-
                 <div className="max-w-6xl mx-auto relative z-10">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-                        <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="px-3 py-1 bg-[#D4F268] text-black text-xs font-black uppercase tracking-wider rounded-full">
-                                    Explore Directory
-                                </span>
-                            </div>
-                            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">
-                                Find a <span className="text-[#D4F268]">Mentor</span>
-                            </h1>
-                            <p className="text-zinc-400 font-medium text-lg max-w-xl leading-relaxed">
-                                Connect with world-class experts who can help you accelerate your career and master new skills.
-                            </p>
-                        </div>
+                    <div className="mb-8">
+                        <span className="px-3 py-1 bg-[#D4F268] text-black text-xs font-black uppercase tracking-wider rounded-full">
+                            Community Knowledge
+                        </span>
+                        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mt-3 mb-3">
+                            Mentor <span className="text-[#D4F268]">Directory</span>
+                        </h1>
+                        <p className="text-zinc-400 font-medium text-lg max-w-xl leading-relaxed">
+                            Connect with verified mentors or browse their public video library.
+                        </p>
                     </div>
 
-                    {/* Search & Filter Bar */}
-                    <div className="mt-10 flex gap-3 max-w-2xl">
+                    {/* Tabs */}
+                    <div className="flex items-center gap-1 p-1 bg-white/5 rounded-2xl w-fit mb-8 border border-white/10">
+                        {(["mentors", "videos"] as const).map(t => (
+                            <button
+                                key={t}
+                                onClick={() => setTab(t)}
+                                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all capitalize ${tab === t ? "bg-[#D4F268] text-black" : "text-zinc-400 hover:text-white"}`}
+                            >
+                                {t === "mentors" ? `Mentors (${mentors.length})` : `Videos (${videos.length})`}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search + Filter */}
+                    <div className="flex gap-3 max-w-2xl">
                         <div className="relative flex-1 group">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-[#D4F268] transition-colors" size={20} />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-[#D4F268] transition-colors" size={18} />
                             <input
                                 type="text"
-                                placeholder="Search by name, role, or company..."
+                                placeholder={tab === "mentors" ? "Search by name, skill..." : "Search videos..."}
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-medium outline-none focus:ring-2 focus:ring-[#D4F268]/50 focus:bg-white/10 transition-all placeholder:text-zinc-600"
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-white font-medium outline-none focus:ring-2 focus:ring-[#D4F268]/50 transition-all placeholder:text-zinc-600 text-sm"
                             />
                         </div>
-                        <button
-                            onClick={() => setIsFilterOpen(true)}
-                            className={`px-5 rounded-2xl border transition-all flex items-center gap-2 font-bold shrink-0 ${selectedSkill !== "All"
-                                ? "bg-[#D4F268] text-black border-[#D4F268] shadow-[0_0_15px_rgba(212,242,104,0.3)]"
-                                : "bg-white/5 border-white/10 text-white hover:bg-white/10"
-                                }`}
-                        >
-                            <Filter size={20} />
-                            <span className="hidden md:inline">{selectedSkill === "All" ? "Filter" : selectedSkill}</span>
-                        </button>
+                        {tab === "mentors" && (
+                            <button
+                                onClick={() => setIsFilterOpen(true)}
+                                className={`px-5 rounded-2xl border transition-all flex items-center gap-2 font-bold shrink-0 text-sm ${selectedSkill !== "All"
+                                    ? "bg-[#D4F268] text-black border-[#D4F268]"
+                                    : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                                    }`}
+                            >
+                                <Filter size={16} />
+                                <span className="hidden md:inline">{selectedSkill === "All" ? "Filter" : selectedSkill}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -110,57 +106,35 @@ export default function FindMentorPage() {
             <AnimatePresence>
                 {isFilterOpen && (
                     <>
-                        {/* Backdrop */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             onClick={() => setIsFilterOpen(false)}
-                            className="fixed inset-0 bg-zinc-900/80 backdrop-blur-sm z-50"
-                        />
-                        {/* Modal */}
+                            className="fixed inset-0 bg-zinc-900/80 backdrop-blur-sm z-50" />
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                                transition={{ type: "spring", bounce: 0.4 }}
-                                className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden pointer-events-auto flex flex-col max-h-[85vh] relative"
+                                className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden pointer-events-auto"
                             >
-                                <div className="p-8 border-b border-zinc-100 flex items-center justify-between bg-white z-10">
+                                <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
                                     <div>
-                                        <h3 className="text-2xl font-black text-zinc-900 tracking-tight">Filter by Skill</h3>
-                                        <p className="text-zinc-400 font-medium text-sm">Find the perfect match for your goals</p>
+                                        <h3 className="text-xl font-black text-zinc-900">Filter by Skill</h3>
+                                        <p className="text-zinc-400 text-sm font-medium">Find the perfect match</p>
                                     </div>
-                                    <button onClick={() => setIsFilterOpen(false)} className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 hover:text-black transition-colors">
-                                        <X size={20} />
+                                    <button onClick={() => setIsFilterOpen(false)} className="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors">
+                                        <X size={18} />
                                     </button>
                                 </div>
-
-                                <div className="p-8 overflow-y-auto custom-scrollbar">
-                                    <div className="flex flex-wrap gap-2.5">
-                                        {allSkills.map(skill => (
-                                            <button
-                                                key={skill}
-                                                onClick={() => {
-                                                    setSelectedSkill(skill);
-                                                    setIsFilterOpen(false);
-                                                }}
-                                                className={`px-6 py-3 rounded-xl text-sm font-bold transition-all border-2 ${selectedSkill === skill
-                                                    ? "bg-zinc-900 text-white border-zinc-900 shadow-lg"
-                                                    : "bg-white border-zinc-100 text-zinc-600 hover:border-[#D4F268] hover:bg-[#D4F268]/5"
-                                                    }`}
-                                            >
-                                                {skill}
-                                            </button>
-                                        ))}
-                                    </div>
+                                <div className="p-6 flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+                                    {allSkills.map(skill => (
+                                        <button key={skill} onClick={() => { setSelectedSkill(skill); setIsFilterOpen(false); }}
+                                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border-2 ${selectedSkill === skill ? "bg-zinc-900 text-white border-zinc-900" : "bg-white border-zinc-100 text-zinc-600 hover:border-[#D4F268]"}`}>
+                                            {skill}
+                                        </button>
+                                    ))}
                                 </div>
-
-                                <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex justify-end">
-                                    <Button onClick={() => { setSelectedSkill("All"); setIsFilterOpen(false); }} variant="ghost" className="text-zinc-500 hover:text-zinc-900 font-bold">
-                                        Clear Filters
-                                    </Button>
+                                <div className="p-4 border-t border-zinc-100 flex justify-end">
+                                    <Button onClick={() => { setSelectedSkill("All"); setIsFilterOpen(false); }} variant="ghost" className="text-zinc-500 font-bold">Clear</Button>
                                 </div>
                             </motion.div>
                         </div>
@@ -168,103 +142,176 @@ export default function FindMentorPage() {
                 )}
             </AnimatePresence>
 
-            {/* Content Area */}
-            <div className="px-6 py-8 md:px-10 pb-32">
-                <div className="max-w-6xl mx-auto">
-                    {isLoading ? (
-                        <div className="flex justify-center items-center py-20">
-                            <Loader2 className="w-8 h-8 animate-spin text-zinc-900" />
-                        </div>
-                    ) : filteredMentors.length === 0 ? (
-                        <div className="text-center py-20">
-                            <div className="bg-zinc-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Search className="text-zinc-400" size={32} />
-                            </div>
-                            <h3 className="text-lg font-bold text-zinc-900">No mentors found</h3>
-                            <p className="text-zinc-500">Try adjusting your search or filters.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            <AnimatePresence mode="popLayout">
-                                {filteredMentors.map((mentor, index) => (
+            {/* Content */}
+            <div className="px-6 py-8 md:px-10 pb-32 max-w-6xl mx-auto w-full">
+                {isLoading ? (
+                    <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-zinc-400" /></div>
+                ) : tab === "mentors" ? (
+                    <AnimatePresence mode="popLayout">
+                        {filteredMentors.length === 0 ? (
+                            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
+                                <Users size={48} className="mx-auto text-zinc-200 mb-4" />
+                                <h3 className="text-lg font-bold text-zinc-900">No mentors found</h3>
+                                <p className="text-zinc-500 text-sm mt-1">Try adjusting your search or filter.</p>
+                            </motion.div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredMentors.map((mentor, i) => (
                                     <motion.div
                                         key={mentor.id}
                                         layout
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.9 }}
-                                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                                        className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm hover:shadow-xl hover:shadow-[#D4F268]/20 transition-all group flex flex-col h-full relative overflow-hidden"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        transition={{ duration: 0.2, delay: i * 0.04 }}
+                                        className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm hover:shadow-xl hover:shadow-[#D4F268]/10 transition-all group flex flex-col relative overflow-hidden"
                                     >
-                                        {/* Hover specific glow */}
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4F268]/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between mb-6 relative z-10">
-                                            <div className="flex gap-4">
-                                                <div className="relative">
-                                                    <Avatar
-                                                        src={mentor.avatarUrl}
-                                                        fallback={mentor.name.slice(0, 2).toUpperCase()}
-                                                        className="w-16 h-16 rounded-2xl border-4 border-white shadow-sm"
-                                                    />
-                                                    {mentor.isVerified && (
-                                                        <div className="absolute -bottom-1 -right-1 bg-black text-[#D4F268] p-1 rounded-full border-2 border-white">
-                                                            <CheckCircle size={12} strokeWidth={4} />
+                                        <div className="flex items-start gap-4 mb-4 relative z-10">
+                                            <div className="relative">
+                                                <Avatar src={mentor.avatarUrl} fallback={mentor.name.slice(0, 2).toUpperCase()} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md" />
+                                                <div className="absolute -bottom-1 -right-1 bg-black text-[#D4F268] p-1 rounded-full border-2 border-white">
+                                                    <CheckCircle size={11} strokeWidth={3} />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-black text-lg text-zinc-900 leading-tight truncate group-hover:text-[#5a6d1a] transition-colors">{mentor.name}</h3>
+                                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mt-0.5 truncate">{mentor.headline || "Mentor"}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                {mentor.avgRating !== null ? (
+                                                    <>
+                                                        <div className="flex items-center gap-1 bg-zinc-900 rounded-lg px-2 py-1">
+                                                            <Star size={11} className="text-[#D4F268] fill-[#D4F268]" />
+                                                            <span className="text-xs font-bold text-white">{mentor.avgRating}</span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-black text-xl text-zinc-900 leading-tight group-hover:text-[#6a7d25] transition-colors">
-                                                        {mentor.name}
-                                                    </h3>
-                                                    <div className="text-zinc-500 text-xs font-bold uppercase tracking-wide mt-1">
-                                                        {mentor.role} @ {mentor.company}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <div className="flex items-center gap-1 bg-zinc-900 rounded-lg px-2 py-1">
-                                                    <Star size={12} className="text-[#D4F268] fill-[#D4F268]" />
-                                                    <span className="text-xs font-bold text-white">{mentor.rating}</span>
-                                                </div>
-                                                <span className="text-[10px] font-medium text-zinc-400">{mentor.reviews} reviews</span>
+                                                        <span className="text-[10px] font-medium text-zinc-400">{mentor.reviewCount} reviews</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-zinc-300 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">New</span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        {/* Bio */}
-                                        <p className="text-zinc-600 text-sm leading-relaxed mb-6 line-clamp-2 font-medium relative z-10">
-                                            {mentor.bio}
-                                        </p>
+                                        {mentor.bio && (
+                                            <p className="text-zinc-600 text-sm leading-relaxed mb-4 line-clamp-2 font-medium relative z-10">{mentor.bio}</p>
+                                        )}
 
-                                        {/* Tags */}
-                                        <div className="flex flex-wrap gap-2 mb-6 mt-auto relative z-10">
-                                            {mentor.skills.slice(0, 3).map((skill: string) => (
-                                                <span key={skill} className="bg-zinc-50 text-zinc-600 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-zinc-100 uppercase tracking-wide">
-                                                    {skill}
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        {/* Footer Actions */}
-                                        <div className="pt-6 border-t border-dashed border-zinc-100 flex items-center justify-between relative z-10">
-                                            <div className="flex flex-col">
-                                                <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Rate</span>
-                                                <div className="text-zinc-900 font-black text-lg">
-                                                    {mentor.hourlyRate === 0 ? "Free" : `$${mentor.hourlyRate}/hr`}
-                                                </div>
+                                        {mentor.skills.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 mb-4 mt-auto relative z-10">
+                                                {mentor.skills.slice(0, 3).map(skill => (
+                                                    <span key={skill} className="bg-zinc-50 text-zinc-600 text-[11px] font-bold px-3 py-1 rounded-lg border border-zinc-100 uppercase tracking-wide">{skill}</span>
+                                                ))}
                                             </div>
-                                            <Button className="rounded-xl px-6 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all shadow-lg shadow-zinc-900/10 hover:shadow-[#D4F268]/20">
-                                                Book Session
+                                        )}
+
+                                        <div className="pt-4 border-t border-dashed border-zinc-100 flex items-center justify-between relative z-10">
+                                            <div className={`text-xs font-bold px-3 py-1.5 rounded-full ${mentor.isAccepting ? "bg-green-50 text-green-600" : "bg-zinc-50 text-zinc-400"}`}>
+                                                {mentor.isAccepting ? "● Accepting" : "● Paused"}
+                                            </div>
+                                            <Button className="rounded-xl px-5 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all text-sm shadow-lg shadow-zinc-900/10">
+                                                View Profile
                                             </Button>
                                         </div>
                                     </motion.div>
                                 ))}
-                            </AnimatePresence>
-                        </div>
-                    )}
-                </div>
+                            </div>
+                        )}
+                    </AnimatePresence>
+                ) : (
+                    /* VIDEO TAB */
+                    <div>
+                        {filteredVideos.length === 0 ? (
+                            <div className="text-center py-20">
+                                <Play size={48} className="mx-auto text-zinc-200 mb-4" />
+                                <h3 className="text-lg font-bold text-zinc-900">No videos yet</h3>
+                                <p className="text-zinc-500 text-sm mt-1">Mentors haven't posted any content yet.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredVideos.map((video, i) => (
+                                    <VideoCard key={video.id} video={video} index={i} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );
+}
+
+function VideoCard({ video, index }: { video: MentorSession; index: number }) {
+    const [showEmbed, setShowEmbed] = useState(false);
+    const ytId = extractYouTubeId(video.videoUrl || "");
+    const isPremiering = video.premiereAt && new Date(video.premiereAt) > new Date();
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.04 }}
+            className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden flex flex-col"
+        >
+            {/* Thumbnail / Embed */}
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem]">
+                {showEmbed && ytId ? (
+                    <iframe
+                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+                        className="absolute inset-0 w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                    />
+                ) : (
+                    <>
+                        {video.thumbnailUrl ? (
+                            <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
+                        )}
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            {isPremiering ? (
+                                <div className="bg-[#D4F268] text-black px-4 py-2 rounded-full font-black text-sm">
+                                    Premieres {new Date(video.premiereAt!).toLocaleDateString()}
+                                </div>
+                            ) : ytId ? (
+                                <button onClick={() => setShowEmbed(true)} className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
+                                </button>
+                            ) : (
+                                <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"
+                                    className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
+                                </a>
+                            )}
+                        </div>
+                        {isPremiering && (
+                            <div className="absolute top-3 left-3 bg-[#D4F268] text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">
+                                Upcoming
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {/* Info */}
+            <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-black text-zinc-900 text-base leading-tight mb-1 line-clamp-2">{video.title}</h3>
+                {video.topic && <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mb-2">{video.topic}</p>}
+                {video.description && <p className="text-zinc-500 text-sm line-clamp-2 mb-4 flex-1 font-medium">{video.description}</p>}
+
+                <div className="flex items-center gap-2 mt-auto pt-3 border-t border-zinc-50">
+                    <Avatar src={video.mentorAvatar} fallback={video.mentorName.slice(0, 2).toUpperCase()} className="w-7 h-7 rounded-full border border-zinc-200" />
+                    <span className="text-xs font-bold text-zinc-700">{video.mentorName}</span>
+                    <span className="text-zinc-300 ml-auto text-[10px] font-medium">{new Date(video.createdAt).toLocaleDateString()}</span>
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+function extractYouTubeId(url: string): string | null {
+    const regex = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    return url.match(regex)?.[1] ?? null;
 }
