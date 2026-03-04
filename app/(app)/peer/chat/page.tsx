@@ -283,8 +283,14 @@ function ChatPageContent() {
             try {
                 const { dms: fetchedDms, groups: fetchedGroups } = await getUserConversations();
                 console.log("[UI] Conversations loaded:", { dms: fetchedDms.length, groups: fetchedGroups.length });
-                setDms(fetchedDms as PeerProfile[]);
-                setGroups(fetchedGroups as PeerProfile[]);
+                // Deduplicate by id in case the same convo appears more than once
+                const dedupe = (list: any[]) => {
+                    const seen = new Set<string>();
+                    return list.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+                };
+                setDms(dedupe(fetchedDms) as PeerProfile[]);
+                setGroups(dedupe(fetchedGroups) as PeerProfile[]);
+
 
                 // If opened with a specific userId, ensure a DM exists and select it
                 if (initialUserId) {
