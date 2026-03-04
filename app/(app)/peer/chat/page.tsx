@@ -235,6 +235,47 @@ function ChatPageContent() {
     const [groups, setGroups] = useState<PeerProfile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // ── Presence broadcasting + last_seen heartbeat ──────────────────────────
+    useEffect(() => {
+        const supabase = createClient();
+        let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
+        let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+        const initPresence = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // 1. Supabase Realtime Presence — broadcast that this user is online
+            presenceChannel = supabase.channel('presence:online', {
+                config: { presence: { key: user.id } },
+            });
+            presenceChannel
+                .on('presence', { event: 'sync' }, () => { }) // keep channel alive
+                .subscribe(async (status) => {
+                    if (status === 'SUBSCRIBED') {
+                        await presenceChannel!.track({ user_id: user.id, online_at: new Date().toISOString() });
+                    }
+                });
+
+            // 2. Update last_seen immediately and then every 60 seconds
+            const updateLastSeen = async () => {
+                await supabase
+                    .from('profiles')
+                    .update({ last_seen: new Date().toISOString() })
+                    .eq('id', user.id);
+            };
+            updateLastSeen();
+            heartbeatInterval = setInterval(updateLastSeen, 60_000);
+        };
+
+        initPresence();
+
+        return () => {
+            if (presenceChannel) presenceChannel.unsubscribe();
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        };
+    }, []);
+
     useEffect(() => {
         const init = async () => {
             console.log("[UI] ChatPageContent initializing...");

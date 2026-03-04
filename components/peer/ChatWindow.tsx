@@ -33,12 +33,78 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
     const [showInfoPanel, setShowInfoPanel] = useState(false);
     const [pendingFile, setPendingFile] = useState<{ file: File; previewUrl: string } | null>(null);
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+    const [isPeerOnline, setIsPeerOnline] = useState(false);
+    const [lastSeenText, setLastSeenText] = useState<string | null>(null);
 
     const [localPeer, setLocalPeer] = useState<PeerProfile | null>(peer);
 
     useEffect(() => {
         setLocalPeer(peer);
-    }, [peer]);
+
+        // Reset presence state when peer changes
+        setIsPeerOnline(false);
+        setLastSeenText(null);
+
+        if (!peer || peer.type !== 'direct' || !peer.peerId) return;
+
+        // Set initial last_seen text from the peer's profile data
+        // NOTE: last_seen NEVER drives the green dot — only real Presence events do
+        if (peer.lastSeen) {
+            const diff = Date.now() - new Date(peer.lastSeen).getTime();
+            const secs = Math.floor(diff / 1_000);
+            const mins = Math.floor(diff / 60_000);
+            const hours = Math.floor(diff / 3_600_000);
+            const days = Math.floor(diff / 86_400_000);
+            if (secs < 30) {
+                // Seen in the last 30s — treat as online
+                setIsPeerOnline(true);
+            } else if (mins < 1) {
+                setLastSeenText('Last seen just now');
+            } else if (mins < 60) {
+                setLastSeenText(`Last seen ${mins}m ago`);
+            } else if (hours < 24) {
+                setLastSeenText(`Last seen ${hours}h ago`);
+            } else {
+                setLastSeenText(`Last seen ${days}d ago`);
+            }
+        }
+
+        // Subscribe to global presence channel
+        // Only setIsPeerOnline(true) on actual presence events — never from last_seen
+        const supabase = createClient();
+        const presenceChannel = supabase.channel('presence:online', {
+            config: { presence: { key: peer.peerId } },
+        });
+
+        const peerId = peer.peerId; // capture in closure
+
+        presenceChannel
+            .on('presence', { event: 'sync' }, () => {
+                const state = presenceChannel.presenceState<{ user_id: string }>();
+                // Check if any presence entry has this peer's user_id
+                const isOnline = Object.entries(state).some(([key, presences]) =>
+                    key === peerId || presences.some(p => p.user_id === peerId)
+                );
+                setIsPeerOnline(isOnline);
+                if (isOnline) setLastSeenText(null);
+            })
+            .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
+                if (key === peerId) {
+                    setIsPeerOnline(true);
+                    setLastSeenText(null);
+                }
+            })
+            .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
+                if (key === peerId) {
+                    setIsPeerOnline(false);
+                    setLastSeenText('Last seen just now');
+                }
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(presenceChannel); };
+    }, [peer?.id]);
+
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -340,7 +406,11 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                                     {isGroup ? (
                                         <><UsersIcon size={12} /><span>Study Circle</span></>
                                     ) : (
-                                        <><span className="w-2 h-2 bg-green-500 rounded-full" /><span>Active</span></>
+                                        isPeerOnline
+                                            ? <><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /><span className="text-green-600 font-semibold">Active now</span></>
+                                            : lastSeenText
+                                                ? <span className="text-zinc-400">{lastSeenText}</span>
+                                                : <span className="text-zinc-400">Offline</span>
                                     )}
                                 </div>
                             </div>

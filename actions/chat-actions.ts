@@ -172,7 +172,7 @@ export async function getUserConversations() {
             conversation_id,
             user_id,
             profiles (
-                id, username, full_name, avatar_url, role
+                id, username, full_name, avatar_url, role, last_seen
             )
         `)
         .in('conversation_id', convoIds)
@@ -223,10 +223,12 @@ export async function getUserConversations() {
                 const profile = Array.isArray(peer.profiles) ? peer.profiles[0] : peer.profiles as any;
                 dms.push({
                     id: convo.id,
+                    peerId: peer.user_id, // actual user ID for presence tracking
                     name: profile?.full_name || profile?.username || 'User',
                     username: profile?.username || '',
                     avatarUrl: profile?.avatar_url,
                     track: profile?.role || 'Learner',
+                    lastSeen: profile?.last_seen,
                     type: 'direct',
                     level: 0, xp: 0, streak: 0, status: 'none',
                     lastMessage,

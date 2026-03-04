@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
 export interface PeerProfile {
-    id: string;
+    id: string; // conversation ID
+    peerId?: string; // actual user ID of the other person (DMs only)
     name: string;
     username: string;
     avatarUrl?: string;
@@ -16,6 +17,7 @@ export interface PeerProfile {
     streak: number;
     status: "friend" | "pending_incoming" | "pending_outgoing" | "none";
     isOnline?: boolean;
+    lastSeen?: string; // ISO timestamp
     // Chat type - replaces the fragile `startsWith("g")` heuristic
     type?: 'direct' | 'group';
     // Last message preview for sidebar
