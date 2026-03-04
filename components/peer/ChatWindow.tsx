@@ -42,6 +42,9 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Track sent message IDs to prevent realtime duplicates
     const sentMessageIds = useRef<Set<string>>(new Set());
+    // Cache for sender profiles to avoid repeated fetches in realtime
+    const senderProfileCache = useRef<Map<string, { name: string; avatarUrl?: string }>>(new Map());
+
 
     const isGroup = peer?.type === 'group';
 
@@ -64,10 +67,22 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
             setCurrentUserId(user.id);
 
             const msgs = await getConversationMessages(peer.id);
+
+            // Pre-seed sender profile cache from fetched messages
+            msgs.forEach(msg => {
+                if (msg.senderId && msg.senderName && !senderProfileCache.current.has(msg.senderId)) {
+                    senderProfileCache.current.set(msg.senderId, {
+                        name: msg.senderName,
+                        avatarUrl: msg.senderAvatar,
+                    });
+                }
+            });
+
             setMessages(msgs);
         };
 
         fetchMessages();
+
 
         // Subscribe to real-time additions on this conversation
         const channel = supabase.channel(`conv:${peer.id}`)
@@ -79,13 +94,44 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
                     table: 'messages',
                     filter: `conversation_id=eq.${peer.id}`
                 },
-                (payload) => {
+                async (payload) => {
                     const m = payload.new as any;
                     const isUrl = typeof m.content === 'string' && m.content.startsWith('http');
                     const isGif = isUrl && m.content.includes('giphy.com');
+
+                    // Fetch sender profile if not cached
+                    let senderName: string | undefined;
+                    let senderAvatar: string | undefined;
+
+                    if (senderProfileCache.current.has(m.sender_id)) {
+                        const cached = senderProfileCache.current.get(m.sender_id)!;
+                        senderName = cached.name;
+                        senderAvatar = cached.avatarUrl;
+                    } else {
+                        try {
+                            const { data: profile } = await supabase
+                                .from('profiles')
+                                .select('full_name, username, avatar_url')
+                                .eq('id', m.sender_id)
+                                .single();
+                            if (profile) {
+                                senderName = profile.full_name || profile.username || 'User';
+                                senderAvatar = profile.avatar_url ?? undefined;
+                                senderProfileCache.current.set(m.sender_id, {
+                                    name: senderName!,
+                                    avatarUrl: senderAvatar,
+                                });
+                            }
+                        } catch {
+                            // Fail silently — avatar just won't appear
+                        }
+                    }
+
                     const newMsg: MessageRow = {
                         id: m.id,
                         senderId: m.sender_id,
+                        senderName,
+                        senderAvatar,
                         text: !isUrl ? m.content : undefined,
                         type: m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text'),
                         mediaUrl: isUrl ? m.content : undefined,
@@ -103,6 +149,7 @@ export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
 
         return () => { supabase.removeChannel(channel); };
     }, [peer?.id]);
+
 
     useEffect(() => {
         if (!showGifPicker) return;

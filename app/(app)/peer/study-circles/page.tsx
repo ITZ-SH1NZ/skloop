@@ -29,45 +29,56 @@ export default function StudyCirclesPage() {
             // Fetch public group conversations
             const { data: convos } = await supabase
                 .from('conversations')
-                .select(`
-                    id,
-                    title,
-                    description,
-                    tags,
-                    avatar_url,
-                    privacy,
-                    conversation_participants(user_id, role)
-                `)
+                .select('id, title, description, tags, avatar_url, privacy')
                 .eq('type', 'group')
-                .eq('privacy', 'public') // Only show public circles in the directory
+                .eq('privacy', 'public')
                 .order('created_at', { ascending: false });
 
-            if (convos) {
-                const formatted: StudyCircle[] = convos.map(c => {
-                    const participants = c.conversation_participants || [];
-                    const isJoined = participants.some((p: any) => p.user_id === user.id);
-
-                    // The icon could be an emoji prepended, or avatar_url
-                    let name = c.title || 'Unnamed Circle';
-
-                    return {
-                        id: c.id,
-                        name: name,
-                        avatarUrl: c.avatar_url || undefined,
-                        topic: c.tags?.[0] || 'General',
-                        description: c.description || 'A study circle for eager learners.',
-                        memberCount: participants.length,
-                        maxMembers: 50, // Hardcoded for now unless added to schema
-                        tags: c.tags || [],
-                        isJoined
-                    };
-                });
-                setCircles(formatted);
+            if (!convos) {
+                setIsLoading(false);
+                return;
             }
+
+            // Fetch participant counts separately (works around RLS on nested joins)
+            const convoIds = convos.map(c => c.id);
+
+            const { data: participants } = await supabase
+                .from('conversation_participants')
+                .select('conversation_id, user_id')
+                .in('conversation_id', convoIds);
+
+            // Build a map: conversationId -> { count, isJoined }
+            const countMap = new Map<string, { count: number; isJoined: boolean }>();
+            if (participants) {
+                for (const p of participants) {
+                    const existing = countMap.get(p.conversation_id) || { count: 0, isJoined: false };
+                    existing.count += 1;
+                    if (p.user_id === user.id) existing.isJoined = true;
+                    countMap.set(p.conversation_id, existing);
+                }
+            }
+
+            const formatted: StudyCircle[] = convos.map(c => {
+                const stats = countMap.get(c.id) || { count: 0, isJoined: false };
+                return {
+                    id: c.id,
+                    name: c.title || 'Unnamed Circle',
+                    avatarUrl: c.avatar_url || undefined,
+                    topic: c.tags?.[0] || 'General',
+                    description: c.description || 'A study circle for eager learners.',
+                    memberCount: stats.count,
+                    maxMembers: 50,
+                    tags: c.tags || [],
+                    isJoined: stats.isJoined,
+                };
+            });
+
+            setCircles(formatted);
             setIsLoading(false);
         };
         fetchCircles();
     }, []);
+
 
     const filteredCircles = circles.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
