@@ -15,9 +15,10 @@ const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 interface ChatWindowProps {
     peer: PeerProfile | null;
     onBack?: () => void;
+    onPeerUpdate?: (updatedPeer: Partial<PeerProfile> & { id: string }) => void;
 }
 
-export function ChatWindow({ peer, onBack }: ChatWindowProps) {
+export function ChatWindow({ peer, onBack, onPeerUpdate }: ChatWindowProps) {
     const [messages, setMessages] = useState<MessageRow[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState("");
@@ -30,6 +31,12 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
     const [gifSearch, setGifSearch] = useState("");
     const [isLoadingGifs, setIsLoadingGifs] = useState(false);
     const [showInfoPanel, setShowInfoPanel] = useState(false);
+
+    const [localPeer, setLocalPeer] = useState<PeerProfile | null>(peer);
+
+    useEffect(() => {
+        setLocalPeer(peer);
+    }, [peer]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,46 +65,43 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
 
             const msgs = await getConversationMessages(peer.id);
             setMessages(msgs);
-
-            // Subscribe to real-time additions on this conversation
-            const channel = supabase.channel(`conv:${peer.id}`)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: 'INSERT',
-                        schema: 'public',
-                        table: 'messages',
-                        filter: `conversation_id=eq.${peer.id}`
-                    },
-                    (payload) => {
-                        const m = payload.new as any;
-                        const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
-                        const isGif = isUrl && m.content.includes('giphy.com');
-                        const newMsg: MessageRow = {
-                            id: m.id,
-                            senderId: m.sender_id,
-                            text: !isUrl ? m.content : undefined,
-                            type: m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text'),
-                            mediaUrl: isUrl ? m.content : undefined,
-                            timestamp: new Date(m.created_at),
-                        };
-                        setMessages(prev => {
-                            // If UUID is already in list, do nothing
-                            if (prev.some(existing => existing.id === m.id)) return prev;
-                            // Otherwise append
-                            return [...prev, newMsg];
-                        });
-                    }
-                )
-                .subscribe();
-
-            return () => { supabase.removeChannel(channel); };
         };
 
-        const fetchPromise = fetchMessages();
-        return () => {
-            fetchPromise.then(cleanup => cleanup?.());
-        };
+        fetchMessages();
+
+        // Subscribe to real-time additions on this conversation
+        const channel = supabase.channel(`conv:${peer.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `conversation_id=eq.${peer.id}`
+                },
+                (payload) => {
+                    const m = payload.new as any;
+                    const isUrl = typeof m.content === 'string' && m.content.startsWith('http');
+                    const isGif = isUrl && m.content.includes('giphy.com');
+                    const newMsg: MessageRow = {
+                        id: m.id,
+                        senderId: m.sender_id,
+                        text: !isUrl ? m.content : undefined,
+                        type: m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text'),
+                        mediaUrl: isUrl ? m.content : undefined,
+                        timestamp: new Date(m.created_at),
+                    };
+                    setMessages(prev => {
+                        // If UUID is already in list, do nothing (we might have added it optimistically or from fetch)
+                        if (prev.some(existing => existing.id === m.id)) return prev;
+                        // Otherwise append
+                        return [...prev, newMsg];
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, [peer?.id]);
 
     useEffect(() => {
@@ -229,8 +233,14 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                     ) : (
                         <div className="flex items-center gap-3 flex-1">
                             {isGroup ? (
-                                <div className="w-10 h-10 rounded-2xl bg-black/10 flex items-center justify-center text-base font-black text-[#1A1A1A]">
-                                    {peer.name.charAt(0)}
+                                <div className="w-10 h-10 rounded-2xl bg-black/10 flex items-center justify-center text-base font-black text-[#1A1A1A] overflow-hidden">
+                                    {peer.avatarUrl?.startsWith('http') ? (
+                                        <img src={peer.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : peer.avatarUrl ? (
+                                        peer.avatarUrl
+                                    ) : (
+                                        peer.name.charAt(0)
+                                    )}
                                 </div>
                             ) : (
                                 <Avatar src={peer.avatarUrl} fallback={peer.name.charAt(0)} className="w-10 h-10 md:w-11 md:h-11 rounded-full border-2 shadow-sm border-white" />
@@ -458,11 +468,30 @@ export function ChatWindow({ peer, onBack }: ChatWindowProps) {
                 </div>
 
                 {/* Circle Info Panel */}
-                <CircleInfoPanel
-                    peer={peer}
-                    isOpen={showInfoPanel}
-                    onClose={() => setShowInfoPanel(false)}
-                />
+                {localPeer && (
+                    <CircleInfoPanel
+                        peer={localPeer}
+                        isOpen={showInfoPanel}
+                        onClose={() => setShowInfoPanel(false)}
+                        onUpdate={(newDetails: { name: string, description: string, avatarUrl: string, privacy: string }) => {
+                            const updatedData = {
+                                id: localPeer.id,
+                                name: newDetails.name,
+                                description: newDetails.description,
+                                avatarUrl: newDetails.avatarUrl,
+                                privacy: newDetails.privacy
+                            };
+
+                            setLocalPeer(prev => prev ? {
+                                ...prev,
+                                ...updatedData
+                            } : null);
+
+                            // Sync with parent state
+                            onPeerUpdate?.(updatedData);
+                        }}
+                    />
+                )}
             </div>
         </div>
     );

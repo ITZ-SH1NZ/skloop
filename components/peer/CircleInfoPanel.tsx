@@ -1,17 +1,20 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Hash, Calendar, LogOut, Bell, Search, MessageSquare, Loader2 } from "lucide-react";
+import { X, Hash, Calendar, LogOut, Bell, Search, MessageSquare, Loader2, Settings } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { PeerProfile } from "./PeerCard";
 import { useState, useEffect } from "react";
 import { getConversationMembers } from "@/actions/chat-actions";
+import { GroupSettingsModal } from "./GroupSettingsModal";
+import { createClient } from "@/utils/supabase/client";
 
 interface CircleInfoPanelProps {
     peer: PeerProfile;
     isOpen: boolean;
     onClose: () => void;
+    onUpdate?: (updatedData: { name: string, description: string, avatarUrl: string, privacy: string }) => void;
 }
 
 interface Member {
@@ -23,19 +26,31 @@ interface Member {
     joinedAt: string;
 }
 
-export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps) {
+export function CircleInfoPanel({ peer, isOpen, onClose, onUpdate }: CircleInfoPanelProps) {
     const [activeTab, setActiveTab] = useState<"members" | "resources">("members");
     const [memberSearch, setMemberSearch] = useState("");
     const [members, setMembers] = useState<Member[]>([]);
     const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [currentUserRole, setCurrentUserRole] = useState("member");
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isOpen || peer.type !== 'group') return;
         const fetchMembers = async () => {
             setIsLoadingMembers(true);
             try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) setCurrentUserId(user.id);
+
                 const data = await getConversationMembers(peer.id);
                 setMembers(data as Member[]);
+
+                if (user && data) {
+                    const me = (data as Member[]).find(m => m.id === user.id);
+                    if (me) setCurrentUserRole(me.role);
+                }
             } finally {
                 setIsLoadingMembers(false);
             }
@@ -97,9 +112,13 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                                         <Bell size={14} className="mr-2" />
                                         Mute
                                     </Button>
-                                    <Button variant="outline" className="flex-1 rounded-xl h-9 text-xs font-bold border-zinc-200 hover:bg-white hover:text-zinc-900">
-                                        <Search size={14} className="mr-2" />
-                                        Search
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsSettingsOpen(true)}
+                                        className="flex-1 rounded-xl h-9 text-xs font-bold border-zinc-200 hover:bg-white hover:text-zinc-900"
+                                    >
+                                        <Settings size={14} className="mr-2" />
+                                        Settings
                                     </Button>
                                 </div>
                             </div>
@@ -207,6 +226,15 @@ export function CircleInfoPanel({ peer, isOpen, onClose }: CircleInfoPanelProps)
                             </Button>
                         </div>
                     </motion.div>
+
+                    {/* Settings Modal */}
+                    <GroupSettingsModal
+                        peer={peer}
+                        isOpen={isSettingsOpen}
+                        onClose={() => setIsSettingsOpen(false)}
+                        currentUserRole={currentUserRole}
+                        onUpdate={onUpdate}
+                    />
                 </>
             )}
         </AnimatePresence>

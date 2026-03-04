@@ -4,14 +4,32 @@ import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PeerProfile } from "@/components/peer/PeerCard";
 import { ChatWindow } from "@/components/peer/ChatWindow";
+import {
+    Search,
+    MoreVertical,
+    UserCircle2,
+    Hash,
+    Users,
+    Settings,
+    LogOut,
+    Bell,
+    Plus,
+    MessageSquare,
+    Loader2,
+    ChevronRight,
+    ArrowLeft,
+    PlusCircle,
+    X,
+    PenSquare,
+    MessageSquarePlus
+} from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
-import { Search, Loader2, MessageSquarePlus, Hash, UserCircle2, X, PenSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
 import { getUserConversations, getOrCreateDirectConversation, getFriendsList } from "@/actions/chat-actions";
 
 // ============================================================
-// NewChatPicker — Responsive: bottom-sheet on mobile, popover on desktop
+// NewChatPicker — Centered Modal
 // ============================================================
 interface Friend { id: string; name: string; username: string; avatarUrl?: string; }
 
@@ -25,32 +43,15 @@ function NewChatPicker({
     const [query, setQuery] = useState("");
     const [isLoadingFriends, setIsLoadingFriends] = useState(false);
     const [openingFor, setOpeningFor] = useState<string | null>(null);
-    const popoverRef = useRef<HTMLDivElement>(null);
-    const buttonRef = useRef<HTMLButtonElement>(null);
 
     // Fetch friends on open
     useEffect(() => {
         if (!isOpen) return;
-        console.log("[UI] NewChatPicker opening, fetching friends...");
         setIsLoadingFriends(true);
         getFriendsList().then(list => {
-            console.log("[UI] NewChatPicker friends fetched:", list.length);
             setFriends(list);
             setIsLoadingFriends(false);
         });
-    }, [isOpen]);
-
-    // Close on outside click (desktop)
-    useEffect(() => {
-        if (!isOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (
-                popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-                buttonRef.current && !buttonRef.current.contains(e.target as Node)
-            ) setIsOpen(false);
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
     }, [isOpen]);
 
     // Close on Escape
@@ -61,13 +62,24 @@ function NewChatPicker({
         return () => document.removeEventListener("keydown", handler);
     }, [isOpen]);
 
+    // Prevent body scroll when modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen]);
+
     const filtered = friends.filter(f =>
         f.name.toLowerCase().includes(query.toLowerCase()) ||
         f.username.toLowerCase().includes(query.toLowerCase())
     );
 
     const handleSelect = async (friend: Friend) => {
-        console.log("[UI] NewChatPicker: Friend selected:", friend.name, friend.id);
         setOpeningFor(friend.id);
         await onSelect(friend);
         setOpeningFor(null);
@@ -75,139 +87,136 @@ function NewChatPicker({
         setQuery("");
     };
 
-    const pickerContent = (
-        <div className="flex flex-col overflow-hidden h-full">
-            {/* Search */}
-            <div className="p-3 border-b border-zinc-100 shrink-0">
-                <div className="relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                    <input
-                        type="text"
-                        autoFocus
-                        placeholder="Search friends..."
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        className="w-full bg-zinc-100 rounded-xl pl-9 pr-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-lime-500/40 placeholder:text-zinc-400"
-                    />
-                </div>
-            </div>
-
-            {/* Friend list */}
-            <div className="flex-1 overflow-y-auto p-2 min-h-0">
-                {isLoadingFriends ? (
-                    <div className="flex justify-center items-center py-10">
-                        <Loader2 className="animate-spin text-zinc-300 w-5 h-5" />
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div className="text-center py-8 px-4">
-                        <p className="text-sm font-semibold text-zinc-800">
-                            {friends.length === 0 ? "No friends yet" : "No results"}
-                        </p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                            {friends.length === 0
-                                ? "Add peers from the My Peers tab first"
-                                : "Try a different name"}
-                        </p>
-                    </div>
-                ) : filtered.map(friend => (
-                    <button
-                        key={friend.id}
-                        onClick={() => handleSelect(friend)}
-                        disabled={openingFor === friend.id}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-100 active:bg-zinc-200 transition-colors text-left group disabled:opacity-60"
-                    >
-                        <div className="relative shrink-0">
-                            <Avatar
-                                src={friend.avatarUrl}
-                                fallback={friend.name.charAt(0)}
-                                className="w-10 h-10 rounded-full border border-zinc-100"
-                            />
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-lime-400 rounded-full border-2 border-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-zinc-900 truncate">{friend.name}</p>
-                            <p className="text-xs text-zinc-400 font-medium">@{friend.username}</p>
-                        </div>
-                        {openingFor === friend.id ? (
-                            <Loader2 size={16} className="animate-spin text-zinc-400 shrink-0" />
-                        ) : (
-                            <PenSquare size={15} className="text-zinc-300 group-hover:text-lime-500 transition-colors shrink-0" />
-                        )}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-
     return (
-        <div className="relative">
+        <>
             {/* Trigger button */}
             <button
-                ref={buttonRef}
-                onClick={() => {
-                    console.log("[UI] NewChatPicker button clicked, state transition:", !isOpen);
-                    setIsOpen(o => !o);
-                }}
-                className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${isOpen
-                    ? "bg-lime-400 text-zinc-900"
-                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                onClick={() => setIsOpen(true)}
+                className={`flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full transition-all duration-200 ${isOpen
+                    ? "bg-[#D4F268] text-[#1A1A1A] scale-95"
+                    : "bg-zinc-100 hover:bg-[#D4F268] hover:text-[#1A1A1A] text-zinc-600 shadow-sm"
                     }`}
                 title="New message"
             >
-                {isOpen ? <X size={16} /> : <MessageSquarePlus size={16} />}
+                <MessageSquarePlus size={18} />
             </button>
 
             <AnimatePresence>
                 {isOpen && (
-                    <>
-                        {/* Mobile: full-screen bottom sheet */}
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                        {/* Backdrop */}
                         <motion.div
-                            key="mobile-backdrop"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="md:hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+                            className="absolute inset-0 bg-[#1A1A1A]/40 backdrop-blur-sm"
                             onClick={() => setIsOpen(false)}
                         />
+
+                        {/* Modal container */}
                         <motion.div
-                            key="mobile-sheet"
-                            initial={{ y: "100%" }}
-                            animate={{ y: 0 }}
-                            exit={{ y: "100%" }}
-                            transition={{ type: "spring", stiffness: 300, damping: 32 }}
-                            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl"
-                            style={{ maxHeight: "80dvh", display: "flex", flexDirection: "column" }}
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="relative w-full max-w-md bg-[#FDFCF8] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
+                            style={{ maxHeight: 'calc(100vh - 40px)', height: '600px' }} // Fixed height but responsive max constraint
                         >
-                            {/* Sheet handle */}
-                            <div className="flex items-center justify-between px-5 py-4 shrink-0">
-                                <h3 className="font-bold text-zinc-900 text-base">New Message</h3>
-                                <button onClick={() => setIsOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#E5E5E0] bg-white shrink-0 relative z-10">
+                                <div>
+                                    <h2 className="text-xl font-bold tracking-tight text-[#1A1A1A]">Start Conversation</h2>
+                                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mt-1">Select a peer to chat</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsOpen(false)}
+                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 transition-colors"
+                                >
                                     <X size={16} />
                                 </button>
                             </div>
-                            <div className="flex-1 min-h-0 overflow-hidden">{pickerContent}</div>
-                        </motion.div>
 
-                        {/* Desktop: anchored popover */}
-                        <motion.div
-                            key="desktop-popover"
-                            ref={popoverRef}
-                            initial={{ opacity: 0, scale: 0.95, y: -6 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -6 }}
-                            transition={{ duration: 0.15 }}
-                            className="hidden md:flex flex-col absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-zinc-100 z-50 overflow-hidden"
-                            style={{ maxHeight: "380px" }}
-                        >
-                            <div className="px-4 pt-3 pb-1 shrink-0">
-                                <p className="text-sm font-bold text-zinc-900">New Message</p>
+                            {/* Search */}
+                            <div className="p-4 border-b border-[#E5E5E0] bg-white shrink-0 relative z-10">
+                                <div className="relative group">
+                                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-[#D4F268] transition-colors" />
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        placeholder="Search by name or username..."
+                                        value={query}
+                                        onChange={e => setQuery(e.target.value)}
+                                        className="w-full bg-[#FDFCF8] border border-[#E5E5E0] rounded-xl pl-10 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-[#D4F268]/50 focus:border-[#D4F268] transition-all placeholder:text-zinc-400 text-[#1A1A1A]"
+                                    />
+                                </div>
                             </div>
-                            <div className="flex-1 min-h-0 overflow-hidden">{pickerContent}</div>
+
+                            {/* Scrollable List */}
+                            <div className="flex-1 overflow-y-auto p-4 bg-[#FDFCF8] relative z-0">
+                                {isLoadingFriends ? (
+                                    <div className="flex flex-col justify-center items-center h-full py-10">
+                                        <Loader2 className="animate-spin text-[#D4F268] w-8 h-8 mb-4 border-2 border-transparent border-t-[#D4F268] rounded-full" />
+                                        <p className="text-sm font-medium text-zinc-500">Loading peers...</p>
+                                    </div>
+                                ) : filtered.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full py-12 px-6 text-center">
+                                        <div className="w-16 h-16 bg-white shadow-sm border border-[#E5E5E0] rounded-2xl flex items-center justify-center mb-4 rotate-[-4deg]">
+                                            <Search className="text-zinc-300" size={28} />
+                                        </div>
+                                        <p className="text-base font-bold text-[#1A1A1A] mb-1">
+                                            {friends.length === 0 ? "No friends found" : "No matches"}
+                                        </p>
+                                        <p className="text-sm text-zinc-500">
+                                            {friends.length === 0
+                                                ? "Head over to the network tab to connect with other learners."
+                                                : "Try searching for a different name."}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {filtered.map(friend => (
+                                            <button
+                                                key={friend.id}
+                                                onClick={() => handleSelect(friend)}
+                                                disabled={openingFor === friend.id}
+                                                className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-white active:bg-zinc-50 transition-all duration-200 text-left group disabled:opacity-60 border border-transparent hover:border-[#E5E5E0] hover:shadow-sm"
+                                            >
+                                                <div className="flex items-center gap-4 min-w-0 pr-4">
+                                                    <div className="relative shrink-0">
+                                                        <Avatar
+                                                            src={friend.avatarUrl}
+                                                            fallback={friend.name.charAt(0)}
+                                                            className="w-12 h-12 rounded-full border-2 border-white shadow-sm"
+                                                        />
+                                                        <div className="absolute right-0 bottom-0 w-3.5 h-3.5 bg-green-500 rounded-full border-[2.5px] border-white" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[15px] font-bold text-[#1A1A1A] truncate leading-tight group-hover:text-black">
+                                                            {friend.name}
+                                                        </p>
+                                                        <p className="text-[13px] text-zinc-500 font-medium truncate mt-0.5">
+                                                            @{friend.username}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-zinc-50 group-hover:bg-[#D4F268] text-zinc-300 group-hover:text-[#1A1A1A] transition-colors">
+                                                    {openingFor === friend.id ? (
+                                                        <Loader2 size={16} className="animate-spin text-[#1A1A1A]" />
+                                                    ) : (
+                                                        <MessageSquarePlus size={15} />
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </motion.div>
-                    </>
+                    </div>
                 )}
             </AnimatePresence>
-        </div>
+        </>
     );
 }
 
@@ -304,6 +313,14 @@ function ChatPageContent() {
         if (diffDays === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         if (diffDays === 1) return 'Yesterday';
         return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    };
+
+    const handlePeerUpdate = (updatedPeer: Partial<PeerProfile> & { id: string }) => {
+        const updateList = (list: PeerProfile[]) =>
+            list.map(p => p.id === updatedPeer.id ? { ...p, ...updatedPeer } : p);
+
+        setDms(prev => updateList(prev));
+        setGroups(prev => updateList(prev));
     };
 
     return (
@@ -431,7 +448,7 @@ function ChatPageContent() {
                                 {filteredGroups.length > 0 && (
                                     <div>
                                         <div className="flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
-                                            <Hash size={14} />
+                                            <Users size={14} />
                                             <span>Study Circles</span>
                                         </div>
                                         <div className="space-y-[2px]">
@@ -453,8 +470,14 @@ function ChatPageContent() {
                                                                 <motion.div layoutId="activeGroupIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
                                                             )}
                                                             <div className="relative shrink-0 ml-1">
-                                                                <div className={`w-[46px] h-[46px] rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm ${isActive ? "bg-lime-400 text-black border border-lime-500/20" : "bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-500 border border-zinc-200/60"}`}>
-                                                                    {chat.name.charAt(0)}
+                                                                <div className={`w-[46px] h-[46px] rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm overflow-hidden ${isActive ? "bg-lime-400 text-black border border-lime-500/20" : "bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-500 border border-zinc-200/60"}`}>
+                                                                    {chat.avatarUrl?.startsWith('http') ? (
+                                                                        <img src={chat.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                                    ) : chat.avatarUrl ? (
+                                                                        <span>{chat.avatarUrl}</span>
+                                                                    ) : (
+                                                                        chat.name.charAt(0)
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                             <div className="flex-1 min-w-0 pr-1">
@@ -511,6 +534,7 @@ function ChatPageContent() {
                         <ChatWindow
                             peer={selectedPeer}
                             onBack={() => setSelectedPeerId(null)}
+                            onPeerUpdate={handlePeerUpdate}
                         />
                     </motion.div>
                 ) : (

@@ -9,6 +9,7 @@ export interface PeerProfile {
     name: string;
     username: string;
     avatarUrl?: string;
+    description?: string;
     track: string;
     level: number;
     xp: number;

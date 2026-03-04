@@ -141,7 +141,7 @@ export async function getUserConversations() {
         .select(`
             conversation_id,
             conversations (
-                id, type, title, tags, description, updated_at
+                id, type, title, tags, description, avatar_url, updated_at
             )
         `)
         .eq('user_id', user.id)
@@ -199,6 +199,8 @@ export async function getUserConversations() {
                 id: convo.id,
                 name: convo.title || 'Study Circle',
                 username: 'group',
+                description: convo.description,
+                avatarUrl: convo.avatar_url,
                 track: convo.tags?.[0] || 'Study Circle',
                 type: 'group',
                 level: 0, xp: 0, streak: 0, status: 'none',
