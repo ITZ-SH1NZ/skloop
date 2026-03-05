@@ -46,7 +46,7 @@ export interface MentorSession {
     topic?: string;
     description?: string;
     message?: string;
-    status: "pending" | "accepted" | "declined" | "published";
+    status: "pending" | "accepted" | "declined" | "published" | "completed";
     videoUrl?: string;
     thumbnailUrl?: string;
     premiereAt?: string;
@@ -75,7 +75,7 @@ export async function getMentors(): Promise<MentorCard[]> {
         .from("profiles")
         .select(`
             id, full_name, username, avatar_url, skills, bio,
-            mentor_profiles (
+            mentor_profiles!mentor_profiles_id_fkey (
                 headline, bio, specialties, is_accepting
             )
         `)
@@ -172,12 +172,20 @@ export async function getMySessionsAsMentee(): Promise<MentorSession[]> {
 
 export async function getMySessionsAsMentor(): Promise<{
     pending: MentorSession[];
+    upcoming: MentorSession[];
+    history: MentorSession[];
     published: MentorSession[];
-    stats: { sessions: number; avgRating: number | null; reviewCount: number };
+    stats: {
+        sessions: number;
+        avgRating: number | null;
+        reviewCount: number;
+        ratingDistribution: { [key: number]: number };
+        recentReviews: any[];
+    };
 }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { pending: [], published: [], stats: { sessions: 0, avgRating: null, reviewCount: 0 } };
+    if (!user) return { pending: [], upcoming: [], history: [], published: [], stats: { sessions: 0, avgRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, recentReviews: [] } };
 
     const { data } = await supabase
         .from("mentor_sessions")
@@ -190,24 +198,76 @@ export async function getMySessionsAsMentor(): Promise<{
 
     const sessions = (data ?? []).map(formatSession);
     const pending = sessions.filter(s => s.status === "pending");
+    const upcoming = sessions.filter(s => s.status === "accepted");
+    const history = sessions.filter(s => s.status === "completed" || s.status === "declined");
     const published = sessions.filter(s => s.status === "published" && s.videoUrl);
 
     // Reviews for this mentor
     const sessionIds = sessions.map(s => s.id);
     const { data: reviews } = await supabase
         .from("session_reviews")
-        .select("rating")
-        .in("session_id", sessionIds);
+        .select(`
+            rating,
+            comment,
+            created_at,
+            reviewer:profiles(full_name, username, avatar_url)
+        `)
+        .in("session_id", sessionIds)
+        .order("created_at", { ascending: false });
 
     const avgRating = reviews && reviews.length > 0
-        ? Math.round((reviews.reduce((a, r) => a + r.rating, 0) / reviews.length) * 10) / 10
+        ? Math.round(((reviews as any[]).reduce((a, r) => a + r.rating, 0) / reviews.length) * 10) / 10
         : null;
+
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    if (reviews) {
+        reviews.forEach(r => {
+            if (r.rating >= 1 && r.rating <= 5) {
+                ratingDistribution[r.rating as keyof typeof ratingDistribution]++;
+            }
+        });
+    }
+
+    const recentReviews = (reviews || []).slice(0, 5).map(r => {
+        const rev = Array.isArray(r.reviewer) ? r.reviewer[0] : r.reviewer;
+        return {
+            rating: r.rating,
+            comment: r.comment,
+            createdAt: r.created_at,
+            reviewerName: rev?.full_name || rev?.username || "Anonymous",
+            reviewerAvatar: rev?.avatar_url
+        };
+    });
 
     return {
         pending,
+        upcoming,
+        history,
         published,
-        stats: { sessions: published.length, avgRating, reviewCount: reviews?.length ?? 0 },
+        stats: {
+            sessions: published.length + history.length,
+            avgRating,
+            reviewCount: reviews?.length ?? 0,
+            ratingDistribution,
+            recentReviews
+        },
     };
+}
+
+export async function markSessionCompleted(sessionId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase
+        .from("mentor_sessions")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", sessionId)
+        .eq("mentor_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/mentorship/dashboard");
+    return { success: true };
 }
 
 export async function handleSessionRequest(sessionId: string, action: "accept" | "decline") {
@@ -258,6 +318,24 @@ export async function publishMentorVideo(input: {
     });
 
     if (error) throw new Error(error.message);
+}
+
+export async function deleteMentorVideo(sessionId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase
+        .from("mentor_sessions")
+        .delete()
+        .eq("id", sessionId)
+        .eq("mentor_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/mentorship/dashboard");
+    revalidatePath("/mentorship/find");
+    return { success: true };
 }
 
 // ─────────────────────────────────────────────
@@ -334,20 +412,12 @@ export async function redeemVouchCode(code: string): Promise<{ success: boolean;
     if (useError) return { success: false, error: useError.message };
 
     // Grant mentor status
-    console.log("REDEEM: Granting mentor status to", user.id);
     const { error: profileError } = await supabase
         .from("profiles")
         .update({ is_mentor: true })
         .eq("id", user.id);
 
-    if (profileError) {
-        console.error("REDEEM ERROR: Profile update failed", profileError);
-        return { success: false, error: profileError.message };
-    }
-
-    // Verify the update immediately
-    const { data: verifiedProfile } = await supabase.from("profiles").select("is_mentor").eq("id", user.id).single();
-    console.log("REDEEM VERIFICATION:", verifiedProfile);
+    if (profileError) return { success: false, error: profileError.message };
 
     // Create mentor_profile entry
     const { data: existingMp } = await supabase
@@ -357,15 +427,11 @@ export async function redeemVouchCode(code: string): Promise<{ success: boolean;
         .maybeSingle();
 
     if (!existingMp) {
-        console.log("REDEEM: Creating mentor_profile for", user.id);
         const { error: mpError } = await supabase.from("mentor_profiles").insert({
             id: user.id,
             path: "vouch",
         });
-        if (mpError) {
-            console.error("REDEEM ERROR: Mentor profile insertion failed", mpError);
-            return { success: false, error: mpError.message };
-        }
+        if (mpError) return { success: false, error: mpError.message };
     }
 
     revalidatePath("/mentorship/dashboard");
@@ -445,33 +511,34 @@ export async function applyVeteranPath(): Promise<{ success: boolean; error?: st
     return { success: true };
 }
 
-export async function getMyMentorStatus(): Promise<{
+export async function getMyMentorStatus(userId?: string): Promise<{
     isMentor: boolean;
     level: number;
     xp: number;
-    authUserId?: string;
-    profile?: { headline?: string; bio?: string; isAccepting: boolean; specialties: string[] };
+    profile?: { headline?: string; bio?: string; isAccepting: boolean; specialties: string[]; hourlyRate: number };
 }> {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { isMentor: false, level: 0, xp: 0 };
 
-    const { data } = await supabase
+    // If no userId provided, try to get it server-side (may fail if auth is blocked)
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { isMentor: false, level: 0, xp: 0 };
+        resolvedUserId = user.id;
+    }
+
+    const { data, error } = await supabase
         .from("profiles")
-        .select(`id, level, xp, is_mentor, mentor_profiles(headline, bio, is_accepting, specialties)`)
-        .eq("id", user.id)
+        .select(`id, level, xp, is_mentor, mentor_profiles!mentor_profiles_id_fkey(headline, bio, is_accepting, specialties)`)
+        .eq("id", resolvedUserId)
         .maybeSingle();
 
-    console.log("------------------------------------------");
-    console.log("DEBUG MENTOR STATUS FOR USER:", user?.id);
-    console.log("RAW DB DATA:", {
-        level: data?.level,
-        xp: data?.xp,
-        is_mentor: data?.is_mentor
-    });
-    console.log("CALCULATED LEVEL (xp/500 + 1):", calculateLevel(data?.xp || 0));
-    console.log("FINAL RETURNED LEVEL:", data?.level ?? calculateLevel(data?.xp || 0));
-    console.log("------------------------------------------");
+    // ── SERVER-SIDE DIAGNOSTICS (visible in Next.js terminal) ─────────────
+    console.log("=== getMyMentorStatus DIAG ===");
+    console.log("Queried user ID:", resolvedUserId);
+    console.log("DB error:", error?.message ?? "none");
+    console.log("DB data (raw):", JSON.stringify(data, null, 2));
+    // ──────────────────────────────────────────────────────────────────────
 
     const mp = data?.mentor_profiles as any;
     const mpData = Array.isArray(mp) ? mp[0] : mp;
@@ -480,12 +547,12 @@ export async function getMyMentorStatus(): Promise<{
         isMentor: data?.is_mentor ?? false,
         level: data?.level ?? calculateLevel(data?.xp || 0),
         xp: data?.xp || 0,
-        authUserId: user.id,
         profile: mpData ? {
             headline: mpData.headline,
             bio: mpData.bio,
             isAccepting: mpData.is_accepting ?? true,
             specialties: mpData.specialties ?? [],
+            hourlyRate: mpData.hourly_rate ?? 0,
         } : undefined,
     };
 }

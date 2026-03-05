@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS mentor_profiles (
   specialties TEXT[] DEFAULT '{}',
   availability TEXT DEFAULT 'Flexible',
   is_accepting BOOLEAN DEFAULT TRUE,    -- togglable from dashboard
+  hourly_rate INTEGER DEFAULT 0,        -- cost in SKLOOP coins (0 = free)
   path TEXT CHECK (path IN ('veteran', 'vouch')),
   approved_at TIMESTAMPTZ DEFAULT NOW(),
   approved_by UUID REFERENCES profiles(id), -- null = self-approved via level path

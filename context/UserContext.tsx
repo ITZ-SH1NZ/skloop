@@ -87,6 +87,8 @@ export function UserProvider({
                     if (fetchedProfile && processedRef.current !== processedKey) {
                         processedRef.current = processedKey;
                         await processDailyLogin(authUser.id);
+                        // Re-fetch profile so XP/level/streak updates are immediately visible
+                        await fetchProfile(authUser.id);
                     }
                 } else if (!initialUser) {
                     // Only clear if we didn't have an initial SSR user
@@ -179,8 +181,10 @@ export function UserProvider({
                 },
                 (payload) => {
                     if (payload.new && Object.keys(payload.new).length > 0) {
+                        // Use the level directly from DB — do NOT recalculate from XP.
+                        // The increment_profile_stats RPC and processDailyLogin already
+                        // write the correct level to the DB.
                         const newProfile = payload.new as UserProfile;
-                        newProfile.level = calculateLevel(newProfile.xp);
 
                         setProfile(prev => {
                             if (JSON.stringify(prev) === JSON.stringify(newProfile)) return prev;
