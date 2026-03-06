@@ -14,7 +14,7 @@ interface Lesson {
     title: string;
     order_index: number;
     isCompleted: boolean;
-    type: "article";
+    type: "article" | "video" | "quiz" | "challenge";
     duration: string;
     isLocked: boolean;
 }
@@ -64,7 +64,7 @@ export default function CoursePage() {
                 // Course table path (original logic)
                 const { data: lessons } = await supabase
                     .from("lessons")
-                    .select("id, title, order_index, content")
+                    .select("id, title, order_index, content, video_url")
                     .eq("course_id", course.id)
                     .order("order_index", { ascending: true });
 
@@ -94,7 +94,7 @@ export default function CoursePage() {
                         title: l.title,
                         order_index: l.order_index,
                         isCompleted: completedLessonIds.has(l.id),
-                        type: "article",
+                        type: l.video_url ? "video" : "article",
                         duration: "10 min",
                         isLocked: false,
                     }));
@@ -184,7 +184,7 @@ export default function CoursePage() {
                     title: t.title,
                     order_index: t.order_index,
                     isCompleted: completedTopicIds.has(t.id),
-                    type: "article",
+                    type: t.type as any,
                     duration: "10 min",
                     isLocked: false,
                 }));

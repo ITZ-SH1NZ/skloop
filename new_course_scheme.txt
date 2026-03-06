@@ -1,0 +1,109 @@
+NEW COURSE SCHEMES:
+
+================================================================
+TRACK 1: Web Development Fundamentals (f9a62d7c-8b5e-4b1a-9c1a-1a2b3c4d5e6f)
+================================================================
+
+MODULE 1: Understanding the Web
+- DESCRIPTION: Learn about clients, servers, and how the internet renders pages.
+- TOPICS:
+  1. Video: How the Internet Works
+  2. Video: What Happens When You Type a URL
+  3. Article: What is a Website
+  4. Article: How Browsers Render Pages
+  5. Quiz: Web Basics Quiz (Topics: internet vs web, browser role, server basics, domain names)
+
+MODULE 2: HTML Fundamentals
+- DESCRIPTION: Introduction to HTML tags, elements and structure.
+- TOPICS:
+  1. Video: HTML Crash Course
+  2. Video: Understanding Semantic HTML
+  3. Article: Core HTML Tags
+  4. Article: HTML Page Structure
+  5. Challenge: Build Your First Webpage (IDE)
+  6. Quiz: HTML Quiz (Topics: html tags, html elements, lists, links)
+
+MODULE 3: CSS Fundamentals
+- DESCRIPTION: Make your websites beautiful with selectors and the box model.
+- TOPICS:
+  1. Video: CSS Basics
+  2. Video: Understanding the CSS Box Model
+  3. Article: Fonts and Colors
+  4. Article: Basic Layout Concepts
+  5. Challenge: Style Your Profile Page (IDE)
+  6. Quiz: CSS Quiz (Topics: css selectors, box model, margin vs padding)
+
+MODULE 4: JavaScript Basics
+- DESCRIPTION: Variables, functions and DOM manipulation.
+- TOPICS:
+  1. Video: JavaScript Fundamentals
+  2. Video: DOM Manipulatio
+  3. Article: JavaScript Events
+  4. Article: Connecting JavaScript with HTML
+  5. Challenge: Button Counter App (IDE)
+  6. Quiz: JS Quiz (Topics: variables, functions, dom)
+
+MODULE 5: How Websites Work Together
+- DESCRIPTION: Frontend, Backend, and APIs.
+- TOPICS:
+  1. Video: Frontend vs Backend
+  2. Video: Introduction to APIs
+  3. Article: Client Server Architecture
+  4. Article: Basic Web Scaling Concepts
+  5. Challenge: Build a Mini Website (IDE)
+  6. Quiz: Architecture Quiz (Topics: client server, apis, frontend vs backend)
+
+
+================================================================
+TRACK 2: Programming Logic and DSA Foundations (a3b8d1b6-0b3b-4b1a-9c1a-1a2b3c4d5e6f)
+================================================================
+
+MODULE 1: Programming Logic
+- DESCRIPTION: Understanding how computers solve problems step-by-step.
+- TOPICS:
+  1. Video: What is Programming Logic
+  2. Video: Computational Thinking
+  3. Article: Algorithms Explained
+  4. Article: Steps in Problem Solving
+  5. Challenge: Find the Larger Number (Flowchart)
+  6. Quiz: Logic Quiz (Topics: algorithm basics, logic steps)
+
+MODULE 2: Variables and Data
+- DESCRIPTION: How programs store and manipulate data.
+- TOPICS:
+  1. Video: Understanding Variables
+  2. Video: Inputs and Outputs
+  3. Article: Basic Data Types
+  4. Article: Updating Values
+  5. Challenge: Add Two Numbers (Flowchart)
+  6. Quiz: Data Quiz (Topics: variables, assignment, input)
+
+MODULE 3: Conditionals
+- DESCRIPTION: Using conditions to control program flow.
+- TOPICS:
+  1. Video: If Statements
+  2. Video: Decision Making in Programs
+  3. Article: If vs If Else
+  4. Article: Nested Conditions
+  5. Challenge: Even or Odd (Flowchart)
+  6. Quiz: Conditionals Quiz (Topics: if statements, branching logic)
+
+MODULE 4: Loops and Iteration
+- DESCRIPTION: Running repeated instructions.
+- TOPICS:
+  1. Video: For Loops
+  2. Video: While Loops
+  3. Article: Iteration Concepts
+  4. Article: Avoiding Infinite Loops
+  5. Challenge: Print Numbers 1 to 10 (Flowchart)
+  6. Quiz: Loops Quiz (Topics: loops, iteration)
+
+MODULE 5: Basic Algorithm Design
+- DESCRIPTION: Structured approaches to solving problems.
+- TOPICS:
+  1. Video: What is An Algorithm
+  2. Video: Designing Efficient Steps
+  3. Article: Intro to Time Complexity
+  4. Article: Combining Loops and Conditions
+  5. Challenge: Sum of Numbers 1 to N (Flowchart)
+  6. Quiz: Algorithm Design Quiz (Topics: algorithm thinking, efficiency concept)
