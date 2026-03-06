@@ -271,7 +271,17 @@ const initialNodes: Node<FlowchartNodeData>[] = [
 let id = 2; // Start from 2 since 1 is taken
 const getId = () => `node_${id++}`;
 
-export default function FlowchartBuilder() {
+interface FlowchartBuilderProps {
+    task?: string;
+    requiredNodes?: string[];
+    onComplete?: () => void;
+}
+
+export default function FlowchartBuilder({
+    task = "Build a flowchart to solve the problem.",
+    requiredNodes = [],
+    onComplete
+}: FlowchartBuilderProps) {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [nodes, setNodes, onNodesChange] = useNodesState<Node<FlowchartNodeData>>(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -655,6 +665,9 @@ export default function FlowchartBuilder() {
                 if (currentNode?.type === 'end') {
                     setLogs(l => [...l, ">>> EXECUTION FINISHED"]);
                     currentNode = undefined;
+                    if (onComplete) {
+                        setTimeout(() => onComplete(), 1500);
+                    }
                 } else if (currentNode && !['decision', 'while', 'for'].includes(currentNode.type as string)) {
                     // Standard single output
                     const edge: Edge | undefined = edges.find(e => e.source === currentNode?.id);
@@ -693,12 +706,9 @@ export default function FlowchartBuilder() {
                 <div className="p-2 md:p-4 border-b border-zinc-100 bg-zinc-50 flex justify-between items-center sticky top-0 md:static z-20">
                     <div>
                         <h3 className="font-bold text-zinc-900 text-xs md:text-base flex items-center gap-2">
-                            <Terminal size={14} className="md:w-4 md:h-4" /> Toolbox
+                            <Terminal size={14} className="md:w-4 md:h-4" /> Challenge
                         </h3>
-                        {/* Smaller hint */}
-                        <p className="text-[9px] text-zinc-500 hidden md:block mt-0.5">Drag or Click to add</p>
                     </div>
-                    {/* Run Button Next to Title on Mobile for space saving */}
                     <button
                         onClick={runFlowchart}
                         disabled={isRunning}
@@ -708,6 +718,32 @@ export default function FlowchartBuilder() {
                     >
                         {isRunning ? '...' : <><Play size={10} fill="currentColor" /> RUN</>}
                     </button>
+                </div>
+
+                {/* Task Instructions */}
+                <div className="p-3 md:p-4 border-b border-zinc-100 bg-white">
+                    <p className="text-[10px] md:text-xs text-zinc-600 leading-relaxed italic">
+                        {task}
+                    </p>
+                    {requiredNodes.length > 0 && (
+                        <div className="mt-2">
+                            <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Requirements</div>
+                            <div className="flex flex-wrap gap-1">
+                                {requiredNodes.map((rn, idx) => (
+                                    <span key={idx} className="px-1.5 py-0.5 bg-zinc-100 text-zinc-600 rounded text-[8px] font-mono border border-zinc-200">
+                                        {rn}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-2 md:p-4 border-b border-zinc-100 bg-zinc-50/50">
+                    <h3 className="font-bold text-zinc-500 text-[10px] uppercase tracking-wider flex items-center gap-2">
+                        <Plus size={12} /> Toolbox
+                    </h3>
+                    <p className="text-[9px] text-zinc-400 hidden md:block mt-0.5 italic">Drag nodes onto the canvas</p>
                 </div>
 
                 <div className="p-1 md:p-4 flex flex-row md:flex-col gap-2 md:gap-3 overflow-x-auto md:overflow-y-auto flex-1 items-center md:items-stretch scrollbar-hide">

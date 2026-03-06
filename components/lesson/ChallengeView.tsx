@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, X, ListChecks, Lightbulb, Trash2 } from "lucide-react";
+import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, X, ListChecks, Lightbulb, Trash2, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Editor from "react-simple-code-editor";
 import { highlight, languages } from "prismjs";
@@ -22,6 +22,11 @@ interface ChallengeViewProps {
         js: string;
     } | string;
     mode?: "web" | "algorithm" | "pseudocode";
+    validationRules?: {
+        text: string;
+        type: "text-match" | "regex";
+    }[];
+    onComplete?: () => void;
 }
 
 type TabType = "html" | "css" | "js";
@@ -34,12 +39,16 @@ export default function ChallengeView({
     requirements = [],
     hints = [],
     initialCode,
-    mode = "web"
+    mode = "web",
+    validationRules = [],
+    onComplete
 }: ChallengeViewProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("code");
     const [fullscreen, setFullscreen] = useState<FullscreenMode>("none");
     const [activeTab, setActiveTab] = useState<TabType>("html");
     const [showInfo, setShowInfo] = useState(false);
+    const [validationStatus, setValidationStatus] = useState<"idle" | "success" | "error">("idle");
+    const [errorMessage, setErrorMessage] = useState("");
 
     // Unified code state: Web uses object, others use string
     const [webCode, setWebCode] = useState(typeof initialCode === 'object' ? initialCode : { html: '', css: '', js: '' });
@@ -160,6 +169,47 @@ export default function ChallengeView({
 
     const toggleFullscreen = (mode: FullscreenMode) => {
         setFullscreen(prev => prev === mode ? "none" : mode);
+    };
+
+    const handleVerify = () => {
+        if (!validationRules || validationRules.length === 0) {
+            setValidationStatus("success");
+            if (onComplete) onComplete();
+            return;
+        }
+
+        const combinedCode = mode === 'web'
+            ? `${webCode.html} ${webCode.css} ${webCode.js}`
+            : textCode;
+
+        const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
+        const normalizedCode = normalize(combinedCode);
+
+        console.log("--- Challenge Verification ---");
+        console.log("Normalized Combined Code:", normalizedCode);
+        console.log("Validation Rules:", validationRules);
+
+        const failedRules = validationRules.filter((rule, index) => {
+            const isMatch = rule.type === 'text-match'
+                ? normalizedCode.includes(normalize(rule.text))
+                : new RegExp(rule.text, 'i').test(combinedCode);
+
+            console.log(`Rule ${index + 1} (${rule.type}): "${rule.text}" -> ${isMatch ? "✅ PASS" : "❌ FAIL"}`);
+            return !isMatch;
+        });
+
+        if (failedRules.length === 0) {
+            console.log("Result: ALL RULES PASSED");
+            setValidationStatus("success");
+            const timer = setTimeout(() => {
+                if (onComplete) onComplete();
+            }, 1500);
+            return () => clearTimeout(timer);
+        } else {
+            setValidationStatus("error");
+            setErrorMessage("Some requirements are not met. Check your code!");
+            setTimeout(() => setValidationStatus("idle"), 3000);
+        }
     };
 
     const isSinglePane = mode === 'pseudocode' || mode === 'algorithm';
@@ -325,6 +375,52 @@ export default function ChallengeView({
                             minHeight: '100%',
                         }}
                     />
+                </div>
+
+                {/* Submit Action Bar */}
+                <div className="bg-zinc-50 border-t border-zinc-100 p-4 flex items-center justify-between">
+                    <div className="flex-1">
+                        <AnimatePresence mode="wait">
+                            {validationStatus === "error" && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 10 }}
+                                    className="text-red-500 text-xs font-bold"
+                                >
+                                    {errorMessage}
+                                </motion.div>
+                            )}
+                            {validationStatus === "success" && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="text-emerald-500 text-xs font-bold flex items-center gap-1"
+                                >
+                                    <CheckCircle size={14} /> Challenge Completed!
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                    <button
+                        onClick={handleVerify}
+                        disabled={validationStatus === "success"}
+                        className={`
+                            px-8 py-2.5 rounded-full font-bold transition-all flex items-center gap-2
+                            ${validationStatus === "success"
+                                ? "bg-emerald-500 text-white cursor-default"
+                                : "bg-zinc-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-zinc-900/10"}
+                        `}
+                    >
+                        {validationStatus === "success" ? (
+                            <>Perfect!</>
+                        ) : (
+                            <>
+                                <Play size={16} className="fill-current" />
+                                Run & Submit
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 

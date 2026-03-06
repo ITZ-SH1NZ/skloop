@@ -7,7 +7,8 @@ interface QuizQuestion {
     id: string;
     question: string;
     options: string[];
-    correctIndex: number;
+    correctIndex?: number;
+    answer?: number;
 }
 
 interface QuizViewProps {
@@ -29,7 +30,8 @@ export default function QuizView({ questions, onComplete }: QuizViewProps) {
         setSelectedOption(index);
         setIsAnswered(true);
 
-        if (index === currentQuestion.correctIndex) {
+        const correctAnswer = currentQuestion.correctIndex !== undefined ? currentQuestion.correctIndex : currentQuestion.answer;
+        if (index === correctAnswer) {
             setScore(s => s + 1);
         }
     };
@@ -89,7 +91,8 @@ export default function QuizView({ questions, onComplete }: QuizViewProps) {
                 <div className="space-y-3">
                     {currentQuestion.options.map((option, idx) => {
                         const isSelected = selectedOption === idx;
-                        const isCorrect = idx === currentQuestion.correctIndex;
+                        const correctAnswer = currentQuestion.correctIndex !== undefined ? currentQuestion.correctIndex : currentQuestion.answer;
+                        const isCorrect = idx === correctAnswer;
 
                         let cardStyle = "border-zinc-100 hover:border-zinc-300 hover:bg-zinc-50";
                         if (isAnswered) {

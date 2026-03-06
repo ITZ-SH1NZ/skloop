@@ -9,7 +9,7 @@ import { createClient } from "@/utils/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
-type TrackChoice = "web-dev" | "dsa";
+type TrackChoice = "web-development" | "dsa";
 type DifficultyChoice = "easy" | "standard" | "challenge";
 type MentorIntent = "goal" | "maybe" | "no";
 
@@ -374,8 +374,8 @@ export default function SignupPage() {
                             <div className="grid grid-cols-1 gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => toggleTrack("web-dev")}
-                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-dev")
+                                    onClick={() => toggleTrack("web-development")}
+                                    className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-development")
                                         ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
                                         : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                         }`}
@@ -590,7 +590,7 @@ export default function SignupPage() {
                                         {tracks.length === 0
                                             ? "Not set"
                                             : tracks
-                                                .map((t) => (t === "web-dev" ? "Web Dev" : "DSA"))
+                                                .map((t) => (t === "web-development" ? "Web Dev" : "DSA"))
                                                 .join(" • ")}
                                     </span>
                                 </div>

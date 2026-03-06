@@ -12,6 +12,7 @@ interface LessonLayoutProps {
     onComplete?: () => void;
     isCompleted?: boolean;
     children: ReactNode;
+    trackSlug?: string;
 }
 
 export default function LessonLayout({
@@ -20,7 +21,8 @@ export default function LessonLayout({
     moduleTitle,
     onComplete,
     isCompleted,
-    children
+    children,
+    trackSlug = "web-development"
 }: LessonLayoutProps) {
     return (
         <div className="min-h-screen bg-[#FDFCF8] flex flex-col">
@@ -28,8 +30,9 @@ export default function LessonLayout({
             <header className="h-14 md:h-16 border-b border-zinc-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 flex items-center justify-between px-4 md:px-6">
                 <div className="flex items-center gap-4">
                     <Link
-                        href="/course/web-dev"
-                        className="p-2 -ml-2 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors"
+                        href={`/course/${trackSlug}`}
+                        className="p-2 hover:bg-zinc-100 rounded-lg transition-colors group"
+                        title="Back to Roadmap"
                     >
                         <ArrowLeft size={20} />
                     </Link>

@@ -9,7 +9,7 @@ import confetti from "canvas-confetti";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
-type TrackChoice = "web-dev" | "dsa";
+type TrackChoice = "web-development" | "dsa";
 type DifficultyChoice = "easy" | "standard" | "challenge";
 type MentorIntent = "goal" | "maybe" | "no";
 
@@ -242,8 +242,8 @@ function ConfirmedPageContent() {
                                 <div className="grid grid-cols-1 gap-3">
                                     <button
                                         type="button"
-                                        onClick={() => toggleTrack("web-dev")}
-                                        className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-dev")
+                                        onClick={() => toggleTrack("web-development")}
+                                        className={`w-full text-left px-5 py-4 rounded-2xl border-2 transition-all ${tracks.includes("web-development")
                                             ? "border-zinc-900 bg-zinc-900 text-white shadow-lg"
                                             : "border-zinc-100 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:bg-white"
                                             }`}
@@ -391,7 +391,7 @@ function ConfirmedPageContent() {
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="font-semibold text-zinc-700 uppercase tracking-widest text-[10px]">Track</span>
-                                        <span className="font-bold text-zinc-900">{tracks.map(t => t === 'web-dev' ? 'Web Dev' : 'DSA').join(' • ')}</span>
+                                        <span className="font-bold text-zinc-900">{tracks.map(t => t === 'web-development' ? 'Web Dev' : 'DSA').join(' • ')}</span>
                                     </div>
                                 </div>
                             </motion.div>
