@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, UserPlus, Users, Inbox, Sparkles, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PeerCard, PeerProfile } from "@/components/peer/PeerCard";
-import { PeerProfileModal } from "@/components/peer/PeerProfileModal";
+import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/utils/supabase/client";
@@ -26,7 +26,7 @@ export default function MyPeersPage() {
     const [selectedPeers, setSelectedPeers] = useState<string[]>([]);
 
     // Profile Modal State
-    const [selectedProfile, setSelectedProfile] = useState<PeerProfile | null>(null);
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPeers = async () => {
@@ -272,7 +272,7 @@ export default function MyPeersPage() {
                                 onAction={(action) => handleAction(peer.id, action)}
                                 onClick={() => {
                                     if (activeTab === "friends") {
-                                        setSelectedProfile(peer);
+                                        setSelectedUserId(peer.id);
                                     }
                                 }}
                             />
@@ -407,14 +407,10 @@ export default function MyPeersPage() {
             </Modal>
 
             {/* Profile Modal */}
-            <PeerProfileModal
-                peer={selectedProfile}
-                isOpen={!!selectedProfile}
-                onClose={() => setSelectedProfile(null)}
-                onMessage={(id) => {
-                    setSelectedProfile(null);
-                    router.push(`/peer/chat?userId=${id}`);
-                }}
+            <UserProfileModal
+                userId={selectedUserId}
+                isOpen={!!selectedUserId}
+                onClose={() => setSelectedUserId(null)}
             />
         </div>
     );

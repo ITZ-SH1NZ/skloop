@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMentors, getPublicSessions, type MentorCard, type MentorSession } from "@/actions/mentorship-actions";
+import { UserProfileModal } from "@/components/profile/UserProfileModal";
 
 export default function FindMentorPage() {
     const [tab, setTab] = useState<"mentors" | "videos">("mentors");
@@ -16,6 +17,7 @@ export default function FindMentorPage() {
     const [videos, setVideos] = useState<MentorSession[]>([]);
     const [allSkills, setAllSkills] = useState<string[]>(["All"]);
     const [isLoading, setIsLoading] = useState(true);
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
     useEffect(() => {
         const load = async () => {
@@ -210,7 +212,10 @@ export default function FindMentorPage() {
                                             <div className={`text-xs font-bold px-3 py-1.5 rounded-full ${mentor.isAccepting ? "bg-green-50 text-green-600" : "bg-zinc-50 text-zinc-400"}`}>
                                                 {mentor.isAccepting ? "● Accepting" : "● Paused"}
                                             </div>
-                                            <Button className="rounded-xl px-5 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all text-sm shadow-lg shadow-zinc-900/10">
+                                            <Button
+                                                className="rounded-xl px-5 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all text-sm shadow-lg shadow-zinc-900/10"
+                                                onClick={() => setSelectedUserId(mentor.id)}
+                                            >
                                                 View Profile
                                             </Button>
                                         </div>
@@ -238,6 +243,8 @@ export default function FindMentorPage() {
                     </div>
                 )}
             </div>
+
+            <UserProfileModal userId={selectedUserId} isOpen={!!selectedUserId} onClose={() => setSelectedUserId(null)} />
         </div>
     );
 }

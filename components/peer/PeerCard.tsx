@@ -37,14 +37,21 @@ export function PeerCard({ peer, onAction, onClick }: PeerCardProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             whileHover={{ scale: 1.01 }}
-            onClick={onClick}
-            className={`group relative bg-white rounded-2xl p-3 md:p-4 border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between gap-3 md:gap-4 overflow-hidden ${onClick ? 'cursor-pointer' : ''}`}
+            className={`group relative bg-white rounded-2xl p-3 md:p-4 border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between gap-3 md:gap-4 overflow-hidden`}
         >
             {/* Online Indicator (moved to avatar wrapper) */}
 
             <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0 pointer-events-none">
                 {/* Avatar */}
-                <div className="relative shrink-0">
+                <div
+                    className={`relative shrink-0 pointer-events-auto ${onClick ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+                    onClick={(e) => {
+                        if (onClick) {
+                            e.stopPropagation();
+                            onClick();
+                        }
+                    }}
+                >
                     <Avatar
                         src={peer.avatarUrl}
                         fallback={peer.name.charAt(0)}
@@ -52,7 +59,7 @@ export function PeerCard({ peer, onAction, onClick }: PeerCardProps) {
                     />
 
                     {/* Level Badge */}
-                    <div className="absolute -bottom-1 -right-1 bg-zinc-900 text-white text-[9px] font-black px-1.5 py-px rounded-full border border-white">
+                    <div className="absolute -bottom-1 -right-1 bg-zinc-900 text-white text-[9px] font-black px-1.5 py-px rounded-full border border-white z-20">
                         L{peer.level}
                     </div>
 
