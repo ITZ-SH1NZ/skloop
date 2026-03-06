@@ -108,6 +108,15 @@ export function UserProvider({
                     return; // initAuth already handled the initial load
                 }
 
+                // Safety check for corrupted session (sometimes returned as a stringified object if truncated)
+                if (typeof session === 'string' || (session && typeof session.user === 'string')) {
+                    console.error("UserContext: Corrupted session detected, clearing state.");
+                    setUser(null);
+                    setProfile(null);
+                    setIsLoading(false);
+                    return;
+                }
+
                 if (newUser) {
                     setUser(newUser);
                     const fetchedProfile = await fetchProfile(newUser.id);

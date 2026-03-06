@@ -13,7 +13,7 @@ if (typeof window !== "undefined") {
 
 const PANELS = [
     {
-        id: "web-dev",
+        id: "web-development",
         title: "Master Web Architecture",
         subtitle: "Track 01: Core Engineering",
         description: "From pixel-perfect CSS to high-performance distributed systems. Implement real features in a production-ready environment.",

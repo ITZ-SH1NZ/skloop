@@ -125,7 +125,7 @@ export default function TechnicalGraph() {
             </div>
 
             {/* Graph Visualization */}
-            <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-xl shadow-zinc-200/50 p-4 md:p-6 overflow-hidden">
+            <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-xl shadow-zinc-200/50 p-4 md:p-6">
                 {/* Controls */}
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-zinc-900">Technical Roadmap</h3>
@@ -146,7 +146,7 @@ export default function TechnicalGraph() {
                 </div>
 
                 {/* SVG Graph wrapper for responsive scaling */}
-                <div className="relative bg-gradient-to-br from-zinc-50/50 to-white rounded-2xl overflow-hidden border border-zinc-100 shadow-inner" style={{ height: '500px' }}>
+                <div className="relative bg-gradient-to-br from-zinc-50/50 to-white rounded-2xl overflow-hidden border border-zinc-100 shadow-inner min-h-[400px] md:min-h-[600px] aspect-video">
 
                     {/* Grid Pattern Background */}
                     <div className="absolute inset-0 opacity-[0.03] pointer-events-none"

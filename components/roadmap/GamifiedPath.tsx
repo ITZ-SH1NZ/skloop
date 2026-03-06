@@ -3,10 +3,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Lock, Play, Star, Trophy, Zap } from "lucide-react";
 import { useRef, useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
-import TopicViewer from "../course/TopicViewer";
 
 interface Track {
     id: string;
@@ -46,9 +46,9 @@ export default function GamifiedPath() {
     const [pathData, setPathData] = useState<PathNode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<PathNode | null>(null);
-    const [activeTopic, setActiveTopic] = useState<PathNode | null>(null);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const componentRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
 
     const fetchPath = useCallback(async () => {
         if (!currentTrackId) return;
@@ -169,7 +169,7 @@ export default function GamifiedPath() {
     // Auto-scroll hook
     const activeNodeRef = useAutoScroll<HTMLButtonElement>({
         trigger: activeNodeIndex,
-        containerId: "gamified-path-container",
+        containerId: "app-scroll-container",
         offset: -250, // Center the active node
         behavior: "smooth",
         delay: 500 // Wait for animations
@@ -291,12 +291,11 @@ export default function GamifiedPath() {
                 </div>
             </div>
 
-            {/* Path Container - Scrollable Wrapper */}
+            {/* Path Container - No local scroll, let the page handle it */}
             <div
-                id="gamified-path-container"
-                className="bg-white rounded-[2.5rem] border border-zinc-200 shadow-xl shadow-zinc-200/50 overflow-y-auto overflow-x-hidden relative h-[600px] scroll-smooth"
+                className="bg-white rounded-[2.5rem] border border-zinc-200 shadow-xl shadow-zinc-200/50 overflow-visible relative scroll-smooth"
             >
-                {/* Scrollable Content Area */}
+                {/* Content Area */}
                 <div className="relative w-full" style={{ height: contentHeight }}>
 
                     {/* Map Background Pattern */}
@@ -556,26 +555,12 @@ export default function GamifiedPath() {
 
                             <button
                                 className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all shadow-lg"
-                                onClick={() => { setActiveTopic(selectedNode); setSelectedNode(null); }}
+                                onClick={() => router.push(`/lesson/${selectedNode.id}`)}
                             >
                                 {selectedNode.status === "completed" ? "Review" : "Start Learning"}
                             </button>
                         </motion.div>
                     </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Full Screen Topic Viewer */}
-            <AnimatePresence>
-                {activeTopic && (
-                    <TopicViewer
-                        topic={activeTopic}
-                        onClose={() => setActiveTopic(null)}
-                        onComplete={async () => {
-                            await fetchPath();
-                            setActiveTopic(null);
-                        }}
-                    />
                 )}
             </AnimatePresence>
         </div >

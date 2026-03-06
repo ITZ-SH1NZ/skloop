@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import FocusTrackHeader from "@/components/course/FocusTrackHeader";
 import FocusModule from "@/components/course/FocusModule";
@@ -32,11 +32,12 @@ interface CourseData {
     progress: number;
     totalModules: number;
     completedModules: number;
-    currentLesson: { title: string };
+    currentLesson: { id: string; title: string };
 }
 
 export default function CoursePage() {
     const params = useParams();
+    const router = useRouter();
     const courseId = params.id as string;
 
     const [trackData, setTrackData] = useState<CourseData | null>(null);
@@ -110,13 +111,16 @@ export default function CoursePage() {
 
                 const firstActive = builtModules.find((m) => m.status === "in-progress");
                 setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
+                const firstUncompleted = lessonList.find((l) => !completedLessonIds.has(l.id)) || lessonList[0];
+
                 setTrackData({
                     title: course.title,
                     progress,
                     totalModules: builtModules.length,
                     completedModules: builtModules.filter((m) => m.status === "completed").length,
                     currentLesson: {
-                        title: lessonList.find((l) => !completedLessonIds.has(l.id))?.title ?? "Start Learning",
+                        id: firstUncompleted?.id ?? "",
+                        title: firstUncompleted?.title ?? "Start Learning",
                     },
                 });
                 setModules(builtModules);
@@ -197,13 +201,16 @@ export default function CoursePage() {
 
             const firstActive = builtModules.find((m) => m.status === "in-progress");
             setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
+            const firstUncompletedTopic = topics?.find((t) => !completedTopicIds.has(t.id)) || topics?.[0];
+
             setTrackData({
                 title: track.title,
                 progress,
                 totalModules: builtModules.length,
                 completedModules: builtModules.filter((m) => m.status === "completed").length,
                 currentLesson: {
-                    title: topics?.find((t) => !completedTopicIds.has(t.id))?.title ?? "Start Learning",
+                    id: firstUncompletedTopic?.id ?? "",
+                    title: firstUncompletedTopic?.title ?? "Start Learning",
                 },
             });
             setModules(builtModules);
@@ -283,7 +290,11 @@ export default function CoursePage() {
 
             <StickyContinueButton
                 lessonTitle={trackData.currentLesson.title}
-                onClick={() => console.log("Resume lesson")}
+                onClick={() => {
+                    if (trackData.currentLesson.id) {
+                        router.push(`/lesson/${trackData.currentLesson.id}`);
+                    }
+                }}
             />
         </div>
     );

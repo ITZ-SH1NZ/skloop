@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { CheckCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 
 interface ArticleViewerProps {
     markdown: string;
@@ -17,10 +19,9 @@ export default function ArticleViewer({ markdown, onComplete }: ArticleViewerPro
                     animate={{ opacity: 1, y: 0 }}
                     className="prose prose-zinc prose-lg max-w-none prose-headings:font-black prose-headings:text-zinc-900 prose-p:text-zinc-600 prose-strong:text-zinc-900 prose-pre:bg-zinc-900 prose-pre:rounded-2xl"
                 >
-                    {/* In a real app, use a markdown renderer like react-markdown here */}
-                    {markdown.split('\n').map((line, i) => (
-                        <p key={i}>{line}</p>
-                    ))}
+                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                        {markdown}
+                    </ReactMarkdown>
                 </motion.article>
 
                 <div className="mt-12 pt-8 border-t border-zinc-100 flex justify-center">

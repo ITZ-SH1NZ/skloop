@@ -350,7 +350,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
 
                 const { data: topic, error: topicError } = await supabase
                     .from("topics")
-                    .select("*")
+                    .select("*, module:modules(track:tracks(slug))")
                     .eq("id", lessonId)
                     .maybeSingle();
 
@@ -361,7 +361,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                         id: topic.id,
                         title: topic.title,
                         moduleTitle: "Track Lesson", // Fallback, could fetch module name if needed
-                        type: topic.type,
+                        type: content.challengeType === 'flowchart' ? 'flowchart' : topic.type,
                         // Specific fields mapped from content_data based on type
                         videoUrl: content.youtubeId ? `https://www.youtube.com/embed/${content.youtubeId}` : undefined,
                         summary: content.summary,
@@ -369,9 +369,17 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                         description: content.instructions || content.description,
                         requirements: content.requirements || [],
                         hints: content.hints || [],
-                        initialCode: content.initialCode || { html: "", css: "", js: "" },
+                        initialCode: content.initialCode || {
+                            html: content.initialHtml || "",
+                            css: content.initialCss || "",
+                            js: content.initialJs || ""
+                        },
                         mode: content.mode || "web",
-                        questions: content.questions || []
+                        questions: content.questions || [],
+                        validationRules: content.validationRules || [],
+                        trackSlug: topic.module?.track?.slug || "web-development",
+                        flowchartTask: content.task,
+                        requiredNodes: content.requiredNodes || []
                     };
 
                     setLesson(mappedLesson);
@@ -495,7 +503,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                 }
             });
 
-            router.push("/course/web-development"); // Re-route to course map
+            router.push(`/course/${lesson.trackSlug || 'web-development'}`); // Re-route to course map
         }
     };
 
@@ -505,6 +513,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
             type={lesson.type}
             moduleTitle={lesson.moduleTitle}
             onComplete={handleComplete}
+            trackSlug={lesson.trackSlug}
         >
             {lesson.type === "video" && (
                 <VideoView
@@ -538,12 +547,18 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     hints={lesson.hints}
                     initialCode={lesson.initialCode}
                     mode={lesson.mode || 'web'}
+                    validationRules={lesson.validationRules}
+                    onComplete={handleComplete}
                 />
             )}
 
             {lesson.type === "flowchart" && (
                 <div className="h-[calc(100vh-3.5rem)]">
-                    <FlowchartBuilder />
+                    <FlowchartBuilder
+                        task={lesson.flowchartTask}
+                        requiredNodes={lesson.requiredNodes}
+                        onComplete={handleComplete}
+                    />
                 </div>
             )}
         </LessonLayout>
