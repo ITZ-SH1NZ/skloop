@@ -379,7 +379,8 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                         validationRules: content.validationRules || [],
                         trackSlug: topic.module?.track?.slug || "web-development",
                         flowchartTask: content.task,
-                        requiredNodes: content.requiredNodes || []
+                        requiredNodes: content.requiredNodes || [],
+                        miniQuiz: content.miniQuiz || []
                     };
 
                     setLesson(mappedLesson);
@@ -520,6 +521,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     videoUrl={lesson.videoUrl}
                     summary={lesson.summary}
                     duration={lesson.duration}
+                    miniQuiz={lesson.miniQuiz}
                     onComplete={handleComplete}
                 />
             )}
