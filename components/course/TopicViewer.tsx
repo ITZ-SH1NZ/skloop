@@ -55,7 +55,7 @@ export default function TopicViewer({ topic, onClose, onComplete }: TopicViewerP
         const data = topic.content_data || {};
         switch (topic.type) {
             case "video":
-                return <VideoViewer youtubeId={data.youtubeId || ""} onComplete={handleComplete} />;
+                return <VideoViewer videoData={data} onComplete={handleComplete} />;
             case "article":
                 return <ArticleViewer markdown={data.markdown || ""} onComplete={handleComplete} />;
             case "quiz":
