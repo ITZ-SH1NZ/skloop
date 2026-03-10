@@ -160,7 +160,7 @@ export default function TechnicalGraph() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full min-w-0">
             {/* AI Input */}
             <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] border border-zinc-200 shadow-xl shadow-zinc-200/50 p-4 md:p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -238,7 +238,7 @@ export default function TechnicalGraph() {
                 </div>
 
                 {/* SVG Graph wrapper for responsive scaling */}
-                <div className="relative bg-[#FDFCF8] rounded-3xl overflow-hidden border border-zinc-200/60 shadow-[inset_0_2px_20px_rgba(0,0,0,0.02)] min-h-[400px] md:min-h-[600px] w-full max-w-full h-full">
+                <div className="relative bg-[#FDFCF8] rounded-3xl overflow-hidden border border-zinc-200/60 shadow-[inset_0_2px_20px_rgba(0,0,0,0.02)] min-h-[400px] md:min-h-[600px] w-full max-w-full">
 
                     {/* Premium Grid Pattern Background */}
                     <div className="absolute inset-0 opacity-[0.4] pointer-events-none"
@@ -249,7 +249,7 @@ export default function TechnicalGraph() {
                     />
 
                     {/* Auto-scroll container for the zooming SVG */}
-                    <div className="w-full h-full overflow-auto touch-pan-x touch-pan-y no-scrollbar relative custom-cursor-grab">
+                    <div className="absolute inset-0 overflow-auto touch-pan-x touch-pan-y no-scrollbar custom-cursor-grab">
                         <motion.div
                             className="absolute origin-top-left"
                             animate={{ scale: zoom }}

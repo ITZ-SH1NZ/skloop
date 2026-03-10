@@ -62,15 +62,13 @@ Rules:
 
         let responseText = chatCompletion.choices[0]?.message?.content?.trim() || '';
 
-        // Remove markdown code blocks if present
-        if (responseText.startsWith('```')) {
-            responseText = responseText.split('```')[1];
-            if (responseText.startsWith('json')) {
-                responseText = responseText.slice(4);
-            }
+        // Safely extract the JSON object, ignoring any conversational preamble from the AI
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error('No JSON object found in the AI response');
         }
 
-        const roadmapData = JSON.parse(responseText);
+        const roadmapData = JSON.parse(jsonMatch[0]);
 
         // Validate structure
         if (!roadmapData.nodes || !roadmapData.edges) {
