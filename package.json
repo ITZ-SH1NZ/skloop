@@ -16,6 +16,9 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
+    "@tsparticles/engine": "^3.9.1",
+    "@tsparticles/react": "^3.0.0",
+    "@tsparticles/slim": "^3.9.1",
     "@xyflow/react": "^12.10.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
@@ -38,6 +41,7 @@
     "recharts": "^3.7.0",
     "rehype-raw": "^7.0.0",
     "tailwind-merge": "^3.4.0",
+    "tsparticles": "^3.9.1",
     "use-sound": "^5.0.0"
   },
   "devDependencies": {
@@ -47,6 +51,7 @@
     "@types/prismjs": "^1.26.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.183.1",
     "eslint": "^10.0.0",
     "eslint-config-next": "^0.2.4",
     "tailwindcss": "^4",
