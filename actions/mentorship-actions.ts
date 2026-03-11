@@ -270,6 +270,22 @@ export async function markSessionCompleted(sessionId: string): Promise<{ success
     return { success: true };
 }
 
+export async function markSessionCompletedByMentee(sessionId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase
+        .from("mentor_sessions")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", sessionId)
+        .eq("mentee_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/mentorship/sessions");
+    return { success: true };
+}
+
 export async function handleSessionRequest(sessionId: string, action: "accept" | "decline") {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

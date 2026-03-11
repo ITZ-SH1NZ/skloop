@@ -262,14 +262,23 @@ function VideoCard({ video, index }: { video: MentorSession; index: number }) {
             className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden flex flex-col"
         >
             {/* Thumbnail / Embed */}
-            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem]">
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem] group">
                 {showEmbed && ytId ? (
-                    <iframe
-                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
-                        className="absolute inset-0 w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                    />
+                    <>
+                        {/* Top overlay to block "Watch later", "Share", and Title links */}
+                        <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover:block" onClick={(e) => e.stopPropagation()} />
+
+                        {/* Bottom right overlay to block the "YouTube" logo link */}
+                        <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
+
+                        <iframe
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                            className="absolute inset-0 w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            sandbox="allow-scripts allow-same-origin allow-presentation"
+                        />
+                    </>
                 ) : (
                     <>
                         {video.thumbnailUrl ? (

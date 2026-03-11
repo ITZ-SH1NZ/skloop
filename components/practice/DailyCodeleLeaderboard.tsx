@@ -12,10 +12,19 @@ interface LeaderboardEntry {
     isCurrentUser?: boolean;
 }
 
-// TODO: Fetch leaderboard from backend
-const MOCK_LEADERBOARD: LeaderboardEntry[] = [];
+import { useState, useEffect } from "react";
 
 export default function DailyCodeleLeaderboard() {
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchLeaderboard = async () => {
+            const { getCodeleLeaderboard } = await import("@/actions/codele-actions");
+            const data = await getCodeleLeaderboard('global');
+            setLeaderboard(data);
+        };
+        fetchLeaderboard();
+    }, []);
     return (
         <div className="w-full">
             {/* Header */}
@@ -31,8 +40,8 @@ export default function DailyCodeleLeaderboard() {
 
             {/* Leaderboard List */}
             <div className="space-y-2">
-                {MOCK_LEADERBOARD.length > 0 ? (
-                    MOCK_LEADERBOARD.map((entry, i) => (
+                {leaderboard.length > 0 ? (
+                    leaderboard.map((entry: any, i: number) => (
                         <motion.div
                             key={entry.rank}
                             initial={{ opacity: 0, x: -20 }}
@@ -62,7 +71,7 @@ export default function DailyCodeleLeaderboard() {
                             {/* Username */}
                             <div className="flex-1">
                                 <div className="font-bold text-zinc-900 flex items-center gap-2">
-                                    {entry.username}
+                                    {entry.name}
                                     {entry.isCurrentUser && (
                                         <span className="text-xs px-2 py-0.5 rounded-full bg-lime-200 text-lime-800 font-black">YOU</span>
                                     )}
@@ -72,22 +81,14 @@ export default function DailyCodeleLeaderboard() {
                             {/* Stats */}
                             <div className="hidden md:flex items-center gap-6 text-sm">
                                 <div className="flex items-center gap-2 text-lime-600">
-                                    <Flame size={16} />
-                                    <span className="font-bold">{entry.streak}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-zinc-600">
                                     <Trophy size={16} />
-                                    <span className="font-bold">{entry.winRate}%</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-zinc-600">
-                                    <Zap size={16} />
-                                    <span className="font-bold">{entry.avgTime}s</span>
+                                    <span className="font-bold">{entry.wins} Wins</span>
                                 </div>
                             </div>
 
                             {/* Mobile Stats (Compact) */}
                             <div className="md:hidden text-xs font-bold text-zinc-600">
-                                {entry.winRate}% • {entry.streak}🔥
+                                {entry.wins} 🏆
                             </div>
                         </motion.div>
                     ))

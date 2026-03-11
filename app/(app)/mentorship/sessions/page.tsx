@@ -5,7 +5,7 @@ import { Play, Clock, Star, Video, CheckCircle2, Loader2, ChevronLeft } from "lu
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import { getMySessionsAsMentee, submitReview, type MentorSession } from "@/actions/mentorship-actions";
+import { getMySessionsAsMentee, submitReview, markSessionCompletedByMentee, type MentorSession } from "@/actions/mentorship-actions";
 
 export default function MySessionsPage() {
     const [activeTab, setActiveTab] = useState<"pending" | "library">("pending");
@@ -24,7 +24,7 @@ export default function MySessionsPage() {
     }, []);
 
     const pending = sessions.filter(s => s.status === "pending" || s.status === "accepted");
-    const library = sessions.filter(s => s.status === "published" || (s.status === "accepted" && s.videoUrl));
+    const library = sessions.filter(s => s.status === "published" || s.status === "completed");
     const displayed = activeTab === "pending" ? pending : library;
 
     const handleSubmitReview = async (sessionId: string) => {
@@ -128,7 +128,17 @@ export default function MySessionsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {displayed.map(session => (
                                     <div key={session.id}>
-                                        <SessionVideoCard session={session} onRate={() => setReviewingId(session.id)} />
+                                        <SessionVideoCard
+                                            session={session}
+                                            onRate={() => setReviewingId(session.id)}
+                                            onComplete={async () => {
+                                                const res = await markSessionCompletedByMentee(session.id);
+                                                if (res.success) {
+                                                    setSessions(await getMySessionsAsMentee());
+                                                }
+                                            }}
+                                            isActive={false}
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -179,16 +189,24 @@ export default function MySessionsPage() {
     );
 }
 
-function SessionVideoCard({ session, onRate }: { session: MentorSession; onRate: () => void }) {
+function SessionVideoCard({ session, onRate, onComplete, isActive }: { session: MentorSession; onRate: () => void; onComplete?: () => void; isActive?: boolean }) {
     const [showEmbed, setShowEmbed] = useState(false);
     const ytId = extractYouTubeId(session.videoUrl || "");
 
     return (
         <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-2xl transition-all group flex flex-col overflow-hidden">
-            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem]">
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem] group/embed">
                 {showEmbed && ytId ? (
-                    <iframe src={`https://www.youtube.com/embed/${ytId}?autoplay=1`} className="absolute inset-0 w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                    <>
+                        {/* Top overlay to block "Watch later", "Share", and Title links */}
+                        <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover/embed:block" onClick={(e) => e.stopPropagation()} />
+
+                        {/* Bottom right overlay to block the "YouTube" logo link */}
+                        <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
+
+                        <iframe src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`} className="absolute inset-0 w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen sandbox="allow-scripts allow-same-origin allow-presentation" />
+                    </>
                 ) : (
                     <>
                         {session.thumbnailUrl
@@ -211,14 +229,20 @@ function SessionVideoCard({ session, onRate }: { session: MentorSession; onRate:
             <div className="p-5 flex-1 flex flex-col">
                 <h3 className="font-black text-zinc-900 text-base leading-tight mb-1 line-clamp-2">{session.title}</h3>
                 {session.topic && <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide mb-3">{session.topic}</p>}
-                <div className="flex items-center gap-3 mt-auto">
+                <div className="flex items-center gap-3 mt-auto flex-wrap">
                     <Button className="flex-1 rounded-xl bg-zinc-900 text-white font-bold hover:bg-[#D4F268] hover:text-black transition-colors text-sm"
-                        onClick={() => ytId ? setShowEmbed(true) : window.open(session.videoUrl, "_blank")}>
+                        onClick={() => ytId ? setShowEmbed(true) : window.open(session.videoUrl, "_blank")}
+                        disabled={!session.videoUrl}>
                         <Play size={14} className="mr-1.5" /> Watch
                     </Button>
-                    <Button variant="outline" className="rounded-xl font-bold border-zinc-200 text-sm" onClick={onRate}>
+                    <Button variant="outline" className="rounded-xl font-bold border-zinc-200 text-sm flex-1 md:flex-none" onClick={onRate}>
                         <Star size={14} className="mr-1.5" /> Rate
                     </Button>
+                    {isActive && session.videoUrl && (
+                        <Button className="rounded-xl font-bold bg-[#D4F268] text-black hover:bg-[#c2e252] text-sm w-full mt-2 md:mt-0" onClick={onComplete}>
+                            <CheckCircle2 size={14} className="mr-1.5" /> Mark as Watched
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

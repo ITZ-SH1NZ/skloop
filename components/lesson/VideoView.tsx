@@ -53,11 +53,18 @@ export default function VideoView({ videoUrl, summary, duration, miniQuiz, onCom
         <div className="max-w-4xl mx-auto w-full px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
             {/* Video Player Container */}
             <div className="aspect-video w-full bg-zinc-900 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl relative group">
+                {/* Top overlay to block "Watch later", "Share", and Title links */}
+                <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover:block" onClick={(e) => e.stopPropagation()} />
+
+                {/* Bottom right overlay to block the "YouTube" logo link */}
+                <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
+
                 <iframe
-                    src={videoUrl}
-                    className="w-full h-full"
+                    src={`${videoUrl}${videoUrl.includes('?') ? '&' : '?'}rel=0&modestbranding=1&playsinline=1`}
+                    className="w-full h-full border-0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    sandbox="allow-scripts allow-same-origin allow-presentation"
                 />
             </div>
 

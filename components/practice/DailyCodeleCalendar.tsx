@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Calendar as CalendarIcon } from "lucide-react";
 
@@ -10,26 +10,21 @@ interface GameHistory {
     guesses: number;
 }
 
-// Generate mock history for last 30 days
-const generateMockHistory = (): GameHistory[] => {
-    const history: GameHistory[] = [];
-    const today = new Date();
-
-    for (let i = 0; i < 15; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const won = Math.random() > 0.2; // 80% win rate
-        history.push({
-            date: date.toISOString().split('T')[0],
-            won,
-            guesses: won ? Math.floor(Math.random() * 5) + 1 : 6
-        });
-    }
-    return history;
-};
-
 export default function DailyCodeleCalendar({ onPlayPastPuzzle }: { onPlayPastPuzzle?: (date: string) => void }) {
-    const [history] = useState<GameHistory[]>(generateMockHistory());
+    const [history, setHistory] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            const { getCodeleHistory } = await import("@/actions/codele-actions");
+            const data = await getCodeleHistory();
+            setHistory(data.map((h: any) => ({
+                date: h.date,
+                won: h.status === 'won',
+                guesses: h.guesses
+            })));
+        };
+        fetchHistory();
+    }, []);
 
     const getStatusColor = (game?: GameHistory) => {
         if (!game) return "bg-zinc-100 hover:bg-zinc-200";
@@ -115,7 +110,7 @@ export default function DailyCodeleCalendar({ onPlayPastPuzzle }: { onPlayPastPu
                     </div>
                     <div>
                         <div className="text-2xl font-black text-zinc-900">
-                            {Math.round((history.filter(g => g.won).length / history.length) * 100)}%
+                            {history.length > 0 ? Math.round((history.filter(g => g.won).length / history.length) * 100) : 0}%
                         </div>
                         <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Win Rate</div>
                     </div>

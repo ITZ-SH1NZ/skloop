@@ -55,7 +55,8 @@ export default function HeroCourseCard() {
                     </h2>
 
                     <p className="text-slate-400 text-sm max-w-sm leading-relaxed">
-                        {course.description}
+                        <span className="text-[#D4F268] font-semibold block mb-1">Up Next</span>
+                        <span className="text-white font-medium text-lg">{course.nextLessonTitle || course.description}</span>
                     </p>
 
                     {/* Progress Bar */}
@@ -63,19 +64,19 @@ export default function HeroCourseCard() {
                         initial={{ width: 0 }}
                         animate={{ width: `${progressPerc}%` }}
                         transition={{ duration: 1, delay: 0.5, ease: "circOut" }}
-                        className="h-full bg-[#D4F268] rounded-full shadow-[0_0_10px_rgba(212,242,104,0.5)]"
+                        className="h-1.5 bg-[#D4F268] rounded-full shadow-[0_0_10px_rgba(212,242,104,0.5)] mt-4"
                     />
                 </div>
             </div>
 
-            <Link href={`/course/${course.slug}`}>
+            <Link href={course.nextLessonId ? `/lesson/${course.nextLessonId}` : `/course/${course.slug}`}>
                 <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="bg-[#D4F268] text-[#1A1C1E] px-8 py-4 rounded-2xl font-bold flex items-center gap-3 shadow-[0_0_20px_rgba(212,242,104,0.3)] hover:shadow-[0_0_30px_rgba(212,242,104,0.5)] transition-shadow"
+                    className="bg-[#D4F268] text-[#1A1C1E] px-8 py-4 rounded-2xl font-bold flex items-center gap-3 shadow-[0_0_20px_rgba(212,242,104,0.3)] hover:shadow-[0_0_30px_rgba(212,242,104,0.5)] transition-shadow mt-8"
                 >
                     <Play className="fill-current w-4 h-4" />
-                    Continue Learning
+                    Continue Lesson
                 </motion.button>
             </Link>
         </div>

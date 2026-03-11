@@ -452,57 +452,49 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
 
             if (user) {
                 // Determine if it was a Topic or a Lesson from the older structure
-                // For Topics (Roadmap), we update user_topic_progress
-                if (lesson.type === "video" || lesson.type === "article" || lesson.type === "quiz" || lesson.type === "challenge") {
+                if (lesson.type === "video" || lesson.type === "article" || lesson.type === "quiz" || lesson.type === "challenge" || lesson.type === "flowchart") {
 
-                    // Mark topic as complete
-                    await supabase
-                        .from("user_topic_progress")
-                        .upsert({
-                            user_id: user.id,
-                            topic_id: lesson.id,
-                            status: "completed",
-                            completed_at: new Date().toISOString()
-                        }, { onConflict: "user_id, topic_id" });
+                    const { awardTopicCompletion } = await import("@/actions/course-actions");
+                    const result = await awardTopicCompletion(user.id, lesson.id);
 
-                    // Auto-award XP by fetching the topic for XP reward
-                    const { data: topicData } = await supabase
-                        .from("topics")
-                        .select("xp_reward")
-                        .eq("id", lesson.id)
-                        .maybeSingle();
+                    if (!result.success) {
+                        alert(result.error || "Cannot complete this topic yet.");
+                        setLoading(false);
+                        return; // Stop here, don't route
+                    }
 
-                    if (topicData && topicData.xp_reward) {
-                        try {
-                            await supabase.rpc("award_xp", {
-                                user_id_param: user.id,
-                                xp_amount: topicData.xp_reward
-                            }).single(); // Assuming an RPC function exists, or handle fallback
-                        } catch (e) { /* Graceful fail if RPC not set up */ }
+                    if (result.xpAwarded && result.xpAwarded > 0) {
+                        console.log(`Awarded ${result.xpAwarded} XP and ${result.coinsAwarded} Coins!`);
+                        if (result.moduleCompleted) {
+                            console.log("Module completed bonus awarded!");
+                        }
                     }
                 }
 
-                // Fallback for older specific Lessons
-                await supabase
-                    .from("user_lesson_progress")
-                    .upsert({
-                        user_id: user.id,
-                        lesson_id: lesson.id,
-                        status: "completed",
-                        completed_at: new Date().toISOString()
-                    }, { onConflict: "user_id, lesson_id" });
+                // Fallback for older specific Lessons (Course Lesson)
+                if (lesson.moduleTitle === "Course Lesson") {
+                    await supabase
+                        .from("user_lesson_progress")
+                        .upsert({
+                            user_id: user.id,
+                            lesson_id: lesson.id,
+                            status: "completed",
+                            completed_at: new Date().toISOString()
+                        }, { onConflict: "user_id, lesson_id" });
+                }
             }
         } catch (err) {
             console.error("Failed to mark complete:", err);
         } finally {
             // Also log lesson completion quest background process
-            const { createClient } = require("@/utils/supabase/client");
-            const supabase = createClient();
-            supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
+            try {
+                const { createClient } = require("@/utils/supabase/client");
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    claimDailyQuest(user.id, 'lesson').catch(err => console.error("Failed to log lesson quest", err));
+                    await claimDailyQuest(user.id, 'lesson').catch(err => console.error("Failed to log lesson quest", err));
                 }
-            });
+            } catch (ignore) { }
 
             router.push(`/course/${lesson.trackSlug || 'web-development'}`); // Re-route to course map
         }

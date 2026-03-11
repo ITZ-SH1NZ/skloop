@@ -47,26 +47,12 @@ export default function LessonLayout({
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {onComplete && (
-                        <button
-                            onClick={onComplete}
-                            className={`
-                                flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all
-                                ${isCompleted
-                                    ? "bg-zinc-100 text-zinc-900"
-                                    : "bg-[#D4F268] text-zinc-900 shadow-lg shadow-[#D4F268]/20 hover:scale-105 active:scale-95"
-                                }
-                            `}
-                        >
-                            {isCompleted ? (
-                                <>
-                                    <CheckCircle size={16} className="text-emerald-500" />
-                                    <span className="hidden md:inline">Completed</span>
-                                </>
-                            ) : (
-                                "Mark Complete"
-                            )}
-                        </button>
+                    {/* The top right Mark Complete button was removed to enforce sequential progression and content interaction */}
+                    {isCompleted && (
+                        <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm font-bold bg-zinc-100 text-zinc-900">
+                            <CheckCircle size={16} className="text-emerald-500" />
+                            <span className="hidden md:inline">Completed</span>
+                        </div>
                     )}
                 </div>
             </header>

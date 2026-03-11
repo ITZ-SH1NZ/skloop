@@ -131,7 +131,7 @@ export default function FocusModule({ moduleNumber, title, description, lessons,
                                         Module Content
                                     </div>
                                     <div className="text-[10px] md:text-xs font-bold text-[#D4F268] bg-zinc-900 px-2 py-0.5 rounded-md">
-                                        +500 XP Available
+                                        +{lessons.length * 10 + 100} XP Available
                                     </div>
                                 </div>
                                 {lessons.map((lesson) => (

@@ -1,10 +1,10 @@
 "use client";
 
+import { useState, useEffect, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Crown, Keyboard, BrainCircuit, Zap, Trophy, Flame } from "lucide-react";
 import Link from "next/link";
 import PorcelainShell from "@/components/practice/PorcelainShell";
-import { ReactNode } from "react";
 
 const BENTO_ITEMS = [
     {
@@ -68,6 +68,40 @@ function StatCard({ label, value, icon, bg, color }: { label: string, value: str
 }
 
 export default function PracticeHub() {
+    const [stats, setStats] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            const { getPracticeStats } = await import("@/actions/practice-actions");
+            const data = await getPracticeStats();
+            setStats(data);
+            setIsLoading(false);
+        };
+        fetchStats();
+    }, []);
+
+    const profile = stats?.profile;
+    const bestWpm = stats?.bestWpm;
+
+    const dynamicBentoItems = BENTO_ITEMS.map(item => {
+        if (item.title === "Syntax Speed Run" && bestWpm) {
+            return {
+                ...item,
+                stat: `${bestWpm} WPM`,
+            };
+        }
+        return item;
+    });
+
+    const displayName = profile?.full_name || profile?.username || "Guest Learner";
+    const initials = displayName.substring(0, 2).toUpperCase();
+    const avatar = profile?.avatar_url;
+    const levelStr = profile?.level ? `Level ${profile.level}` : 'Level 1';
+    const roleStr = profile?.role || 'Learner';
+    const streakStr = profile?.streak?.toString() || '0';
+    const xpStr = profile?.xp?.toLocaleString() || '0';
+
     return (
         <PorcelainShell
             title="Practice Arena"
@@ -82,23 +116,45 @@ export default function PracticeHub() {
                         <div className="absolute top-0 right-0 w-64 h-64 bg-zinc-50 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-zinc-100" />
 
                         <div className="relative z-10">
-                            <div className="flex items-center gap-5 mb-8">
-                                <div className="w-20 h-20 rounded-3xl bg-zinc-900 flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-zinc-300">
-                                    AL
-                                </div>
-                                <div>
-                                    <h3 className="text-2xl font-bold text-zinc-900">Alex Decor</h3>
-                                    <div className="flex items-center gap-2 text-zinc-500 font-medium bg-zinc-100 px-3 py-1 rounded-full w-fit mt-1">
-                                        <Trophy size={14} />
-                                        <span className="text-sm">Level 12 Architect</span>
+                            {isLoading ? (
+                                <div className="animate-pulse space-y-8">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-20 h-20 rounded-3xl bg-zinc-200"></div>
+                                        <div className="space-y-2">
+                                            <div className="h-6 w-32 bg-zinc-200 rounded"></div>
+                                            <div className="h-4 w-24 bg-zinc-200 rounded-full"></div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="h-24 bg-zinc-100 rounded-3xl"></div>
+                                        <div className="h-24 bg-zinc-100 rounded-3xl"></div>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-5 mb-8">
+                                        {avatar ? (
+                                            <img src={avatar} alt={displayName} className="w-20 h-20 rounded-3xl object-cover shadow-lg shadow-zinc-300 border-2 border-white" />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-3xl bg-zinc-900 flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-zinc-300">
+                                                {initials}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <h3 className="text-2xl font-bold text-zinc-900">{displayName}</h3>
+                                            <div className="flex items-center gap-2 text-zinc-500 font-medium bg-zinc-100 px-3 py-1 rounded-full w-fit mt-1">
+                                                <Trophy size={14} />
+                                                <span className="text-sm">{levelStr} {roleStr}</span>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <div className="space-y-4">
-                                <StatCard label="Current Streak" value="--" icon={<Flame size={20} />} bg="bg-lime-100" color="text-lime-600" />
-                                <StatCard label="Total XP" value="--" icon={<Zap size={20} />} bg="bg-zinc-100" color="text-zinc-600" />
-                            </div>
+                                    <div className="space-y-4">
+                                        <StatCard label="Current Streak" value={streakStr} icon={<Flame size={20} />} bg="bg-lime-100" color="text-lime-600" />
+                                        <StatCard label="Total XP" value={xpStr} icon={<Zap size={20} />} bg="bg-zinc-100" color="text-zinc-600" />
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -110,7 +166,7 @@ export default function PracticeHub() {
 
                 {/* Right: Games Grid */}
                 <div className="lg:w-2/3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 auto-rows-[220px]">
-                    {BENTO_ITEMS.map((item, i) => (
+                    {dynamicBentoItems.map((item, i) => (
                         <Link href={item.href} key={i} className={`${item.colSpan} group`}>
                             <motion.div
                                 whileHover={{ y: -6, boxShadow: "0 20px 40px -10px rgba(0,0,0,0.08)" }}

@@ -63,11 +63,19 @@ export default function VideoViewer({ videoData, onComplete }: VideoViewerProps)
             <div className="flex-1 flex flex-col items-center justify-start p-0 md:p-8 space-y-8 w-full max-w-5xl mx-auto">
 
                 {/* 16:9 Aspect Ratio Container */}
-                <div className="w-full aspect-video bg-zinc-900 shadow-2xl rounded-none md:rounded-3xl overflow-hidden border border-zinc-800 shrink-0">
+                <div className="w-full aspect-video bg-zinc-900 shadow-2xl rounded-none md:rounded-3xl overflow-hidden border border-zinc-800 shrink-0 relative group">
+                    {/* Top overlay to block "Watch later", "Share", and Title links */}
+                    <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover:block" onClick={(e) => e.stopPropagation()} />
+
+                    {/* Bottom right overlay to block the "YouTube" logo link */}
+                    <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
+
+                    {/* Full overlay that activates at the very end of the video to block the "More Videos" grid is impossible without the IFrame API, but we'll try to rely on rel=0 */}
                     <iframe
-                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`}
+                        src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
                         className="w-full h-full border-0"
                     />
                 </div>

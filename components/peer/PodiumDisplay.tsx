@@ -18,26 +18,24 @@ interface LeaderboardUser {
 }
 
 export function PodiumDisplay({ users, metric = "xp" }: { users: LeaderboardUser[], metric?: "xp" | "coins" }) {
-    if (users.length < 3) return null;
+    if (!users || users.length === 0) return null;
 
-    const [first, second, third] = [
-        users.find(u => u.rank === 1),
-        users.find(u => u.rank === 2),
-        users.find(u => u.rank === 3)
-    ];
+    const first = users.find(u => u.rank === 1);
+    const second = users.find(u => u.rank === 2);
+    const third = users.find(u => u.rank === 3);
 
-    if (!first || !second || !third) return null;
+    if (!first) return null;
 
     return (
         <div className="flex items-end justify-center gap-4 md:gap-8 mb-12 min-h-[240px]">
             {/* 2nd Place */}
-            <PodiumStep user={second} place={2} color="text-zinc-400" bg="bg-zinc-100" delay={0.2} metric={metric} />
+            {second && <PodiumStep user={second} place={2} color="text-zinc-400" bg="bg-zinc-100" delay={0.2} metric={metric} />}
 
             {/* 1st Place */}
             <PodiumStep user={first} place={1} color={metric === "xp" ? "text-amber-400" : "text-yellow-400"} bg={metric === "xp" ? "bg-amber-50" : "bg-yellow-50"} delay={0} isFirst metric={metric} />
 
             {/* 3rd Place */}
-            <PodiumStep user={third} place={3} color={metric === "xp" ? "text-orange-400" : "text-yellow-600"} bg={metric === "xp" ? "bg-orange-50" : "bg-yellow-50/50"} delay={0.4} metric={metric} />
+            {third && <PodiumStep user={third} place={3} color={metric === "xp" ? "text-orange-400" : "text-yellow-600"} bg={metric === "xp" ? "bg-orange-50" : "bg-yellow-50/50"} delay={0.4} metric={metric} />}
         </div>
     );
 }

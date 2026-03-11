@@ -16,8 +16,16 @@ const TERMS = [
 export default function DailyCodeleStats() {
     const [termIndex, setTermIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState("");
+    const [stats, setStats] = useState<any>(null);
 
     useEffect(() => {
+        const fetchStats = async () => {
+            const { getCodeleStats } = await import("@/actions/codele-actions");
+            const data = await getCodeleStats();
+            setStats(data);
+        };
+        fetchStats();
+
         const calculateTimeLeft = () => {
             const now = new Date();
             const tomorrow = new Date(now);
@@ -58,7 +66,7 @@ export default function DailyCodeleStats() {
                     <div className="mb-3 p-3 bg-lime-50 text-lime-600 rounded-2xl group-hover:scale-110 transition-transform">
                         <Trophy size={20} />
                     </div>
-                    <div className="text-3xl font-extrabold text-zinc-900">85%</div>
+                    <div className="text-3xl font-extrabold text-zinc-900">{stats ? `${stats.winRate}%` : '--%'}</div>
                     <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Win Rate</div>
                 </motion.div>
 
@@ -71,7 +79,7 @@ export default function DailyCodeleStats() {
                     <div className="mb-3 p-3 bg-lime-50 text-lime-600 rounded-2xl group-hover:scale-110 transition-transform">
                         <Flame size={20} />
                     </div>
-                    <div className="text-3xl font-extrabold text-zinc-900">12</div>
+                    <div className="text-3xl font-extrabold text-zinc-900">{stats ? stats.currentStreak : '--'}</div>
                     <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Day Streak</div>
                 </motion.div>
             </div>
@@ -148,14 +156,14 @@ export default function DailyCodeleStats() {
                 </div>
 
                 <div className="space-y-3">
-                    {[
-                        { guess: 1, count: 3, percentage: 12 },
-                        { guess: 2, count: 8, percentage: 32 },
-                        { guess: 3, count: 7, percentage: 28 },
-                        { guess: 4, count: 5, percentage: 20 },
-                        { guess: 5, count: 2, percentage: 8 },
+                    {(stats?.distribution || [
+                        { guess: 1, count: 0, percentage: 0 },
+                        { guess: 2, count: 0, percentage: 0 },
+                        { guess: 3, count: 0, percentage: 0 },
+                        { guess: 4, count: 0, percentage: 0 },
+                        { guess: 5, count: 0, percentage: 0 },
                         { guess: 6, count: 0, percentage: 0 }
-                    ].map((dist) => (
+                    ]).map((dist: any) => (
                         <div key={dist.guess} className="flex items-center gap-3">
                             <div className="text-sm font-bold text-zinc-600 w-4">{dist.guess}</div>
                             <div className="flex-1 h-8 bg-zinc-100 rounded-xl overflow-hidden relative">

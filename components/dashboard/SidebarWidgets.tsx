@@ -12,6 +12,8 @@ export function ActivityChart() {
     const [isReportOpen, setIsReportOpen] = useState(false);
     const [data, setData] = useState<any[]>([]);
     const [totalTime, setTotalTime] = useState(0);
+    const [dailyAvg, setDailyAvg] = useState(0);
+    const [focusAreas, setFocusAreas] = useState<{ area: string, percentage: number }[]>([]);
 
     useEffect(() => {
         const fetchActivity = async () => {
@@ -27,7 +29,7 @@ export function ActivityChart() {
 
                 const { data: logs, error } = await supabase
                     .from('activity_logs')
-                    .select('activity_date, hours_spent')
+                    .select('activity_date, hours_spent, focus_area')
                     .eq('user_id', user.id)
                     .gte('activity_date', dateStr)
                     .order('activity_date', { ascending: true });
@@ -35,6 +37,7 @@ export function ActivityChart() {
                 if (logs && !error) {
                     // Aggregate logs by day to match recharts format
                     const aggregated: Record<string, number> = {};
+                    const focuses: Record<string, number> = {};
                     let total = 0;
 
                     // Initialize last 7 days with 0
@@ -48,15 +51,27 @@ export function ActivityChart() {
                     logs.forEach(log => {
                         const date = new Date(log.activity_date);
                         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                        const hours = Number(log.hours_spent);
                         if (aggregated[dayName] !== undefined) {
-                            aggregated[dayName] += Number(log.hours_spent);
-                            total += Number(log.hours_spent);
+                            aggregated[dayName] += hours;
+                            total += hours;
                         }
+
+                        const area = log.focus_area || 'Other';
+                        focuses[area] = (focuses[area] || 0) + hours;
                     });
 
                     const chartData = Object.entries(aggregated).map(([day, hours]) => ({ day, hours }));
                     setData(chartData);
                     setTotalTime(total);
+                    setDailyAvg(total / 7);
+
+                    const focusList = Object.entries(focuses).map(([area, h]) => ({
+                        area,
+                        percentage: total > 0 ? Math.round((h / total) * 100) : 0
+                    })).sort((a, b) => b.percentage - a.percentage);
+
+                    setFocusAreas(focusList);
                 }
             }
         };
@@ -133,12 +148,12 @@ export function ActivityChart() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-50 p-4 rounded-2xl">
                             <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Hours</div>
-                            <div className="text-2xl font-black text-slate-900">24.2h</div>
-                            <div className="text-green-600 text-xs font-bold mt-1">+2.4h vs last week</div>
+                            <div className="text-2xl font-black text-slate-900">{totalTime.toFixed(1)}h</div>
+                            <div className="text-green-600 text-xs font-bold mt-1">This Week</div>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-2xl">
                             <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Daily Avg</div>
-                            <div className="text-2xl font-black text-slate-900">3.4h</div>
+                            <div className="text-2xl font-black text-slate-900">{dailyAvg.toFixed(1)}h</div>
                             <div className="text-slate-400 text-xs font-bold mt-1">Consistent</div>
                         </div>
                     </div>
@@ -146,33 +161,26 @@ export function ActivityChart() {
                     <div className="p-4 border border-slate-100 rounded-2xl">
                         <h4 className="font-bold text-slate-800 mb-4">Focus Areas</h4>
                         <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between text-xs font-bold mb-1">
-                                    <span>Coding</span>
-                                    <span>65%</span>
+                            {focusAreas.length > 0 ? (
+                                focusAreas.map((focus, i) => (
+                                    <div key={focus.area}>
+                                        <div className="flex justify-between text-xs font-bold mb-1">
+                                            <span>{focus.area}</span>
+                                            <span>{focus.percentage}%</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${i % 3 === 0 ? 'bg-blue-500' : i % 3 === 1 ? 'bg-purple-500' : 'bg-orange-500'}`}
+                                                style={{ width: `${focus.percentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-xs text-slate-400 font-bold py-2">
+                                    No activity logged this week
                                 </div>
-                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500 w-[65%] rounded-full" />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-xs font-bold mb-1">
-                                    <span>Design</span>
-                                    <span>25%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500 w-[25%] rounded-full" />
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between text-xs font-bold mb-1">
-                                    <span>Reading</span>
-                                    <span>10%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-orange-500 w-[10%] rounded-full" />
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

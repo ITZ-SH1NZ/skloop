@@ -84,20 +84,26 @@ export default function CoursePage() {
                     ? Math.round((completedCount / lessonList.length) * 100)
                     : 0;
 
+                let isPreviousLessonCompleted = true;
                 const LESSONS_PER_MODULE = 4;
                 const builtModules: Module[] = [];
                 for (let i = 0; i < lessonList.length; i += LESSONS_PER_MODULE) {
                     const chunk = lessonList.slice(i, i + LESSONS_PER_MODULE);
                     const moduleNum = Math.floor(i / LESSONS_PER_MODULE) + 1;
-                    const moduleLessons: Lesson[] = chunk.map((l) => ({
-                        id: l.id,
-                        title: l.title,
-                        order_index: l.order_index,
-                        isCompleted: completedLessonIds.has(l.id),
-                        type: l.video_url ? "video" : "article",
-                        duration: "10 min",
-                        isLocked: false,
-                    }));
+                    const moduleLessons: Lesson[] = chunk.map((l) => {
+                        const completed = completedLessonIds.has(l.id);
+                        const locked = !isPreviousLessonCompleted;
+                        isPreviousLessonCompleted = completed;
+                        return {
+                            id: l.id,
+                            title: l.title,
+                            order_index: l.order_index,
+                            isCompleted: completed,
+                            type: l.video_url ? "video" : "article",
+                            duration: "10 min",
+                            isLocked: locked,
+                        };
+                    });
                     const allDone = moduleLessons.every((l) => l.isCompleted);
                     const anyDone = moduleLessons.some((l) => l.isCompleted);
                     builtModules.push({
@@ -176,18 +182,25 @@ export default function CoursePage() {
             const completedCount = topics?.filter((t) => completedTopicIds.has(t.id)).length ?? 0;
             const progress = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
 
+            let isPreviousLessonCompleted = true;
+
             // Map modules → our Module interface (topics become lessons)
             const builtModules: Module[] = dbModules.map((mod, idx) => {
                 const modTopics = (topics ?? []).filter((t) => t.module_id === mod.id);
-                const moduleLessons: Lesson[] = modTopics.map((t) => ({
-                    id: t.id,
-                    title: t.title,
-                    order_index: t.order_index,
-                    isCompleted: completedTopicIds.has(t.id),
-                    type: t.type as any,
-                    duration: "10 min",
-                    isLocked: false,
-                }));
+                const moduleLessons: Lesson[] = modTopics.map((t) => {
+                    const completed = completedTopicIds.has(t.id);
+                    const locked = !isPreviousLessonCompleted;
+                    isPreviousLessonCompleted = completed;
+                    return {
+                        id: t.id,
+                        title: t.title,
+                        order_index: t.order_index,
+                        isCompleted: completed,
+                        type: t.type as any,
+                        duration: "10 min",
+                        isLocked: locked,
+                    };
+                });
                 const allDone = moduleLessons.every((l) => l.isCompleted);
                 const anyDone = moduleLessons.some((l) => l.isCompleted);
                 return {
