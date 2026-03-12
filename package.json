@@ -42,7 +42,8 @@
     "rehype-raw": "^7.0.0",
     "tailwind-merge": "^3.4.0",
     "tsparticles": "^3.9.1",
-    "use-sound": "^5.0.0"
+    "use-sound": "^5.0.0",
+    "yt-search": "^2.13.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

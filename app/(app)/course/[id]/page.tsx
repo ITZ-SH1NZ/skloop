@@ -100,7 +100,7 @@ export default function CoursePage() {
                             order_index: l.order_index,
                             isCompleted: completed,
                             type: l.video_url ? "video" : "article",
-                            duration: "10 min",
+                            duration: (l as any).content_data?.duration || (l as any).content_data?.readTime || "10 min",
                             isLocked: locked,
                         };
                     });
@@ -162,7 +162,7 @@ export default function CoursePage() {
             // Fetch all topics for these modules
             const { data: topics } = await supabase
                 .from("topics")
-                .select("id, module_id, title, order_index, type")
+                .select("id, module_id, title, order_index, type, content_data")
                 .in("module_id", dbModules.map((m) => m.id))
                 .order("order_index", { ascending: true });
 
@@ -197,7 +197,7 @@ export default function CoursePage() {
                         order_index: t.order_index,
                         isCompleted: completed,
                         type: t.type as any,
-                        duration: "10 min",
+                        duration: (t.content_data as any)?.duration || (t.content_data as any)?.readTime || "10 min",
                         isLocked: locked,
                     };
                 });

@@ -8,7 +8,7 @@ import "prismjs/components/prism-css";
 import "prismjs/components/prism-javascript";
 import "prismjs/themes/prism-tomorrow.css";
 import { Play, RotateCcw, CheckCircle, Layout, Code, Eye } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface WebIDEChallengeProps {
     challengeData: {
@@ -29,9 +29,137 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
     const [srcDoc, setSrcDoc] = useState("");
     const [isValidating, setIsValidating] = useState(false);
     const [isPassed, setIsPassed] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
     // Mobile-only: toggle between "code" and "preview" panels
     const [mobilePanel, setMobilePanel] = useState<"code" | "preview">("code");
     const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    // Initial load from localStorage
+    useEffect(() => {
+        const storageKey = `skloop_web_challenge_${challengeData.instructions.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`;
+        const savedData = localStorage.getItem(storageKey);
+        if (savedData) {
+            try {
+                const { html: h, css: c, js: j } = JSON.parse(savedData);
+                setHtml(h);
+                setCss(c);
+                setJs(j);
+            } catch (e) {
+                console.error("Failed to load saved progress", e);
+            }
+        }
+    }, [challengeData]);
+
+    // Autosave logic
+    useEffect(() => {
+        const storageKey = `skloop_web_challenge_${challengeData.instructions.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`;
+        const timeout = setTimeout(() => {
+            localStorage.setItem(storageKey, JSON.stringify({ html, css, js }));
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2000);
+        }, 1000);
+
+        setSaveStatus("saving");
+        return () => clearTimeout(timeout);
+    }, [html, css, js, challengeData]);
+
+    const handleKeyDown = (e: React.KeyboardEvent<any>) => {
+        const pairs: Record<string, string> = {
+            '(': ')',
+            '[': ']',
+            '{': '}',
+            '"': '"',
+            "'": "'",
+            '`': '`'
+        };
+
+        if (pairs[e.key]) {
+            e.preventDefault();
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const openChar = e.key;
+            const closeChar = pairs[e.key];
+
+            const newValue = value.substring(0, selectionStart) + openChar + closeChar + value.substring(selectionEnd);
+
+            if (activeTab === "html") setHtml(newValue);
+            else if (activeTab === "css") setCss(newValue);
+            else if (activeTab === "js") setJs(newValue);
+
+            setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+            }, 0);
+        }
+
+        // HTML Tag Auto-closing
+        if (e.key === '>' && activeTab === 'html') {
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, value } = textarea;
+            const textBefore = value.substring(0, selectionStart);
+
+            // Match the most recent opening tag that isn't closed or self-closing
+            const tagMatch = textBefore.match(/<([a-zA-Z0-9]+)(?:\s[^>]*|)$/);
+
+            if (tagMatch) {
+                const tagName = tagMatch[1];
+                const selfClosingTags = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+                if (!selfClosingTags.includes(tagName.toLowerCase())) {
+                    e.preventDefault();
+                    const closingTag = `></${tagName}>`;
+                    const newValue = value.substring(0, selectionStart) + closingTag + value.substring(selectionStart);
+
+                    setHtml(newValue);
+
+                    setTimeout(() => {
+                        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+                    }, 0);
+                }
+            }
+        }
+
+        // Tab key support
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const newValue = value.substring(0, selectionStart) + "    " + value.substring(selectionEnd);
+
+            if (activeTab === "html") setHtml(newValue);
+            else if (activeTab === "css") setCss(newValue);
+            else if (activeTab === "js") setJs(newValue);
+
+            setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = selectionStart + 4;
+            }, 0);
+        }
+
+        // Smart Enter support
+        if (e.key === 'Enter') {
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const before = value[selectionStart - 1];
+            const after = value[selectionStart];
+
+            const isBracketPair = (before === '{' && after === '}') ||
+                (before === '[' && after === ']') ||
+                (before === '(' && after === ')') ||
+                (before === '>' && after === '<');
+
+            if (isBracketPair) {
+                e.preventDefault();
+                const newValue = value.substring(0, selectionStart) + "\n    \n" + value.substring(selectionEnd);
+
+                if (activeTab === "html") setHtml(newValue);
+                else if (activeTab === "css") setCss(newValue);
+                else if (activeTab === "js") setJs(newValue);
+
+                setTimeout(() => {
+                    textarea.selectionStart = textarea.selectionEnd = selectionStart + 5; // \n + 4 spaces
+                }, 0);
+            }
+        }
+    };
 
     useEffect(() => {
         const timeout = setTimeout(() => {
@@ -84,8 +212,28 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mr-4">
+                        <AnimatePresence mode="wait">
+                            {saveStatus === "saving" && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-pulse" /> Saving
+                                </motion.div>
+                            )}
+                            {saveStatus === "saved" && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[10px] text-lime-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-lime-500" /> Saved
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                     <button
-                        onClick={() => { setHtml(challengeData.initialHtml); setCss(challengeData.initialCss); setJs(challengeData.initialJs); }}
+                        onClick={() => {
+                            if (confirm("Reset all code to initial state?")) {
+                                setHtml(challengeData.initialHtml);
+                                setCss(challengeData.initialCss);
+                                setJs(challengeData.initialJs);
+                            }
+                        }}
                         className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 transition-colors"
                         title="Reset Challenge"
                     >
@@ -121,6 +269,7 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                             <Editor
                                 value={html}
                                 onValueChange={setHtml}
+                                onKeyDown={handleKeyDown}
                                 highlight={code => highlight(code, languages.markup, "markup")}
                                 padding={10}
                                 className="prism-editor text-zinc-300"
@@ -130,6 +279,7 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                             <Editor
                                 value={css}
                                 onValueChange={setCss}
+                                onKeyDown={handleKeyDown}
                                 highlight={code => highlight(code, languages.css, "css")}
                                 padding={10}
                                 className="prism-editor text-zinc-300"
@@ -139,6 +289,7 @@ export default function WebIDEChallenge({ challengeData, onComplete }: WebIDECha
                             <Editor
                                 value={js}
                                 onValueChange={setJs}
+                                onKeyDown={handleKeyDown}
                                 highlight={code => highlight(code, languages.javascript, "javascript")}
                                 padding={10}
                                 className="prism-editor text-zinc-300"

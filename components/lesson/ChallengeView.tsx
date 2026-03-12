@@ -47,8 +47,10 @@ export default function ChallengeView({
     const [fullscreen, setFullscreen] = useState<FullscreenMode>("none");
     const [activeTab, setActiveTab] = useState<TabType>("html");
     const [showInfo, setShowInfo] = useState(false);
-    const [validationStatus, setValidationStatus] = useState<"idle" | "success" | "error">("idle");
+    const [validationStatus, setValidationStatus] = useState<"idle" | "success" | "error" | "saving" | "saved">("idle");
     const [errorMessage, setErrorMessage] = useState("");
+    const [logs, setLogs] = useState<{ type: string; message: string }[]>([]);
+    const [showLogs, setShowLogs] = useState(false);
 
     // Unified code state: Web uses object, others use string
     const [webCode, setWebCode] = useState(typeof initialCode === 'object' ? initialCode : { html: '', css: '', js: '' });
@@ -59,12 +61,46 @@ export default function ChallengeView({
 
     // Initialize state based on props if they change
     useEffect(() => {
-        if (mode === 'web' && typeof initialCode === 'object') {
-            setWebCode(initialCode);
-        } else if (typeof initialCode === 'string') {
-            setTextCode(initialCode);
+        // Try to load from localStorage first
+        const storageKey = `skloop_challenge_${title.replace(/\s+/g, '_').toLowerCase()}`;
+        const savedData = localStorage.getItem(storageKey);
+
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                if (mode === 'web') {
+                    setWebCode(parsed);
+                } else {
+                    setTextCode(parsed);
+                }
+                setValidationStatus("saved");
+                setTimeout(() => setValidationStatus("idle"), 2000);
+            } catch (e) {
+                console.error("Failed to load saved progress", e);
+            }
+        } else {
+            if (mode === 'web' && typeof initialCode === 'object') {
+                setWebCode(initialCode);
+            } else if (typeof initialCode === 'string') {
+                setTextCode(initialCode);
+            }
         }
-    }, [initialCode, mode]);
+    }, [initialCode, mode, title]);
+
+    // Autosave logic
+    useEffect(() => {
+        const storageKey = `skloop_challenge_${title.replace(/\s+/g, '_').toLowerCase()}`;
+        const codeToSave = mode === 'web' ? webCode : textCode;
+
+        const timeout = setTimeout(() => {
+            localStorage.setItem(storageKey, JSON.stringify(codeToSave));
+            setValidationStatus("saved");
+            setTimeout(() => setValidationStatus("idle"), 2000);
+        }, 1000);
+
+        setValidationStatus("saving");
+        return () => clearTimeout(timeout);
+    }, [webCode, textCode, mode, title]);
 
     // Web Mode: Real-time update for preview
     useEffect(() => {
@@ -102,9 +138,29 @@ export default function ChallengeView({
                     }
                 }
 
-                // 3. Navigation Guard
-                const navGuardScript = `
+                // 3. Navigation Guard & Console Capture
+                const utilsScript = `
                 <script>
+                    // Console Capture
+                    const oldLog = console.log;
+                    const oldError = console.error;
+                    const oldWarn = console.warn;
+
+                    window.parent.postMessage({ type: 'console-clear' }, '*');
+
+                    console.log = function(...args) {
+                        oldLog.apply(console, args);
+                        window.parent.postMessage({ type: 'console-log', message: args.map(a => String(a)).join(' ') }, '*');
+                    };
+                    console.error = function(...args) {
+                        oldError.apply(console, args);
+                        window.parent.postMessage({ type: 'console-error', message: args.map(a => String(a)).join(' ') }, '*');
+                    };
+                    console.warn = function(...args) {
+                        oldWarn.apply(console, args);
+                        window.parent.postMessage({ type: 'console-warn', message: args.map(a => String(a)).join(' ') }, '*');
+                    };
+
                     document.addEventListener('click', function(e) {
                         const link = e.target.closest('a');
                         if (link) {
@@ -126,7 +182,7 @@ export default function ChallengeView({
                     });
                 </script>`;
 
-                finalHtml = finalHtml + navGuardScript;
+                finalHtml = finalHtml + utilsScript;
                 setSrcDoc(finalHtml);
             } else {
                 // Standard Wrapper
@@ -142,7 +198,18 @@ export default function ChallengeView({
                 <body>
                     ${webCode.html}
                     <script>
-                        try { ${webCode.js} } catch (err) { console.error(err); }
+                        // Console Capture
+                        const oldLog = console.log;
+                        window.parent.postMessage({ type: 'console-clear' }, '*');
+                        console.log = function(...args) {
+                            oldLog.apply(console, args);
+                            window.parent.postMessage({ type: 'console-log', message: args.map(a => String(a)).join(' ') }, '*');
+                        };
+
+                        try { ${webCode.js} } catch (err) { 
+                            console.error(err); 
+                            window.parent.postMessage({ type: 'console-error', message: err.message }, '*');
+                        }
                     </script>
                 </body>
                 </html>
@@ -154,13 +221,34 @@ export default function ChallengeView({
         return () => clearTimeout(timeout);
     }, [webCode, mode]);
 
+    // Listen for console messages from iframe
+    useEffect(() => {
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data.type === 'console-log') {
+                setLogs(prev => [...prev.slice(-49), { type: 'info', message: event.data.message }]);
+            } else if (event.data.type === 'console-error') {
+                setLogs(prev => [...prev.slice(-49), { type: 'error', message: event.data.message }]);
+            } else if (event.data.type === 'console-warn') {
+                setLogs(prev => [...prev.slice(-49), { type: 'warn', message: event.data.message }]);
+            } else if (event.data.type === 'console-clear') {
+                setLogs([]);
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);
+
     const handleClear = () => {
+        if (!confirm("Are you sure you want to clear all your code?")) return;
         if (mode === 'web') {
             setWebCode({ html: "", css: "", js: "" });
         } else {
             setTextCode("");
         }
         setPreviewKey(prev => prev + 1);
+        const storageKey = `skloop_challenge_${title.replace(/\s+/g, '_').toLowerCase()}`;
+        localStorage.removeItem(storageKey);
     };
 
     const handleReload = () => {
@@ -209,6 +297,112 @@ export default function ChallengeView({
             setValidationStatus("error");
             setErrorMessage("Some requirements are not met. Check your code!");
             setTimeout(() => setValidationStatus("idle"), 3000);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<any>) => {
+        const pairs: Record<string, string> = {
+            '(': ')',
+            '[': ']',
+            '{': '}',
+            '"': '"',
+            "'": "'",
+            '`': '`'
+        };
+
+        if (pairs[e.key]) {
+            e.preventDefault();
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const openChar = e.key;
+            const closeChar = pairs[e.key];
+
+            const newValue = value.substring(0, selectionStart) + openChar + closeChar + value.substring(selectionEnd);
+
+            if (mode === 'web') {
+                setWebCode(prev => ({ ...prev, [activeTab]: newValue }));
+            } else {
+                setTextCode(newValue);
+            }
+
+            // Set cursor position back after state update
+            setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+            }, 0);
+        }
+
+        // HTML Tag Auto-closing
+        if (e.key === '>' && mode === 'web' && activeTab === 'html') {
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, value } = textarea;
+            const textBefore = value.substring(0, selectionStart);
+
+            // Match the most recent opening tag that isn't closed or self-closing
+            // Basic regex to find the tag name: <([a-zA-Z0-9]+)(\s[^>]*)?$
+            const tagMatch = textBefore.match(/<([a-zA-Z0-9]+)(?:\s[^>]*|)$/);
+
+            if (tagMatch) {
+                const tagName = tagMatch[1];
+                const selfClosingTags = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+                if (!selfClosingTags.includes(tagName.toLowerCase())) {
+                    e.preventDefault();
+                    const closingTag = `></${tagName}>`;
+                    const newValue = value.substring(0, selectionStart) + closingTag + value.substring(selectionStart);
+
+                    setWebCode(prev => ({ ...prev, html: newValue }));
+
+                    setTimeout(() => {
+                        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+                    }, 0);
+                }
+            }
+        }
+
+        // Tab key support
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const newValue = value.substring(0, selectionStart) + "    " + value.substring(selectionEnd);
+
+            if (mode === 'web') {
+                setWebCode(prev => ({ ...prev, [activeTab]: newValue }));
+            } else {
+                setTextCode(newValue);
+            }
+
+            setTimeout(() => {
+                textarea.selectionStart = textarea.selectionEnd = selectionStart + 4;
+            }, 0);
+        }
+
+        // Smart Enter support
+        if (e.key === 'Enter') {
+            const textarea = e.target as HTMLTextAreaElement;
+            const { selectionStart, selectionEnd, value } = textarea;
+            const before = value[selectionStart - 1];
+            const after = value[selectionStart];
+
+            const isBracketPair = (before === '{' && after === '}') ||
+                (before === '[' && after === ']') ||
+                (before === '(' && after === ')') ||
+                (before === '>' && after === '<');
+
+            if (isBracketPair) {
+                e.preventDefault();
+                const newValue = value.substring(0, selectionStart) + "\n    \n" + value.substring(selectionEnd);
+
+                if (mode === 'web') {
+                    setWebCode(prev => ({ ...prev, [activeTab]: newValue }));
+                } else {
+                    setTextCode(newValue);
+                }
+
+                setTimeout(() => {
+                    textarea.selectionStart = textarea.selectionEnd = selectionStart + 5; // \n + 4 spaces
+                }, 0);
+            }
         }
     };
 
@@ -359,6 +553,7 @@ export default function ChallengeView({
                     <Editor
                         value={mode === 'web' ? webCode[activeTab] : textCode}
                         onValueChange={(code) => mode === 'web' ? setWebCode(c => ({ ...c, [activeTab]: code })) : setTextCode(code)}
+                        onKeyDown={handleKeyDown}
                         highlight={code => {
                             if (mode !== 'web') return code;
                             // Only highlight for web mode
@@ -375,6 +570,35 @@ export default function ChallengeView({
                             minHeight: '100%',
                         }}
                     />
+
+                    {/* Console Overlay (Desktop) */}
+                    {showLogs && (
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            className="absolute bottom-0 left-0 right-0 h-48 bg-zinc-900 border-t border-zinc-700 z-30 font-mono text-xs overflow-hidden flex flex-col"
+                        >
+                            <div className="bg-zinc-800 px-4 py-1.5 flex justify-between items-center border-b border-zinc-700">
+                                <span className="text-zinc-400 font-bold uppercase tracking-wider">Console Logs</span>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setLogs([])} className="text-zinc-500 hover:text-zinc-300 transition-colors">Clear</button>
+                                    <button onClick={() => setShowLogs(false)} className="text-zinc-500 hover:text-zinc-300 transition-colors">Close</button>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+                                {logs.length === 0 ? (
+                                    <div className="text-zinc-600 italic">No logs yet...</div>
+                                ) : (
+                                    logs.map((log, i) => (
+                                        <div key={i} className={`flex gap-2 ${log.type === 'error' ? 'text-red-400' : log.type === 'warn' ? 'text-yellow-400' : 'text-zinc-300'}`}>
+                                            <span className="opacity-40">{i + 1}</span>
+                                            <span className="break-all">{log.message}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Submit Action Bar */}
@@ -400,27 +624,56 @@ export default function ChallengeView({
                                     <CheckCircle size={14} /> Challenge Completed!
                                 </motion.div>
                             )}
+                            {validationStatus === "saving" && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-zinc-400 text-xs flex items-center gap-2"
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-300 animate-pulse" />
+                                    Saving...
+                                </motion.div>
+                            )}
+                            {validationStatus === "saved" && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-zinc-400 text-xs flex items-center gap-2"
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                    Changes Saved
+                                </motion.div>
+                            )}
                         </AnimatePresence>
                     </div>
-                    <button
-                        onClick={handleVerify}
-                        disabled={validationStatus === "success"}
-                        className={`
-                            px-8 py-2.5 rounded-full font-bold transition-all flex items-center gap-2
-                            ${validationStatus === "success"
-                                ? "bg-emerald-500 text-white cursor-default"
-                                : "bg-zinc-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-zinc-900/10"}
-                        `}
-                    >
-                        {validationStatus === "success" ? (
-                            <>Perfect!</>
-                        ) : (
-                            <>
-                                <Play size={16} className="fill-current" />
-                                Run & Submit
-                            </>
-                        )}
-                    </button>
+
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowLogs(!showLogs)}
+                            className={`px-4 py-2 text-xs font-bold rounded-full transition-all border ${showLogs ? 'bg-zinc-200 border-zinc-300' : 'bg-white border-zinc-200 hover:bg-zinc-50'}`}
+                        >
+                            Logs {logs.length > 0 && `(${logs.length})`}
+                        </button>
+                        <button
+                            onClick={handleVerify}
+                            disabled={validationStatus === "success"}
+                            className={`
+                                px-8 py-2.5 rounded-full font-bold transition-all flex items-center gap-2
+                                ${validationStatus === "success"
+                                    ? "bg-emerald-500 text-white cursor-default"
+                                    : "bg-zinc-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-zinc-900/10"}
+                            `}
+                        >
+                            {validationStatus === "success" ? (
+                                <>Perfect!</>
+                            ) : (
+                                <>
+                                    <Play size={16} className="fill-current" />
+                                    Run & Submit
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
 
