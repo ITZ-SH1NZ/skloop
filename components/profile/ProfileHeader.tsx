@@ -103,7 +103,18 @@ export function ProfileHeader({ user, isEditMode, toggleEditMode }: ProfileHeade
                     <p className="text-muted-foreground font-medium text-sm md:text-base flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1">
                         <span className="flex items-center gap-1"><MapPin size={14} /> {user.location || "Earth"}</span>
                         <span className="hidden md:inline text-gray-300">|</span>
-                        <span className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"><LinkIcon size={14} /> {user.website || "skloop.app"}</span>
+                        {user.website ? (
+                            <a
+                                href={user.website.startsWith('http') ? user.website : `https://${user.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                            >
+                                <LinkIcon size={14} /> {user.website}
+                            </a>
+                        ) : (
+                            <span className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"><LinkIcon size={14} /> skloop.app</span>
+                        )}
                     </p>
                 </div>
 

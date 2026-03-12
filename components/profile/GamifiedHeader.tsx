@@ -228,7 +228,18 @@ export function GamifiedHeader() {
 
                             <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-1">
                                 <span className="flex items-center gap-1.5"><MapPin size={14} /> {user.location}</span>
-                                <span className="flex items-center gap-1.5"><LinkIcon size={14} /> {user.website}</span>
+                                {user.website ? (
+                                    <a
+                                        href={user.website.startsWith('http') ? user.website : `https://${user.website}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 hover:text-amber-500 hover:underline transition-colors"
+                                    >
+                                        <LinkIcon size={14} /> {user.website}
+                                    </a>
+                                ) : (
+                                    <span className="flex items-center gap-1.5"><LinkIcon size={14} /> --</span>
+                                )}
                                 <span className="flex items-center gap-1.5"><Calendar size={14} /> Joined {user.joined}</span>
                             </div>
                         </div>

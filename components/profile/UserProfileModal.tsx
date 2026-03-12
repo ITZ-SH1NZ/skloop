@@ -308,7 +308,7 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                                                 {profile.location}
                                             </div>
                                             {profile.website && (
-                                                <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#D4F268] transition-colors">
+                                                <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#D4F268] hover:underline transition-colors">
                                                     <LinkIcon size={14} className="text-[#D4F268]" />
                                                     {profile.website.replace(/(^\w+:|^)\/\//, '')}
                                                 </a>
