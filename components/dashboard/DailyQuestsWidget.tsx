@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Sunrise } from "lucide-react";
+import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Sunrise, FastForward } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { claimDailyQuest } from "@/actions/task-actions";
-import { getUserQuestProgress, getSealedChests, QuestProgress } from "@/actions/quest-actions";
+import { getUserQuestProgress, getSealedChests, QuestProgress, skipQuestWithConsumable } from "@/actions/quest-actions";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import { getResumeCourseSlug } from "@/actions/course-actions";
@@ -89,6 +89,26 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                 setTimeout(() => setClaimFeedback(null), 3000);
             } else {
                 setClaimFeedback({ id: questId, message: result.message });
+                setTimeout(() => setClaimFeedback(null), 3000);
+            }
+        } finally {
+            setClaimingId(null);
+        }
+    };
+
+    const handleSkipQuest = async (questKey: string) => {
+        if (!user || claimingId) return;
+        setClaimingId(questKey);
+        try {
+            const result = await skipQuestWithConsumable(user.id, questKey, activeTab);
+            if (result.success) {
+                setClaimFeedback({ id: questKey, message: "Quest Skipped! ⚡" });
+                await fetchAllQuests();
+                await refreshProfile();
+                setTimeout(() => setClaimFeedback(null), 3000);
+            } else {
+                const errorMsg = typeof result.error === 'string' ? result.error : "Failed to skip.";
+                setClaimFeedback({ id: questKey, message: errorMsg });
                 setTimeout(() => setClaimFeedback(null), 3000);
             }
         } finally {
@@ -231,9 +251,22 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                                                                 {isClaiming ? 'Claiming...' : <><Sparkles size={12} /> Claim</>}
                                                             </motion.button>
                                                         ) : !isDone && Object.keys(hrefProps).length > 0 ? (
-                                                            <Link href={(hrefProps as any).href} className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors">
-                                                                <span>Go</span> <ArrowRight size={14} />
-                                                            </Link>
+                                                            <div className="flex gap-2">
+                                                                {profile?.inventory?.includes('item_daily_skip') && (
+                                                                    <motion.button
+                                                                        whileTap={{ scale: 0.95 }}
+                                                                        onClick={(e) => { e.stopPropagation(); handleSkipQuest(quest.key); }}
+                                                                        className="text-[10px] md:text-xs font-bold text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors group/skip"
+                                                                        title="Use Daily Skip"
+                                                                    >
+                                                                        <FastForward size={14} className="text-zinc-400 group-hover/skip:text-zinc-600" />
+                                                                        <span className="hidden sm:inline">Skip</span>
+                                                                    </motion.button>
+                                                                )}
+                                                                <Link href={(hrefProps as any).href} className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors">
+                                                                    <span>Go</span> <ArrowRight size={14} />
+                                                                </Link>
+                                                            </div>
                                                         ) : null}
 
                                                         <div className="flex flex-col items-end pl-2 border-l border-slate-100 ml-2">

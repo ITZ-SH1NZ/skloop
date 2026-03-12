@@ -13,6 +13,7 @@ const TABS = [
     { id: "overview", label: "Overview" },
     { id: "stats", label: "Stats" },
     { id: "portfolio", label: "Portfolio" },
+    { id: "collection", label: "Collection" },
     { id: "timeline", label: "Timeline" },
     { id: "quests", label: "Quests" },
 ];

@@ -11,7 +11,9 @@ interface LevelRingProps {
     children?: React.ReactNode;
     className?: string; // Container class
     colorClass?: string; // Ring color class (e.g., text-blue-500)
+    secondaryColorClass?: string; // Secondary ring color class (e.g., text-blue-100)
     badgeColorClass?: string; // Explicit badge background class
+    badgeTextColorClass?: string; // Explicit badge text color class
 }
 
 export function LevelRing({
@@ -22,7 +24,9 @@ export function LevelRing({
     children,
     className,
     colorClass = "text-primary",
-    badgeColorClass
+    secondaryColorClass,
+    badgeColorClass,
+    badgeTextColorClass
 }: LevelRingProps) {
     const radius = (size - strokeWidth) / 2;
     const circumference = radius * 2 * Math.PI;
@@ -45,7 +49,7 @@ export function LevelRing({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={strokeWidth}
-                    className="text-gray-200 dark:text-gray-800"
+                    className={cn("text-gray-200 dark:text-gray-800", secondaryColorClass)}
                 />
 
                 {/* Progress Circle */}
@@ -67,7 +71,8 @@ export function LevelRing({
 
             {/* Level Badge (Bottom Center) */}
             <div className={cn(
-                "absolute -bottom-2 text-primary-foreground text-xs font-bold px-2 py-0.5 rounded-full border-2 border-background z-10 shadow-sm",
+                "absolute -bottom-2 text-xs font-bold px-2 py-0.5 rounded-full border-2 border-background z-10 shadow-sm",
+                badgeTextColorClass || "text-primary-foreground",
                 badgeColorClass || colorClass.replace("text-", "bg-") // Use explicit class if provided, else fallback
             )}>
                 Lvl {level}

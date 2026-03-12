@@ -10,6 +10,7 @@ import { StatsModule } from "@/components/profile/modules/StatsModule";
 import { PortfolioModule } from "@/components/profile/modules/PortfolioModule";
 import { Timeline } from "@/components/profile/Timeline";
 import { QuestsModule } from "@/components/profile/modules/QuestsModule";
+import { CollectionModule } from "@/components/profile/modules/CollectionModule";
 
 export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState("overview");
@@ -33,6 +34,7 @@ export default function ProfilePage() {
                         {activeTab === "overview" && <OverviewModule />}
                         {activeTab === "stats" && <StatsModule />}
                         {activeTab === "portfolio" && <PortfolioModule />}
+                        {activeTab === "collection" && <CollectionModule />}
                         {activeTab === "timeline" && <Timeline />}
                         {activeTab === "quests" && <QuestsModule />}
                     </motion.div>

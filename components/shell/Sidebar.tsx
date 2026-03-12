@@ -9,6 +9,7 @@ import {
     ChevronRight,
     GraduationCap,
     Bot,
+    ShoppingBag,
 } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
@@ -216,6 +217,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             ]
         },
         { icon: User, label: "Profile", href: "/profile" },
+        { icon: ShoppingBag, label: "Loopy Shop", href: "/shop" },
         { icon: Bot, label: "Loopy AI", href: "/loopy" },
     ];
 

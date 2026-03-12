@@ -35,7 +35,7 @@ export async function processDailyLogin(userId: string) {
     // 2. Fetch profile
     const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("xp, coins, streak")
+        .select("xp, coins, streak, streak_shields")
         .eq("id", userId)
         .single();
 
@@ -54,8 +54,22 @@ export async function processDailyLogin(userId: string) {
         .eq("focus_area", "Daily Login")
         .maybeSingle();
 
-    // If they logged in yesterday, continue streak. Otherwise reset to 1.
-    const newStreak = yesterdayActivity ? (profile.streak || 0) + 1 : 1;
+    // Streak Logic:
+    let newStreak = 1;
+    let shieldsUsed = 0;
+
+    if (yesterdayActivity) {
+        // Logged in yesterday? Simple increment.
+        newStreak = (profile.streak || 0) + 1;
+    } else if (profile.streak_shields > 0 && (profile.streak || 0) > 0) {
+        // Missed yesterday but has a SHIELD? Maintain streak and use shield.
+        newStreak = profile.streak;
+        shieldsUsed = 1;
+    } else {
+        // Missed yesterday and no shields? Reset.
+        newStreak = 1;
+    }
+
     const newXp = (profile.xp || 0) + 10;
     const newCoins = (profile.coins || 0) + 5;
     const newLevel = calculateLevel(newXp);
@@ -78,7 +92,8 @@ export async function processDailyLogin(userId: string) {
         xp: newXp,
         coins: newCoins,
         streak: newStreak,
-        level: newLevel
+        level: newLevel,
+        streak_shields: profile.streak_shields - shieldsUsed
     }).eq("id", userId);
 
     if (updateError) {
@@ -90,6 +105,57 @@ export async function processDailyLogin(userId: string) {
     revalidatePath("/profile");
 
     return { success: true, grantedRewards: { xp: 10, coins: 5, streak: newStreak } };
+}
+
+/**
+ * Activates a consumable boost (e.g., XP Booster) from the user's inventory.
+ */
+export async function activateBoostItem(userId: string, itemId: string) {
+    const supabase = await createClient();
+
+    // 1. Fetch profile to check inventory
+    const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("inventory, active_powers")
+        .eq("id", userId)
+        .single();
+
+    if (error || !profile) return { success: false, error: "Profile not found" };
+
+    const inventory = profile.inventory || [];
+    if (!inventory.includes(itemId)) return { success: false, error: "Item not in inventory" };
+
+    // 2. Determine boost effects based on itemId
+    const now = new Date();
+    const expires = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // Default 1 hour
+
+    let powers = { ...(profile.active_powers || {}) };
+
+    if (itemId === 'item_xp_booster') {
+        powers.xp_multiplier = 2;
+        powers.xp_expires = expires;
+    } else if (itemId === 'item_coin_magnet') {
+        powers.coins_multiplier = 2;
+        powers.coins_expires = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    } else {
+        return { success: false, error: "Unknown boost item" };
+    }
+
+    // 3. Remove from inventory and update active_powers
+    const newInventory = inventory.filter((id: string) => id !== itemId);
+    const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+            inventory: newInventory,
+            active_powers: powers
+        })
+        .eq("id", userId);
+
+    if (updateError) return { success: false, error: updateError.message };
+
+    revalidatePath("/profile");
+    revalidatePath("/shop");
+    return { success: true, message: "Boost activated!", expires };
 }
 
 /**

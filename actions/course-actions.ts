@@ -324,19 +324,40 @@ export async function awardTopicCompletion(userId: string, topicId: string) {
     // 5. Update Profile
     const { data: profile } = await supabase
         .from('profiles')
-        .select('xp, coins')
+        .select('xp, coins, active_powers')
         .eq('id', userId)
         .single();
 
     if (profile) {
-        const newXp = (profile.xp || 0) + xpToAward;
-        const newCoins = (profile.coins || 0) + coinsToAward;
+        // Apply multipliers from active_powers
+        const now = new Date().toISOString();
+        const powers = profile.active_powers || {};
+
+        let finalXpReward = xpToAward;
+        let finalCoinsReward = coinsToAward;
+
+        // XP Multiplier
+        if (powers.xp_multiplier && powers.xp_expires && powers.xp_expires > now) {
+            finalXpReward = Math.round(xpToAward * powers.xp_multiplier);
+        }
+
+        // Coins Multiplier
+        if (powers.coins_multiplier && powers.coins_expires && powers.coins_expires > now) {
+            finalCoinsReward = Math.round(coinsToAward * powers.coins_multiplier);
+        }
+
+        const newXp = (profile.xp || 0) + finalXpReward;
+        const newCoins = (profile.coins || 0) + finalCoinsReward;
         const newLevel = Math.floor(newXp / 500) + 1; // Basic level formula
 
         await supabase
             .from('profiles')
             .update({ xp: newXp, coins: newCoins, level: newLevel })
             .eq('id', userId);
+
+        // Update returned values for UI feedback
+        xpToAward = finalXpReward;
+        coinsToAward = finalCoinsReward;
     }
 
     return {

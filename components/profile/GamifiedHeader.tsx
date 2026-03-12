@@ -2,7 +2,7 @@
 
 import { useState, useRef, ChangeEvent, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Edit2, MapPin, Link as LinkIcon, Calendar, Camera } from "lucide-react";
+import { Edit2, MapPin, Link as LinkIcon, Calendar, Camera, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "../ui/Input";
 import { Textarea } from "../ui/Textarea";
@@ -16,6 +16,12 @@ import { useToast } from "@/components/ui/ToastProvider";
 
 import { useUser } from "@/context/UserContext";
 import { uploadProfileImage } from "@/utils/supabase/storage";
+import * as LucideIcons from "lucide-react";
+
+const getIcon = (name: string | null) => {
+    if (!name) return LucideIcons.HelpCircle;
+    return (LucideIcons as any)[name] || LucideIcons.HelpCircle;
+};
 
 // Theme Configuration (Fixed)
 const THEME = { name: "Gold", bg: "bg-amber-50", text: "text-amber-900", border: "border-amber-100", ring: "text-amber-500", solid: "bg-amber-500" };
@@ -56,13 +62,17 @@ export function GamifiedHeader() {
         xp: globalProfile?.xp || 0,
         nextLevelXp: (globalProfile?.level || 1) * 500,
         coins: globalProfile?.coins || 0,
+        streak_shields: globalProfile?.streak_shields || 0,
         avatar: globalProfile?.avatar_url || "https://github.com/shadcn.png",
         banner: globalProfile?.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
     };
 
+    const [equippedRingData, setEquippedRingData] = useState<any>(null);
+    const [equippedTitleData, setEquippedTitleData] = useState<any>(null);
+
     const [formData, setFormData] = useState(user);
 
-    // Update formData when globalProfile becomes available (for first click of Edit)
+    // Update formData and fetch cosmetics when globalProfile becomes available
     useEffect(() => {
         if (globalProfile) {
             setFormData({
@@ -76,9 +86,36 @@ export function GamifiedHeader() {
                 xp: globalProfile.xp || 0,
                 nextLevelXp: (globalProfile.level || 1) * 500,
                 coins: globalProfile.coins || 0,
+                streak_shields: globalProfile.streak_shields || 0,
                 avatar: globalProfile.avatar_url || "https://github.com/shadcn.png",
                 banner: globalProfile.banner_url || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop"
             } as any);
+
+            // Fetch Cosmetic Details Dynamically
+            const fetchCosmetics = async () => {
+                const ids = [];
+                if (globalProfile.equipped_ring) ids.push(globalProfile.equipped_ring);
+                if (globalProfile.equipped_title) ids.push(globalProfile.equipped_title);
+
+                if (ids.length === 0) {
+                    setEquippedRingData(null);
+                    setEquippedTitleData(null);
+                    return;
+                }
+
+                const { data } = await supabase
+                    .from("shop_items")
+                    .select("*")
+                    .in("id", ids);
+
+                if (data) {
+                    const ring = data.find(i => i.id === globalProfile.equipped_ring);
+                    const title = data.find(i => i.id === globalProfile.equipped_title);
+                    setEquippedRingData(ring ? { ...ring, icon: getIcon(ring.icon_name) } : null);
+                    setEquippedTitleData(title ? { ...title, icon: getIcon(title.icon_name) } : null);
+                }
+            };
+            fetchCosmetics();
         }
     }, [globalProfile]);
 
@@ -206,12 +243,30 @@ export function GamifiedHeader() {
             <div className="px-6 md:px-10 pb-8 relative">
                 <div className="flex flex-col md:flex-row gap-6 md:items-end -mt-16 md:-mt-20">
 
-                    {/* Left: Avatar with Level Ring */}
                     <div className="relative mx-auto md:mx-0">
-                        <LevelRing level={user.level} progress={xpProgress} size={140} colorClass={theme.ring}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                        </LevelRing>
+                        {(() => {
+                            const visualData = equippedRingData?.visual_data || {
+                                colorClass: THEME.ring,
+                                secondaryColorClass: undefined,
+                                badgeColorClass: THEME.solid,
+                                badgeTextColorClass: undefined
+                            };
+
+                            return (
+                                <LevelRing
+                                    level={user.level}
+                                    progress={xpProgress}
+                                    size={140}
+                                    colorClass={visualData.colorClass}
+                                    secondaryColorClass={visualData.secondaryColorClass}
+                                    badgeColorClass={visualData.badgeColorClass}
+                                    badgeTextColorClass={visualData.badgeTextColorClass}
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                </LevelRing>
+                            );
+                        })()}
                     </div>
 
                     {/* Middle: User Info & Stats */}
@@ -219,7 +274,15 @@ export function GamifiedHeader() {
                         {/* Identity */}
                         <div className="space-y-1">
                             <h1 className="text-3xl md:text-4xl font-black tracking-tight">{user.name}</h1>
-                            <p className="text-lg text-muted-foreground font-medium">@{user.username}</p>
+                            <div className="flex items-center gap-3 justify-center md:justify-start flex-wrap">
+                                <p className="text-lg text-muted-foreground font-medium">@{user.username}</p>
+                                {equippedTitleData && (
+                                    <span className="inline-flex items-center gap-1.5 bg-zinc-900 text-[#D4F268] text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                                        <equippedTitleData.icon size={10} />
+                                        {equippedTitleData.name}
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {/* Bio & Links */}
@@ -247,10 +310,20 @@ export function GamifiedHeader() {
 
                     {/* Right: Gamification Stats & Actions */}
                     <div className="flex flex-col items-center md:items-end gap-4 min-w-[200px] mt-6 md:mt-24">
-                        {/* Loop Coin Wallet (Smaller) */}
-                        <div className={cn("px-3 py-1 rounded-full flex items-center gap-1.5 font-bold shadow-sm hover:shadow-md transition-shadow cursor-pointer border", theme.bg, theme.border, theme.text)}>
-                            <CurrencyCoin size="sm" className="w-5 h-5" />
-                            <span className="text-sm">{user.coins.toLocaleString()}</span>
+                        {/* Streak Shields + Coin Wallet */}
+                        <div className="flex items-center gap-2">
+                            {/* Streak Shield Badge */}
+                            {(user as any).streak_shields > 0 && (
+                                <div className="px-3 py-1 rounded-full flex items-center gap-1.5 font-bold border bg-blue-50 border-blue-100 text-blue-700 shadow-sm">
+                                    <Shield size={14} className="fill-blue-400 text-blue-700" />
+                                    <span className="text-sm">{(user as any).streak_shields}</span>
+                                </div>
+                            )}
+                            {/* Loop Coin Wallet */}
+                            <div className={cn("px-3 py-1 rounded-full flex items-center gap-1.5 font-bold shadow-sm hover:shadow-md transition-shadow cursor-pointer border", theme.bg, theme.border, theme.text)}>
+                                <CurrencyCoin size="sm" className="w-5 h-5" />
+                                <span className="text-sm">{user.coins.toLocaleString()}</span>
+                            </div>
                         </div>
 
                         {/* XP Progress */}

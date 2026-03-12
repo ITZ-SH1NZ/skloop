@@ -21,6 +21,10 @@ interface UserProfile {
     role: string | null;
     company: string | null;
     skills: string[];
+    streak_shields: number;
+    inventory: string[];
+    equipped_title: string | null;
+    equipped_ring: string | null;
     is_mentor: boolean;
     hourly_rate: number;
     joined_at: string | null;

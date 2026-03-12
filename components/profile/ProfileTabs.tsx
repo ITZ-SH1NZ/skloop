@@ -8,6 +8,7 @@ export const PROFILE_TABS = [
     { id: "mentorship", label: "Mentorship" },
     { id: "learning", label: "Learning" },
     { id: "marketplace", label: "Marketplace" },
+    { id: "collection", label: "Collection" },
     { id: "stats", label: "Stats" },
 ];
 

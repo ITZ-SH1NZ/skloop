@@ -161,15 +161,35 @@ export async function claimQuestProgress(userId: string, questKey: string, type:
 
     // 4. If completed, award XP/Coins and check for Chest
     if (isNowComplete) {
+        // Fetch profile to check for multipliers
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('active_powers')
+            .eq('id', userId)
+            .single();
+
+        let finalXpReward = questDetails.xp_reward;
+        let finalCoinsReward = questDetails.coins_reward;
+
+        if (profile?.active_powers) {
+            const now = new Date().toISOString();
+            const powers = profile.active_powers;
+            if (powers.xp_multiplier && powers.xp_expires && powers.xp_expires > now) {
+                finalXpReward = Math.round(finalXpReward * powers.xp_multiplier);
+            }
+            if (powers.coins_multiplier && powers.coins_expires && powers.coins_expires > now) {
+                finalCoinsReward = Math.round(finalCoinsReward * powers.coins_multiplier);
+            }
+        }
+
         const { error: rpcError } = await supabase.rpc('increment_profile_stats', {
             x_user_id: userId,
-            xp_amount: questDetails.xp_reward,
-            coins_amount: questDetails.coins_reward
+            xp_amount: finalXpReward,
+            coins_amount: finalCoinsReward
         });
 
         if (rpcError) {
             console.error('Error awarding quest rewards via RPC:', rpcError);
-            // We don't fail the whole action, but log it
         }
 
         // Check if they hit exactly 3 completions for this cycle type to award a chest
@@ -177,6 +197,39 @@ export async function claimQuestProgress(userId: string, questKey: string, type:
     }
 
     return { success: true, isComplete: isNowComplete };
+}
+
+/**
+ * Uses a 'Daily Skip' item to instantly complete a quest.
+ */
+export async function skipQuestWithConsumable(userId: string, questKey: string, type: QuestType) {
+    const supabase = await createClient();
+
+    // 1. Check inventory for skip item
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("inventory")
+        .eq("id", userId)
+        .single();
+
+    const inventory = profile?.inventory || [];
+    if (!inventory.includes('item_daily_skip')) {
+        return { success: false, error: "No Daily Skip items available." };
+    }
+
+    // 2. Complete the quest (targetAmount=1, progressAmount=1 for simplicity if not multi-step)
+    // Most skips just fill the bar.
+    const result = await claimQuestProgress(userId, questKey, type, 999, 1); // Force completion
+
+    if (result.success) {
+        // 3. Deduct one skip item
+        const newInventory = inventory.filter((id: string) => id !== 'item_daily_skip');
+        await supabase.from("profiles").update({ inventory: newInventory }).eq("id", userId);
+        revalidatePath("/profile");
+        return { success: true, message: "Quest skipped!" };
+    }
+
+    return result;
 }
 
 /**
