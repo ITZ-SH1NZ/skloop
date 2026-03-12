@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, X, ListChecks, Lightbulb, Trash2, CheckCircle, Smartphone, Tablet, Laptop, Settings, Wand2, FileText, ChevronLeft, ChevronRight, Save, Layout, FolderPlus, FilePlus, MoreVertical, Edit2, Trash, Folder, FolderOpen } from "lucide-react";
+import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, X, ListChecks, Lightbulb, Trash2, CheckCircle, Smartphone, Tablet, Laptop, Settings, Wand2, FileText, ChevronLeft, ChevronRight, Save, Layout, FolderPlus, FilePlus, MoreVertical, Edit2, Trash, Folder, FolderOpen, Check, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import { createClient } from "@/utils/supabase/client";
@@ -39,6 +39,15 @@ const skloopTheme = {
     }
 };
 
+interface ValidationRule {
+    text: string;
+    type: "text-match" | "regex" | "dom-selector" | "css-prop";
+    selector?: string;
+    property?: string;
+    value?: string;
+    status?: "idle" | "success" | "error";
+}
+
 interface ChallengeViewProps {
     title: string;
     description: string;
@@ -50,10 +59,7 @@ interface ChallengeViewProps {
         js: string;
     } | string;
     mode?: "web" | "algorithm" | "pseudocode";
-    validationRules?: {
-        text: string;
-        type: "text-match" | "regex";
-    }[];
+    validationRules?: ValidationRule[];
     onComplete?: () => void;
 }
 
@@ -86,12 +92,14 @@ export default function ChallengeView({
     const [fullscreen, setFullscreen] = useState<FullscreenMode>("none");
     const [showInfo, setShowInfo] = useState(false);
     const [validationStatus, setValidationStatus] = useState<"idle" | "success" | "error" | "saving" | "saved">("idle");
+    const [ruleStatuses, setRuleStatuses] = useState<Record<number, "idle" | "success" | "error">>({});
     const [errorMessage, setErrorMessage] = useState("");
     const [logs, setLogs] = useState<{ type: string; message: string }[]>([]);
     const [showLogs, setShowLogs] = useState(false);
     const [cursorPos, setCursorPos] = useState(0);
     const [showSidebar, setShowSidebar] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [lastValidatedCode, setLastValidatedCode] = useState("");
 
     // Initial project setup
     const getInitialProject = (): FileNode[] => {
@@ -112,6 +120,7 @@ export default function ChallengeView({
     const [srcDoc, setSrcDoc] = useState("");
     const [previewKey, setPreviewKey] = useState(0);
     const [previewDevice, setPreviewDevice] = useState<DeviceType>("desktop");
+    const iframeRef = useRef<HTMLIFrameElement>(null);
 
     // File Management State
     const [isCreating, setIsCreating] = useState<{ type: 'file' | 'folder', parentId: string | null } | null>(null);
@@ -241,40 +250,13 @@ export default function ChallengeView({
         loadSavedCode();
     }, [initialCode, mode, title]);
 
-    // Cloud Auto-Sync Logic (Debounced)
+    // Local Auto-Sync Logic (Debounced)
     useEffect(() => {
-        const syncTimeout = setTimeout(async () => {
+        const syncTimeout = setTimeout(() => {
             const storageKey = `skloop_challenge_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
             const codeToSave = mode === 'web' ? files : textCode;
             localStorage.setItem(storageKey, JSON.stringify(codeToSave));
-
-            setValidationStatus("saving");
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (user) {
-                const challengeId = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                const { error } = await supabase
-                    .from('user_challenge_files')
-                    .upsert({
-                        user_id: user.id,
-                        challenge_id: challengeId,
-                        files_content: codeToSave,
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'user_id,challenge_id' });
-
-                if (!error) {
-                    setValidationStatus("saved");
-                    setTimeout(() => setValidationStatus("idle"), 2000);
-                } else {
-                    console.error("Cloud Sync Error:", error);
-                    setValidationStatus("idle");
-                }
-            } else {
-                setValidationStatus("saved");
-                setTimeout(() => setValidationStatus("idle"), 2000);
-            }
-        }, 3000);
+        }, 1000);
 
         return () => clearTimeout(syncTimeout);
     }, [files, textCode, mode, title]);
@@ -408,7 +390,7 @@ export default function ChallengeView({
                 let resolved = content;
 
                 // Resolve CSS links
-                const styleTags = content.match(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi) || [];
+                const styleTags = (content.match(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi) || []) as string[];
                 styleTags.forEach(tag => {
                     const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
                     if (hrefMatch) {
@@ -429,7 +411,7 @@ export default function ChallengeView({
                 });
 
                 // Resolve JS scripts
-                const scriptTags = content.match(/<script[^>]+src=["']([^"']+)["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+                const scriptTags = (content.match(/<script[^>]+src=["']([^"']+)["'][^>]*>[\s\S]*?<\/script>/gi) || []) as string[];
                 scriptTags.forEach(tag => {
                     const srcMatch = tag.match(/src=["']([^"']+)["']/i);
                     if (srcMatch) {
@@ -536,35 +518,72 @@ export default function ChallengeView({
         }
     };
 
-    const handleVerify = () => {
+    const handleVerify = async () => {
+        setValidationStatus("idle");
+        setErrorMessage("");
+
         if (!validationRules || validationRules.length === 0) {
             setValidationStatus("success");
             if (onComplete) onComplete();
             return;
         }
 
-        const combinedCode = mode === 'web'
-            ? files.map(f => f.content).join(' ')
-            : textCode;
+        // Local save is now handled autonomously, we just need to verify
 
-        const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
-        const normalizedCode = normalize(combinedCode);
+        const newRuleStatuses: Record<number, "idle" | "success" | "error"> = {};
+        let allPassed = true;
 
-        console.log("--- Challenge Verification ---");
-        console.log("Normalized Combined Code:", normalizedCode);
-        console.log("Validation Rules:", validationRules);
+        if (mode === 'web' && iframeRef.current) {
+            const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
+            const win = iframeRef.current.contentWindow || window;
 
-        const failedRules = validationRules.filter((rule, index) => {
-            const isMatch = rule.type === 'text-match'
-                ? normalizedCode.includes(normalize(rule.text))
-                : new RegExp(rule.text, 'i').test(combinedCode);
+            if (doc) {
+                validationRules.forEach((rule, index) => {
+                    let passed = false;
+                    try {
+                        if (rule.type === 'dom-selector' && rule.selector) {
+                            passed = !!doc.querySelector(rule.selector);
+                        } else if (rule.type === 'css-prop' && rule.selector && rule.property && rule.value) {
+                            const el = doc.querySelector(rule.selector);
+                            if (el) {
+                                const style = win.getComputedStyle(el);
+                                const currentVal = style.getPropertyValue(rule.property).toLowerCase();
+                                const targetVal = rule.value.toLowerCase();
+                                passed = currentVal.includes(targetVal) || targetVal.includes(currentVal);
+                            }
+                        } else if (rule.type === 'text-match' && rule.text) {
+                            const combinedCode = files.map(f => f.content || '').join(' ');
+                            passed = combinedCode.toLowerCase().includes(rule.text.toLowerCase());
+                        } else if (rule.type === 'regex' && rule.text) {
+                            const combinedCode = files.map(f => f.content || '').join(' ');
+                            passed = new RegExp(rule.text, 'i').test(combinedCode);
+                        }
+                    } catch (e) {
+                        console.error("Validation error for rule:", rule, e);
+                    }
 
-            console.log(`Rule ${index + 1} (${rule.type}): "${rule.text}" -> ${isMatch ? "✅ PASS" : "❌ FAIL"}`);
-            return !isMatch;
-        });
+                    newRuleStatuses[index] = passed ? "success" : "error";
+                    if (!passed) allPassed = false;
+                });
+            }
+        } else {
+            // Fallback for non-web modes
+            const combinedCode = mode === 'web' ? files.map(f => f.content).join(' ') : textCode;
+            validationRules.forEach((rule, index) => {
+                let passed = false;
+                if (rule.type === 'text-match') {
+                    passed = combinedCode.toLowerCase().includes(rule.text.toLowerCase());
+                } else if (rule.type === 'regex') {
+                    passed = new RegExp(rule.text, 'i').test(combinedCode);
+                }
+                newRuleStatuses[index] = passed ? "success" : "error";
+                if (!passed) allPassed = false;
+            });
+        }
 
-        if (failedRules.length === 0) {
-            console.log("Result: ALL RULES PASSED");
+        setRuleStatuses(newRuleStatuses);
+
+        if (allPassed) {
             setValidationStatus("success");
             const timer = setTimeout(() => {
                 if (onComplete) onComplete();
@@ -572,8 +591,8 @@ export default function ChallengeView({
             return () => clearTimeout(timer);
         } else {
             setValidationStatus("error");
-            setErrorMessage("Some requirements are not met. Check your code!");
-            setTimeout(() => setValidationStatus("idle"), 3000);
+            setErrorMessage("Some requirements are not met. Open 'Details' to see what's missing!");
+            setShowInfo(true); // Proactively show details if they fail
         }
     };
 
@@ -644,64 +663,107 @@ export default function ChallengeView({
                 {showInfo && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]"
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-[#FDFCF8] rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh] border border-zinc-200"
                         >
-                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50">
-                                <div>
-                                    <h3 className="text-xl font-bold text-zinc-900">{title}</h3>
-                                    <p className="text-sm text-zinc-500 mt-1">Challenge Details</p>
+                            <div className="p-8 border-b border-zinc-100 flex items-center justify-between bg-white relative">
+                                <div className="absolute top-0 left-0 w-full h-1 bg-[#D4F268]" />
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-[#D4F268] rounded-2xl flex items-center justify-center rotate-3 shadow-lg shadow-[#D4F268]/20">
+                                        <Code size={24} className="text-zinc-900" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-zinc-900 tracking-tight">{title}</h3>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="px-2 py-0.5 bg-zinc-100 text-zinc-500 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-200">Challenge Details</span>
+                                            {validationStatus === 'error' && (
+                                                <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-black uppercase tracking-widest border border-red-200">Fix Required</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-zinc-200 rounded-full transition-colors">
-                                    <X size={20} className="text-zinc-500" />
+                                <button onClick={() => setShowInfo(false)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors group">
+                                    <X size={20} className="text-zinc-400 group-hover:text-zinc-900 transition-colors" />
                                 </button>
                             </div>
-                            <div className="p-6 overflow-y-auto space-y-6">
-                                <div>
-                                    <p className="text-zinc-700 leading-relaxed">
+                            <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
+                                <div className="relative">
+                                    <div className="absolute -left-4 top-0 w-1 h-full bg-zinc-100 rounded-full" />
+                                    <p className="text-zinc-600 leading-relaxed font-medium">
                                         {description || "No description provided for this challenge."}
                                     </p>
                                 </div>
 
-                                {requirements && requirements.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h4 className="text-sm font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
-                                            <ListChecks size={16} /> Requirements
-                                        </h4>
-                                        <ul className="space-y-2">
-                                            {requirements.map((req, i) => (
-                                                <li key={i} className="flex gap-3 text-sm text-zinc-600 bg-zinc-50 p-3 rounded-lg border border-zinc-100">
-                                                    <div className="min-w-[4px] h-4 bg-[#D4F268] rounded-full mt-0.5" />
-                                                    {req}
-                                                </li>
+                                {validationRules && validationRules.length > 0 && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                                <ListChecks size={14} className="text-[#D4F268]" /> Proper Things To Do
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-zinc-400">
+                                                {Object.values(ruleStatuses).filter(s => s === 'success').length}/{validationRules.length} Complete
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2.5">
+                                            {validationRules.map((rule, i) => (
+                                                <motion.div
+                                                    key={i}
+                                                    initial={false}
+                                                    animate={{
+                                                        backgroundColor: ruleStatuses[i] === 'success' ? '#F0FDF4' : ruleStatuses[i] === 'error' ? '#FEF2F2' : '#FFFFFF',
+                                                        borderColor: ruleStatuses[i] === 'success' ? '#DCFCE7' : ruleStatuses[i] === 'error' ? '#FEE2E2' : '#F4F4F5'
+                                                    }}
+                                                    className="flex items-center gap-4 p-4 rounded-2xl border transition-all shadow-sm"
+                                                >
+                                                    <div className={`
+                                                        w-6 h-6 rounded-full flex items-center justify-center shrink-0 border
+                                                        ${ruleStatuses[i] === 'success' ? 'bg-emerald-500 border-emerald-600 text-white' :
+                                                            ruleStatuses[i] === 'error' ? 'bg-red-500 border-red-600 text-white' : 'bg-white border-zinc-200 text-zinc-300'}
+                                                    `}>
+                                                        {ruleStatuses[i] === 'success' ? <Check size={14} strokeWidth={4} /> :
+                                                            ruleStatuses[i] === 'error' ? <X size={14} strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-zinc-200" />}
+                                                    </div>
+                                                    <span className={`text-sm font-bold ${ruleStatuses[i] === 'success' ? 'text-emerald-700 line-through opacity-60' : ruleStatuses[i] === 'error' ? 'text-red-700' : 'text-zinc-600'}`}>
+                                                        {rule.text}
+                                                    </span>
+                                                </motion.div>
                                             ))}
-                                        </ul>
+                                        </div>
                                     </div>
                                 )}
 
                                 {hints && hints.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h4 className="text-sm font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
-                                            <Lightbulb size={16} /> Hints
+                                    <div className="space-y-4">
+                                        <h4 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                            <Lightbulb size={14} className="text-yellow-400" /> Hints
                                         </h4>
-                                        <div className="grid gap-2">
+                                        <div className="space-y-2">
                                             {hints.map((hint, i) => (
-                                                <div key={i} className="text-sm text-zinc-600 bg-yellow-50 p-3 rounded-lg border border-yellow-100 flex gap-3">
-                                                    <span className="font-bold text-yellow-600">Tip {i + 1}:</span> {hint}
-                                                </div>
+                                                <details key={i} className="group outline-none">
+                                                    <summary className="list-none group-open:bg-yellow-50 bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex items-center justify-between cursor-pointer transition-all hover:bg-zinc-100">
+                                                        <span className="text-xs font-bold text-zinc-600 flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                                                            Hint #{i + 1}
+                                                        </span>
+                                                        <ChevronDown size={14} className="text-zinc-400 transition-transform group-open:rotate-180" />
+                                                    </summary>
+                                                    <div className="p-4 pt-2 text-xs font-medium text-zinc-500 leading-relaxed bg-yellow-50/50 rounded-b-2xl border-x border-b border-zinc-100 italic">
+                                                        {hint}
+                                                    </div>
+                                                </details>
                                             ))}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex justify-end">
+                            <div className="p-6 border-t border-zinc-100 bg-white flex justify-end">
                                 <button
                                     onClick={() => setShowInfo(false)}
-                                    className="bg-zinc-900 text-white px-6 py-2 rounded-full font-bold hover:scale-105 transition-transform"
+                                    className="bg-zinc-900 text-[#D4F268] px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-zinc-900/20"
                                 >
-                                    Got it, let me code!
+                                    Let's Code
                                 </button>
                             </div>
                         </motion.div>
@@ -830,11 +892,17 @@ export default function ChallengeView({
                         <div className="flex items-center gap-1 md:gap-2">
                             <button
                                 onClick={() => setShowInfo(true)}
-                                className="text-zinc-500 hover:text-zinc-900 p-2 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-2 mr-2 bg-white border border-zinc-200 shadow-sm"
+                                className="text-zinc-500 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-100 transition-all flex items-center gap-2 mr-2 bg-white border border-zinc-200 shadow-sm relative group"
                                 title="Challenge Details"
                             >
-                                <Info size={16} />
-                                <span className="hidden lg:inline text-xs font-bold">Details</span>
+                                <Info size={16} className={validationStatus === 'error' ? 'text-red-500' : ''} />
+                                <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">Details</span>
+                                {validationStatus === 'error' && (
+                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                    </span>
+                                )}
                             </button>
 
                             <button
@@ -861,18 +929,6 @@ export default function ChallengeView({
                                 title="Toggle Console"
                             >
                                 <Layout size={18} />
-                            </button>
-                            <div className="h-4 w-px bg-zinc-200 mx-1 hidden md:block" />
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-sm ${validationStatus === "saved" ? "bg-emerald-500 text-white" : "bg-zinc-900 text-white hover:scale-105"}`}
-                                title="Save to Cloud"
-                            >
-                                <Save size={14} className={validationStatus === "saving" ? "animate-pulse" : ""} />
-                                <span className="hidden lg:inline">
-                                    {validationStatus === "saved" ? "Saved!" : validationStatus === "saving" ? "Saving..." : "Save"}
-                                </span>
                             </button>
                             <div className="h-4 w-px bg-zinc-200 mx-1 hidden md:block" />
                             {!isSinglePane && (
@@ -1006,16 +1062,23 @@ export default function ChallengeView({
                         <div className="flex gap-2">
                             <button
                                 onClick={handleVerify}
-                                disabled={validationStatus === "success"}
+                                disabled={validationStatus === "success" || validationStatus === "saving"}
                                 className={`
                                 px-8 py-2.5 rounded-full font-bold transition-all flex items-center gap-2
                                 ${validationStatus === "success"
                                         ? "bg-emerald-500 text-white cursor-default"
-                                        : "bg-zinc-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-zinc-900/10"}
+                                        : validationStatus === "saving"
+                                            ? "bg-zinc-100 text-zinc-400 cursor-wait"
+                                            : "bg-zinc-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-zinc-900/10"}
                             `}
                             >
                                 {validationStatus === "success" ? (
                                     <>Perfect!</>
+                                ) : validationStatus === "saving" ? (
+                                    <>
+                                        <RefreshCw size={16} className="animate-spin" />
+                                        Saving...
+                                    </>
                                 ) : (
                                     <>
                                         <Play size={16} className="fill-current" />
@@ -1092,10 +1155,11 @@ export default function ChallengeView({
                             >
                                 <iframe
                                     key={previewKey}
+                                    ref={iframeRef}
                                     srcDoc={srcDoc}
                                     title="preview"
                                     className="w-full h-full border-none"
-                                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                                    sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                                 />
                             </div>
                         </div>
@@ -1105,7 +1169,28 @@ export default function ChallengeView({
 
             {/* Mobile Toggle Button */}
             {!isSinglePane && (
-                <div className={`md:hidden absolute bottom-6 right-6 z-40`}>
+                <div className={`md:hidden absolute bottom-6 right-6 z-40 flex flex-col gap-3 items-end`}>
+                    <AnimatePresence>
+                        {(!isSinglePane) && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0, y: 20 }}
+                                onClick={handleVerify}
+                                disabled={validationStatus === "success" || validationStatus === "saving"}
+                                className={`h-14 px-6 rounded-full shadow-2xl flex items-center gap-2 font-black text-xs uppercase tracking-widest border-2 transition-all active:scale-95 ${validationStatus === "success"
+                                    ? "bg-emerald-500 text-white border-emerald-400"
+                                    : validationStatus === "saving"
+                                        ? "bg-zinc-100 text-zinc-400 border-zinc-200"
+                                        : "bg-[#D4F268] text-zinc-900 border-zinc-900"
+                                    }`}
+                            >
+                                {validationStatus === "success" ? <Check size={20} /> : validationStatus === "saving" ? <RefreshCw size={20} className="animate-spin" /> : <Play size={18} className="fill-current" />}
+                                {validationStatus === "success" ? "Perfect!" : validationStatus === "saving" ? "Saving..." : "Submit"}
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+
                     <button
                         onClick={() => setViewMode(m => m === 'code' ? 'preview' : 'code')}
                         className="h-14 w-14 rounded-full bg-zinc-900 text-[#D4F268] shadow-xl shadow-zinc-900/30 flex items-center justify-center transition-transform active:scale-95 border-2 border-[#D4F268]"
@@ -1115,15 +1200,7 @@ export default function ChallengeView({
                 </div>
             )}
 
-            {/* Mobile Info Button */}
-            <div className={`md:hidden absolute bottom-24 right-6 z-40`}>
-                <button
-                    onClick={() => setShowInfo(true)}
-                    className="h-10 w-10 rounded-full bg-white text-zinc-900 shadow-lg flex items-center justify-center border border-zinc-200"
-                >
-                    <Info size={20} />
-                </button>
-            </div>
+
         </div>
     );
 }
