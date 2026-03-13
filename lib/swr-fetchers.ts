@@ -16,21 +16,23 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
         .maybeSingle();
 
     if (course) {
-        const { data: lessons } = await supabase
-            .from("lessons")
-            .select("id, title, order_index, content, video_url")
-            .eq("course_id", course.id)
-            .order("order_index", { ascending: true });
+        // Parallelize lesson and progress fetching
+        const [lessonsResult, progressResult] = await Promise.all([
+            supabase
+                .from("lessons")
+                .select("id, title, order_index, content, video_url")
+                .eq("course_id", course.id)
+                .order("order_index", { ascending: true }),
+            userId 
+                ? supabase.from("user_lesson_progress").select("lesson_id").eq("user_id", userId)
+                : Promise.resolve({ data: [] })
+        ]);
+
+        const lessons = lessonsResult.data;
+        const progressData = progressResult.data;
 
         let completedLessonIds = new Set<string>();
-        if (userId && lessons) {
-            const { data: progress } = await supabase
-                .from("user_lesson_progress")
-                .select("lesson_id")
-                .eq("user_id", userId)
-                .in("lesson_id", lessons.map((l) => l.id));
-            if (progress) completedLessonIds = new Set(progress.map((p) => p.lesson_id));
-        }
+        if (progressData) completedLessonIds = new Set(progressData.map((p: any) => p.lesson_id));
 
         const lessonList = lessons ?? [];
         const completedCount = lessonList.filter((l) => completedLessonIds.has(l.id)).length;
@@ -98,30 +100,31 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
 
     if (!track) return null;
 
-    const { data: dbModules } = await supabase
-        .from("modules")
-        .select("id, title, description, order_index")
-        .eq("track_id", track.id)
-        .order("order_index");
+    // Parallelize module, topic, and progress fetching
+    const [modulesResult, topicsResult, progressResult] = await Promise.all([
+        supabase
+            .from("modules")
+            .select("id, title, description, order_index")
+            .eq("track_id", track.id)
+            .order("order_index"),
+        supabase
+            .from("topics")
+            .select("id, module_id, title, order_index, type, content_data, modules!inner(track_id)")
+            .eq("modules.track_id", track.id)
+            .order("order_index", { ascending: true }),
+        userId 
+            ? supabase.from("user_topic_progress").select("topic_id").eq("user_id", userId).eq("status", "completed")
+            : Promise.resolve({ data: [] })
+    ]);
 
-    if (!dbModules || dbModules.length === 0) return null;
-
-    const { data: topics } = await supabase
-        .from("topics")
-        .select("id, module_id, title, order_index, type, content_data")
-        .in("module_id", dbModules.map((m) => m.id))
-        .order("order_index", { ascending: true });
+    const dbModules = modulesResult.data;
+    const topics = topicsResult.data;
+    const progressData = progressResult.data;
 
     let completedTopicIds = new Set<string>();
-    if (userId && topics) {
-        const { data: progress } = await supabase
-            .from("user_topic_progress")
-            .select("topic_id")
-            .eq("user_id", userId)
-            .eq("status", "completed")
-            .in("topic_id", topics.map((t) => t.id));
-        if (progress) completedTopicIds = new Set(progress.map((p) => p.topic_id));
-    }
+    if (progressData) completedTopicIds = new Set(progressData.map((p: any) => p.topic_id));
+
+    if (!dbModules || dbModules.length === 0) return null;
 
     const totalTopics = topics?.length ?? 0;
     const completedCount = topics?.filter((t) => completedTopicIds.has(t.id)).length ?? 0;
@@ -319,6 +322,7 @@ export const fetchStudyCircles = async ([key, userId]: [string, string]): Promis
     if (!convos) return [];
 
     const convoIds = convos.map(c => c.id);
+    if (convoIds.length === 0) return [];
 
     const { data: participants } = await supabase
         .from('conversation_participants')
@@ -360,7 +364,7 @@ export const fetchPeers = async ([key, userId]: [string, string]): Promise<PeerP
         .select('*')
         .or(`requester_id.eq.${userId},recipient_id.eq.${userId}`);
 
-    if (!connections) return [];
+    if (!connections || connections.length === 0) return []; // Added check for empty connections array
 
     // Get all unique user IDs from connections (excluding self)
     const peerIds = new Set<string>();
@@ -447,18 +451,14 @@ export interface ShopData {
 export const fetchShopData = async ([key, userId]: [string, string]): Promise<ShopData | null> => {
     const supabase = createClient();
     
-    // 1. Fetch User Profile
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("coins, inventory, streak_shields")
-        .eq("id", userId)
-        .single();
-        
-    // 2. Fetch Shop Items from DB
-    const { data: shopItems, error } = await supabase
-        .from("shop_items")
-        .select("*")
-        .order("price", { ascending: true });
+    // 1. Fetch User Profile and Shop Items in parallel
+    const [profileResult, itemsResult] = await Promise.all([
+        supabase.from("profiles").select("coins, inventory, streak_shields").eq("id", userId).single(),
+        supabase.from("shop_items").select("*").order("price", { ascending: true })
+    ]);
+
+    const { data: profile } = profileResult;
+    const { data: shopItems, error } = itemsResult;
 
     if (!profile || error || !shopItems) return null;
 
@@ -529,25 +529,19 @@ export const fetchWorkspaceProjectDetails = async ([key, projectId]: [string, st
     const { createClient } = await import("@/utils/supabase/client");
     const supabase = createClient();
 
-    // Fetch Project Details
-    const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
+    // Fetch Project Details and Tasks in parallel
+    const [projectResult, tasksResult] = await Promise.all([
+        supabase.from('projects').select('*').eq('id', projectId).single(),
+        supabase.from('project_tasks').select('*').eq('project_id', projectId).order('created_at', { ascending: true })
+    ]);
 
-    if (projectError) throw projectError;
+    if (projectResult.error) throw projectResult.error;
+    if (tasksResult.error) throw tasksResult.error;
 
-    // Fetch Tasks linked to this project
-    const { data: tasksData, error: tasksError } = await supabase
-        .from('project_tasks')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: true });
-
-    if (tasksError) throw tasksError;
-
-    return { project: projectData, tasks: tasksData || [] };
+    return { 
+        project: projectResult.data, 
+        tasks: tasksResult.data || [] 
+    };
 };
 
 export const fetchMentorStatus = async ([key]: [string]) => {
