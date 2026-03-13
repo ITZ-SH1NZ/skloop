@@ -16,9 +16,6 @@ import {
     Plus,
     MessageSquare,
     Loader2,
-    ChevronRight,
-    ArrowLeft,
-    PlusCircle,
     X,
     PenSquare,
     MessageSquarePlus
@@ -27,6 +24,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
 import { getUserConversations, getOrCreateDirectConversation, getFriendsList } from "@/actions/chat-actions";
+import useSWR from "swr";
+import { useUser } from "@/context/UserContext";
 
 // ============================================================
 // NewChatPicker — Centered Modal
@@ -231,9 +230,30 @@ function ChatPageContent() {
 
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(initialCircleId || null);
     const [searchTerm, setSearchTerm] = useState("");
-    const [dms, setDms] = useState<PeerProfile[]>([]);
-    const [groups, setGroups] = useState<PeerProfile[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
+    // Fetch conversations using SWR for caching
+    const { data: convosData, isLoading: isConvosLoading, mutate } = useSWR(
+        currentUserId ? ['conversations', currentUserId] : null,
+        async () => {
+            const result = await getUserConversations();
+            // Deduplicate
+            const dedupe = (list: any[]) => {
+                const seen = new Set<string>();
+                return list.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+            };
+            return {
+                dms: dedupe(result.dms) as PeerProfile[],
+                groups: dedupe(result.groups) as PeerProfile[]
+            };
+        }
+    );
+
+    const dms = convosData?.dms || [];
+    const groups = convosData?.groups || [];
+    const isLoading = isConvosLoading || (currentUserId && !convosData);
 
     // ── Presence broadcasting + last_seen heartbeat ──────────────────────────
     useEffect(() => {
@@ -277,69 +297,46 @@ function ChatPageContent() {
     }, []);
 
     useEffect(() => {
-        const init = async () => {
-            console.log("[UI] ChatPageContent initializing...");
-            setIsLoading(true);
-            try {
-                const { dms: fetchedDms, groups: fetchedGroups } = await getUserConversations();
-                console.log("[UI] Conversations loaded:", { dms: fetchedDms.length, groups: fetchedGroups.length });
-                // Deduplicate by id in case the same convo appears more than once
-                const dedupe = (list: any[]) => {
-                    const seen = new Set<string>();
-                    return list.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-                };
-                setDms(dedupe(fetchedDms) as PeerProfile[]);
-                setGroups(dedupe(fetchedGroups) as PeerProfile[]);
+        const handleInitialRoute = async () => {
+            if (!initialUserId || !convosData) return;
+            
+            const convoId = await getOrCreateDirectConversation(initialUserId);
+            if (convoId) {
+                // If it isn't completely loaded in SWR yet, immediately enrich logic
+                if (!convosData.dms.find(d => d.id === convoId)) {
+                    const supabase = createClient();
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('id, full_name, username, avatar_url, role')
+                        .eq('id', initialUserId)
+                        .single();
 
-
-                // If opened with a specific userId, ensure a DM exists and select it
-                if (initialUserId) {
-                    const convoId = await getOrCreateDirectConversation(initialUserId);
-                    if (convoId) {
-                        // Add the DM to local state FIRST (with a placeholder),
-                        // then enrich with profile data. Never gate the chat on profile fetch.
-                        if (!fetchedDms.find((d: any) => d.id === convoId)) {
-                            // Add placeholder immediately so the chat window renders
-                            setDms(prev => [...prev, {
-                                id: convoId,
-                                name: 'Loading...',
-                                username: '',
-                                type: 'direct' as const,
-                                track: 'Learner',
-                                level: 0, xp: 0, streak: 0, status: 'none' as const,
-                            }]);
-
-                            // Then enrich with real profile data in the background
-                            const supabase = createClient();
-                            const { data: profile } = await supabase
-                                .from('profiles')
-                                .select('id, full_name, username, avatar_url, role')
-                                .eq('id', initialUserId)
-                                .single();
-
-                            if (profile) {
-                                setDms(prev => prev.map(d => d.id === convoId ? {
-                                    ...d,
-                                    name: profile.full_name || profile.username || 'User',
-                                    username: profile.username || '',
-                                    avatarUrl: profile.avatar_url,
-                                    track: profile.role || 'Learner',
-                                } : d));
-                            }
-                        }
-
-                        // Select the chat — this must happen AFTER adding to state above
-                        setSelectedPeerId(convoId);
-                        router.replace('/peer/chat');
+                    if (profile) {
+                        const newDm: PeerProfile = {
+                            id: convoId,
+                            name: profile.full_name || profile.username || 'User',
+                            username: profile.username || '',
+                            avatarUrl: profile.avatar_url,
+                            type: 'direct' as const,
+                            track: profile.role || 'Learner',
+                            level: 0, xp: 0, streak: 0, status: 'none' as const,
+                        };
+                        mutate({
+                            dms: [...convosData.dms, newDm],
+                            groups: convosData.groups
+                        }, false);
                     }
                 }
-            } finally {
-                setIsLoading(false);
+                setSelectedPeerId(convoId);
+                router.replace('/peer/chat');
             }
         };
-        init();
+
+        if (initialUserId && convosData) {
+            handleInitialRoute();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [initialUserId, initialCircleId]);
+    }, [initialUserId, initialCircleId, convosData?.dms?.length]);
 
     const allChats = [...dms, ...groups];
     const selectedPeer = allChats.find(c => c.id === selectedPeerId) || null;
@@ -363,11 +360,14 @@ function ChatPageContent() {
     };
 
     const handlePeerUpdate = (updatedPeer: Partial<PeerProfile> & { id: string }) => {
+        if (!convosData) return;
         const updateList = (list: PeerProfile[]) =>
             list.map(p => p.id === updatedPeer.id ? { ...p, ...updatedPeer } : p);
 
-        setDms(prev => updateList(prev));
-        setGroups(prev => updateList(prev));
+        mutate({
+            dms: updateList(convosData.dms),
+            groups: updateList(convosData.groups)
+        }, false);
     };
 
     return (
@@ -398,21 +398,25 @@ function ChatPageContent() {
                                         console.log("[UI] ChatPageContent: getOrCreateDirectConversation result:", convoId);
                                         if (!convoId) return;
 
-                                        // Add or update DM in sidebar
-                                        setDms(prev => {
-                                            const exists = prev.find(d => d.id === convoId);
-                                            console.log("[UI] ChatPageContent: Updating local DMs state. Exists?", !!exists);
-                                            if (exists) return prev;
-                                            return [...prev, {
-                                                id: convoId,
-                                                name: friend.name,
-                                                username: friend.username,
-                                                avatarUrl: friend.avatarUrl,
-                                                type: 'direct' as const,
-                                                track: 'Learner',
-                                                level: 0, xp: 0, streak: 0, status: 'none' as const,
-                                            }];
-                                        });
+                                        // Add or update DM in sidebar using mutate
+                                        if (convosData) {
+                                            const exists = convosData.dms.find(d => d.id === convoId);
+                                            if (!exists) {
+                                                const newDm: PeerProfile = {
+                                                    id: convoId,
+                                                    name: friend.name,
+                                                    username: friend.username,
+                                                    avatarUrl: friend.avatarUrl,
+                                                    type: 'direct' as const,
+                                                    track: 'Learner',
+                                                    level: 0, xp: 0, streak: 0, status: 'none' as const,
+                                                };
+                                                mutate({
+                                                    dms: [...convosData.dms, newDm],
+                                                    groups: convosData.groups
+                                                }, false);
+                                            }
+                                        }
                                         setSelectedPeerId(convoId);
                                     }}
                                 />

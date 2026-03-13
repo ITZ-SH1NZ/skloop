@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import { Crown, Keyboard, BrainCircuit, Zap, Trophy, Flame } from "lucide-react";
 import Link from "next/link";
 import PorcelainShell from "@/components/practice/PorcelainShell";
+import useSWR from "swr";
+import { fetchPracticeStats } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 const BENTO_ITEMS = [
     {
@@ -68,18 +71,15 @@ function StatCard({ label, value, icon, bg, color }: { label: string, value: str
 }
 
 export default function PracticeHub() {
-    const [stats, setStats] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            const { getPracticeStats } = await import("@/actions/practice-actions");
-            const data = await getPracticeStats();
-            setStats(data);
-            setIsLoading(false);
-        };
-        fetchStats();
-    }, []);
+    const { data: stats, isLoading: isStatsLoading } = useSWR(
+        currentUserId ? ['practiceStats', currentUserId] : null,
+        fetchPracticeStats as any
+    );
+
+    const isLoading = isStatsLoading || (currentUserId && !stats);
 
     const profile = stats?.profile;
     const bestWpm = stats?.bestWpm;

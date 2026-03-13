@@ -264,11 +264,58 @@ export async function awardTopicCompletion(userId: string, topicId: string, xpRe
         console.error('Error awarding topic rewards via RPC:', rpcError);
     }
 
-    // 3. Mark the 'lesson' daily quest as progressed if it exists
-    // Note: We use the key 'lesson' which is defined in quest_expansion_schema.sql
-    await claimQuestProgress(userId, 'lesson', 'daily', 1, 1);
+    // 3. Mark quest progress across all cycles in parallel
+    await Promise.all([
+        claimQuestProgress(userId, 'lesson',      'daily',   1, 1),
+        claimQuestProgress(userId, 'lessons_5w',  'weekly',  1, 5),
+        claimQuestProgress(userId, 'lessons_20m', 'monthly', 1, 20),
+    ]);
+
+    // 4. Record milestone on Timeline
+    await recordTimelineEvent(
+        userId, 
+        "Topic Completed", 
+        topicId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        `Successfully finished lesson module: ${topicId}`,
+        'course',
+        'text-blue-500'
+    );
 
     revalidatePath('/dashboard');
+    revalidatePath('/profile');
+    return { success: true };
+}
+
+/**
+ * Records a milestone event to the user's timeline
+ */
+export async function recordTimelineEvent(
+    userId: string, 
+    title: string, 
+    subtitle?: string, 
+    description?: string, 
+    iconType: string = 'rocket',
+    color: string = 'text-lime-500'
+) {
+    const supabase = await createClient();
+    const { error } = await supabase
+        .from('user_timeline')
+        .insert({
+            user_id: userId,
+            title,
+            subtitle,
+            description,
+            icon_type: iconType,
+            color,
+            year: new Date().getFullYear().toString()
+        });
+
+    if (error) {
+        console.error('Error recording timeline event:', error);
+        return { success: false, error };
+    }
+
+    revalidatePath('/profile');
     return { success: true };
 }
 

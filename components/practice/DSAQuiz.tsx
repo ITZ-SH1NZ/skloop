@@ -134,10 +134,14 @@ export default function DSAQuiz() {
             setTotalTime(finalTime);
             setGameState("finished");
 
-            // Log Quest Progress Background
+            // Log Quest Progress Background — daily, weekly, and monthly in parallel
             if (user) {
                 import('@/actions/quest-actions').then(({ claimQuestProgress }) => {
-                    claimQuestProgress(user.id, 'quiz_attempt', 'daily', 1, 1)
+                    Promise.all([
+                        claimQuestProgress(user.id, 'quiz_attempt', 'daily',   1, 1),  // daily: attempt once
+                        claimQuestProgress(user.id, 'quiz_3w',      'weekly',  1, 3),  // weekly: win 3x
+                        claimQuestProgress(user.id, 'quiz_10m',     'monthly', 1, 10), // monthly: win 10x
+                    ])
                         .then(() => refreshProfile())
                         .catch(err => console.error("Failed to log DSA quest", err));
                 });

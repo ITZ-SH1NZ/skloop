@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Github, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2 } from "lucide-react";
+import { Plus, X, Github, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2, MoreVertical, Edit2, UploadCloud, Crop } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/ToastProvider";
+import useSWR from "swr";
+import { fetchUserProjects } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
+import { ImageCropper } from "@/components/ui/ImageCropper";
 
 interface Project {
     id: string;
@@ -22,12 +26,17 @@ interface Project {
 }
 
 export function PortfolioModule() {
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isUploading, setIsUploading] = useState(false);
+    const { user } = useUser();
+    const [isUploadingModalOpen, setIsUploadingModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    
+    const [isDragging, setIsDragging] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [croppingImage, setCroppingImage] = useState<string | null>(null);
 
     const [newProject, setNewProject] = useState({ 
         title: "", 
@@ -40,39 +49,57 @@ export function PortfolioModule() {
     const supabase = createClient();
     const { toast } = useToast();
 
-    useEffect(() => {
-        const checkUserAndFetchProjects = async () => {
-            setIsLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            if (session?.user) {
-                setCurrentUserId(session.user.id);
-                fetchProjects(session.user.id);
-            } else {
-                setIsLoading(false);
+    const { data: projects = [], isLoading, mutate } = useSWR(
+        user?.id ? ['userProjects', user.id] : null,
+        () => fetchUserProjects(user!.id)
+    );
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        handleFileSelect(file);
+    };
+
+    const handleFileSelect = (file: File | undefined) => {
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                toast("Image must be smaller than 2MB", "error");
+                return;
             }
-        };
-
-        checkUserAndFetchProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const fetchProjects = async (userId: string) => {
-        try {
-            const { data, error } = await supabase
-                .from("user_projects")
-                .select("*")
-                .eq("user_id", userId)
-                .order("created_at", { ascending: false });
-
-            if (error) throw error;
-            setProjects(data || []);
-        } catch (error) {
-            console.error("Error fetching projects:", error);
-            toast("Failed to load projects", "error");
-        } finally {
-            setIsLoading(false);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCroppingImage(reader.result as string);
+            };
+            reader.readAsDataURL(file);
         }
+    };
+
+    const onCropComplete = (croppedImage: string) => {
+        setPreviewUrl(croppedImage);
+        setCroppingImage(null);
+        // We set thumbnail_url to the base64 cropped image for preview
+        setNewProject({ ...newProject, thumbnail_url: croppedImage });
+    };
+
+    const onDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const onDragLeave = () => {
+        setIsDragging(false);
+    };
+
+    const onDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        handleFileSelect(file);
+    };
+
+    const ensureExternalUrl = (url: string) => {
+        if (!url) return null;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        return `https://${url}`;
     };
 
     const handleUpload = async () => {
@@ -81,39 +108,105 @@ export function PortfolioModule() {
             return;
         }
 
-        if (!currentUserId) {
-            toast("You must be logged in to upload a project.", "error");
+        if (!user) {
+            toast("You must be logged in to manage projects.", "error");
             return;
         }
 
         setIsSubmitting(true);
 
         try {
+            let finalThumbnailUrl = newProject.thumbnail_url || null;
+
+            // Handle file upload if we have a new cropped image (blob or base64)
+            if (previewUrl && (previewUrl.startsWith('blob:') || previewUrl.startsWith('data:'))) {
+                const fileName = `${user.id}/${Math.random()}.jpg`;
+                const filePath = `${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('project-thumbnails')
+                    .upload(filePath, await (await fetch(previewUrl)).blob(), {
+                        cacheControl: '3600',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('project-thumbnails')
+                    .getPublicUrl(filePath);
+                
+                finalThumbnailUrl = publicUrl;
+            }
+
             const projectData = {
-                user_id: currentUserId,
+                user_id: user.id,
                 title: newProject.title,
                 description: newProject.description,
-                thumbnail_url: newProject.thumbnail_url || null,
-                github_url: newProject.github_url || null,
-                website_url: newProject.website_url || null,
+                thumbnail_url: finalThumbnailUrl,
+                github_url: ensureExternalUrl(newProject.github_url),
+                website_url: ensureExternalUrl(newProject.website_url),
             };
 
-            const { data, error } = await supabase
-                .from("user_projects")
-                .insert([projectData])
-                .select();
+            if (editingProjectId) {
+                const { error } = await supabase
+                    .from("user_projects")
+                    .update(projectData)
+                    .eq("id", editingProjectId)
+                    .eq("user_id", user.id);
 
-            if (error) throw error;
-            setProjects([data[0], ...projects]);
-            setIsUploading(false);
-            setNewProject({ title: "", description: "", website_url: "", github_url: "", thumbnail_url: "" });
-            toast("Project added to arsenal!", "success");
+                if (error) throw error;
+                toast("Project intel updated!", "success");
+            } else {
+                const { error } = await supabase
+                    .from("user_projects")
+                    .insert([projectData]);
+
+                if (error) throw error;
+                
+                // Record milestone only for NEW projects
+                const { recordTimelineEvent } = await import('@/actions/quest-actions');
+                await recordTimelineEvent(
+                    user.id,
+                    "Project Deployed",
+                    newProject.title,
+                    `Added a new project to the Arsenal: ${newProject.title}`,
+                    'rocket',
+                    'text-lime-500'
+                );
+                toast("Project added to arsenal!", "success");
+            }
+            
+            mutate();
+            resetModal();
         } catch (error: any) {
-            console.error("Upload error:", error);
-            toast(error.message || "Failed to upload project.", "error");
+            console.error("Management error:", error);
+            toast(error.message || "Failed to save project.", "error");
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const resetModal = () => {
+        setIsUploadingModalOpen(false);
+        setEditingProjectId(null);
+        setNewProject({ title: "", description: "", website_url: "", github_url: "", thumbnail_url: "" });
+        setSelectedFile(null);
+        setPreviewUrl(null);
+    };
+
+    const handleEdit = (project: Project) => {
+        setEditingProjectId(project.id);
+        setNewProject({
+            title: project.title,
+            description: project.description,
+            website_url: project.website_url || "",
+            github_url: project.github_url || "",
+            thumbnail_url: project.thumbnail_url || ""
+        });
+        setPreviewUrl(project.thumbnail_url);
+        setIsUploadingModalOpen(true);
+        setActiveMenuId(null);
     };
 
     const handleDelete = async (projectId: string) => {
@@ -125,17 +218,18 @@ export function PortfolioModule() {
                 .from("user_projects")
                 .delete()
                 .eq("id", projectId)
-                .eq("user_id", currentUserId);
+                .eq("user_id", user?.id);
 
             if (error) throw error;
 
-            setProjects(projects.filter(p => p.id !== projectId));
+            mutate();
             toast("Project removed.", "success");
         } catch (error: any) {
             console.error("Delete error:", error);
             toast("Failed to delete project.", "error");
         } finally {
             setIsDeleting(null);
+            setActiveMenuId(null);
         }
     };
 
@@ -147,16 +241,15 @@ export function PortfolioModule() {
                     <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mt-1">Logged Projects & Tools</p>
                 </div>
                 <Button 
-                    onClick={() => setIsUploading(true)} 
+                    onClick={() => setIsUploadingModalOpen(true)} 
                     className="bg-lime-400 hover:bg-lime-500 text-black font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[4px_4px_0_0_#000] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#000] active:translate-y-0 active:shadow-none transition-all gap-2 h-12 px-6"
                 >
                     <Plus size={18} strokeWidth={3} /> Add Loadout
                 </Button>
             </div>
 
-            {/* Premium Upload Modal */}
             <AnimatePresence>
-                {isUploading && (
+                {isUploadingModalOpen && (
                     <motion.div
                         initial={{ opacity: 0, height: 0, scale: 0.95 }}
                         animate={{ opacity: 1, height: "auto", scale: 1 }}
@@ -168,10 +261,10 @@ export function PortfolioModule() {
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="font-black text-2xl uppercase tracking-tight flex items-center gap-3">
                                     <div className="w-4 h-4 rounded-full bg-lime-400 animate-pulse border-2 border-black" />
-                                    Initialise Project
+                                    {editingProjectId ? 'Finalise Deployment' : 'Initialise Project'}
                                 </h3>
                                 <button 
-                                    onClick={() => setIsUploading(false)} 
+                                    onClick={resetModal} 
                                     className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors border-2 border-transparent hover:border-lime-400 text-zinc-400 hover:text-white"
                                 >
                                     <X size={20} />
@@ -226,26 +319,68 @@ export function PortfolioModule() {
                                 
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                                        <ImageIcon size={14} /> Thumbnail Image URL
+                                        <ImageIcon size={14} /> Project Thumbnail
                                     </label>
-                                    <div className="flex gap-4 items-center">
-                                        <Input
-                                            placeholder="https://images.unsplash.com/photo-..."
-                                            value={newProject.thumbnail_url}
-                                            onChange={(e) => setNewProject({ ...newProject, thumbnail_url: e.target.value })}
-                                            className="bg-black border-2 border-zinc-800 focus:border-lime-400 rounded-xl h-14 text-white placeholder:text-zinc-600 font-mono text-sm flex-1"
-                                        />
-                                        {newProject.thumbnail_url && (
-                                            <div className="w-14 h-14 rounded-xl border-2 border-zinc-800 overflow-hidden shrink-0 bg-black">
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img 
-                                                    src={newProject.thumbnail_url} 
-                                                    alt="Preview" 
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                />
+                                    <div className="flex flex-col gap-4">
+                                        <div 
+                                            onDragOver={onDragOver}
+                                            onDragLeave={onDragLeave}
+                                            onDrop={onDrop}
+                                            className={cn(
+                                                "relative w-full border-4 border-dashed rounded-2xl py-8 px-4 text-center transition-all cursor-pointer group",
+                                                isDragging 
+                                                    ? "bg-lime-500/10 border-lime-400 scale-[0.98]" 
+                                                    : "bg-black border-zinc-800 hover:border-zinc-700"
+                                            )}
+                                        >
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileChange}
+                                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                                id="project-thumbnail-upload"
+                                            />
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className={cn(
+                                                    "w-12 h-12 rounded-full flex items-center justify-center transition-transform group-hover:scale-110",
+                                                    isDragging ? "bg-lime-400 text-black" : "bg-zinc-800 text-zinc-400"
+                                                )}>
+                                                    <UploadCloud size={24} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="font-bold text-sm">
+                                                        {selectedFile ? selectedFile.name : (isDragging ? "Drop to upload" : "Click or drag to upload thumbnail")}
+                                                    </p>
+                                                    <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">
+                                                        PNG, JPG, WEBP (MAX 2MB)
+                                                    </p>
+                                                </div>
                                             </div>
-                                        )}
+                                        </div>
+
+                                        <div className="flex flex-col md:flex-row gap-4 items-center">
+                                            <div className="text-zinc-500 text-[10px] uppercase font-bold whitespace-nowrap">OR PASTE URL</div>
+                                            <Input
+                                                placeholder="https://images.unsplash.com/..."
+                                                value={newProject.thumbnail_url}
+                                                onChange={(e) => {
+                                                    setNewProject({ ...newProject, thumbnail_url: e.target.value });
+                                                    setPreviewUrl(e.target.value);
+                                                }}
+                                                className="bg-black border-2 border-zinc-800 focus:border-lime-400 rounded-xl h-14 text-white placeholder:text-zinc-600 font-mono text-sm flex-1"
+                                            />
+                                            {(previewUrl || newProject.thumbnail_url) && (
+                                                <div className="w-14 h-14 rounded-xl border-2 border-lime-400 overflow-hidden shrink-0 bg-black">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img 
+                                                        src={previewUrl || newProject.thumbnail_url} 
+                                                        alt="Preview" 
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -254,13 +389,22 @@ export function PortfolioModule() {
                                     disabled={isSubmitting}
                                     className="w-full h-16 bg-lime-400 hover:bg-lime-500 text-black font-black uppercase tracking-widest text-lg rounded-xl border-4 border-black mt-2 shadow-[0_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all disabled:opacity-70"
                                 >
-                                    {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <><Save size={20} className="mr-2" /> Commit to Arsenal</>}
+                                    {isSubmitting ? <Loader2 size={24} className="animate-spin" /> : <><Save size={20} className="mr-2" /> {editingProjectId ? 'Update Directive' : 'Commit to Arsenal'}</>}
                                 </Button>
                             </div>
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Image Cropper Modal */}
+            <ImageCropper
+                isOpen={!!croppingImage}
+                imageSrc={croppingImage || ""}
+                aspectRatio={16 / 9}
+                onCropComplete={onCropComplete}
+                onCancel={() => setCroppingImage(null)}
+            />
 
             {/* Loading State */}
             {isLoading && (
@@ -270,7 +414,7 @@ export function PortfolioModule() {
             )}
 
             {/* Empty State */}
-            {!isLoading && projects.length === 0 && !isUploading && (
+            {!isLoading && projects.length === 0 && !isUploadingModalOpen && (
                 <div className="bg-zinc-50 border-4 border-dashed border-zinc-200 rounded-[2rem] py-20 px-6 text-center flex flex-col items-center justify-center">
                     <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
                         <ImageIcon size={32} className="text-zinc-300" />
@@ -278,7 +422,7 @@ export function PortfolioModule() {
                     <h3 className="font-black text-2xl text-zinc-800 mb-2 uppercase tracking-tight">Arsenal Empty</h3>
                     <p className="font-medium text-zinc-500 max-w-sm mb-8">Your portfolio is currently blank. Deploy your first project to start building your technical reputation.</p>
                     <Button 
-                        onClick={() => setIsUploading(true)}
+                        onClick={() => setIsUploadingModalOpen(true)}
                         variant="outline"
                         className="rounded-xl border-2 border-zinc-300 hover:border-black hover:bg-zinc-100 font-bold px-8 h-12"
                     >
@@ -313,14 +457,50 @@ export function PortfolioModule() {
                                     </div>
                                 )}
                                 
-                                {currentUserId === project.user_id && (
-                                    <button 
-                                        onClick={() => handleDelete(project.id)}
-                                        disabled={isDeleting === project.id}
-                                        className="absolute top-4 right-4 w-10 h-10 bg-red-500 hover:bg-red-600 border-2 border-black rounded-full flex items-center justify-center text-white shadow-[2px_2px_0_0_#000] hover:shadow-[4px_4px_0_0_#000] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50"
-                                    >
-                                        {isDeleting === project.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} strokeWidth={2.5} />}
-                                    </button>
+                                {user?.id === project.user_id && (
+                                    <div className="absolute top-4 right-4 z-20">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveMenuId(activeMenuId === project.id ? null : project.id);
+                                            }}
+                                            className="w-10 h-10 bg-white border-2 border-black rounded-full flex items-center justify-center text-black shadow-[2px_2px_0_0_#000] hover:shadow-[4px_4px_0_0_#000] hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+                                        >
+                                            <MoreVertical size={20} />
+                                        </button>
+                                        
+                                        <AnimatePresence>
+                                            {activeMenuId === project.id && (
+                                                <>
+                                                    <div 
+                                                        className="fixed inset-0 z-30" 
+                                                        onClick={() => setActiveMenuId(null)} 
+                                                    />
+                                                    <motion.div
+                                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                                        className="absolute top-12 right-0 w-48 bg-white border-4 border-black rounded-2xl shadow-[8px_8px_0_0_#000] z-40 overflow-hidden"
+                                                    >
+                                                        <button 
+                                                            onClick={() => handleEdit(project)}
+                                                            className="w-full flex items-center gap-3 px-4 py-4 hover:bg-zinc-100 transition-colors font-bold text-sm border-b-2 border-zinc-100"
+                                                        >
+                                                            <Edit2 size={16} /> Edit Details
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDelete(project.id)}
+                                                            disabled={isDeleting === project.id}
+                                                            className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-50 text-red-600 transition-colors font-bold text-sm disabled:opacity-50"
+                                                        >
+                                                            {isDeleting === project.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} 
+                                                            Remove Loadout
+                                                        </button>
+                                                    </motion.div>
+                                                </>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
                                 )}
                             </div>
                             

@@ -1,18 +1,25 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, Variants } from "framer-motion";
 import { Grid, List } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
+import dynamic from "next/dynamic";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import HeroCourseCard from "@/components/dashboard/HeroCourseCard";
 import TaskCard from "@/components/dashboard/TaskCard";
-import { ActivityChart, LeaderboardWidget, UpcomingWorkshop } from "@/components/dashboard/SidebarWidgets";
-import DailyQuestsWidget from "@/components/dashboard/DailyQuestsWidget";
-import DailyGame from "@/components/dashboard/DailyGame";
 import { Modal } from "@/components/ui/Modal";
-import { getUserTasks, completeTask } from "@/actions/task-actions";
+import { completeTask } from "@/actions/task-actions";
+import useSWR from "swr";
+import { fetchUserTasks } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
+
+// Lazy-load with ssr:false — these components read from localStorage SWR cache,
+// so they MUST be client-only to avoid hydration mismatches.
+const HeroCourseCard = dynamic(() => import("@/components/dashboard/HeroCourseCard"), { ssr: false });
+const DailyQuestsWidget = dynamic(() => import("@/components/dashboard/DailyQuestsWidget"), { ssr: false });
+const ActivityChart = dynamic(() => import("@/components/dashboard/SidebarWidgets").then(m => ({ default: m.ActivityChart })), { ssr: false });
+const LeaderboardWidget = dynamic(() => import("@/components/dashboard/SidebarWidgets").then(m => ({ default: m.LeaderboardWidget })), { ssr: false });
+const UpcomingWorkshop = dynamic(() => import("@/components/dashboard/SidebarWidgets").then(m => ({ default: m.UpcomingWorkshop })), { ssr: false });
+const DailyGame = dynamic(() => import("@/components/dashboard/DailyGame"), { ssr: false });
 
 const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -35,40 +42,29 @@ export default function DashboardPage() {
     const [isGameOpen, setIsGameOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
     const [activeTab, setActiveTab] = useState("grid");
-    const [tasks, setTasks] = useState<any[]>([]);
-    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
     const [questRefreshKey, setQuestRefreshKey] = useState(0);
-    const supabase = createClient();
+    const { user } = useUser();
 
-    // Fetch User Tasks
-    useEffect(() => {
-        const fetchTasks = async () => {
-            setIsLoadingTasks(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const data = await getUserTasks(user.id);
-                setTasks(data);
-            }
-            setIsLoadingTasks(false);
-        };
-        fetchTasks();
-    }, [supabase]);
+    // Fetch User Tasks with SWR
+    const { data: tasksData, isLoading: isLoadingTasks, mutate } = useSWR<any[]>(
+        user ? ['userTasks', user.id] : null,
+        fetchUserTasks as any
+    );
+    const tasks = tasksData || [];
 
     const handleTaskClick = (task: any) => {
         setSelectedTask(task);
     };
 
     const handleCompleteTask = async () => {
-        if (!selectedTask) return;
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!selectedTask || !user) return;
 
         try {
             await completeTask(selectedTask.id, user.id, selectedTask.tasks.xp_reward);
 
-            // Remove task from state
-            setTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+            // Optimistically update and trigger revalidation
+            mutate(tasks.filter((t: any) => t.id !== selectedTask.id), false);
+            mutate();
 
             // Confetti and close modal
             import("canvas-confetti").then((confetti) => {

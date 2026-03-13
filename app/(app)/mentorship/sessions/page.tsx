@@ -6,25 +6,29 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMySessionsAsMentee, submitReview, markSessionCompletedByMentee, type MentorSession } from "@/actions/mentorship-actions";
+import useSWR from "swr";
+import { fetchMySessionsAsMentee } from "@/lib/swr-fetchers";
 
 export default function MySessionsPage() {
     const [activeTab, setActiveTab] = useState<"pending" | "library">("pending");
-    const [sessions, setSessions] = useState<MentorSession[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+
+    const { data: sessions = [], isLoading, mutate } = useSWR(
+        ['mySessionsAsMentee'],
+        fetchMySessionsAsMentee as any,
+        {
+            revalidateOnFocus: false
+        }
+    );
+
     const [reviewingId, setReviewingId] = useState<string | null>(null);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState("");
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-    useEffect(() => {
-        getMySessionsAsMentee().then(data => {
-            setSessions(data);
-            setIsLoading(false);
-        });
-    }, []);
 
-    const pending = sessions.filter(s => s.status === "pending" || s.status === "accepted");
-    const library = sessions.filter(s => s.status === "published" || s.status === "completed");
+
+    const pending = sessions.filter((s: any) => s.status === "pending" || s.status === "accepted");
+    const library = sessions.filter((s: any) => s.status === "published" || s.status === "completed");
     const displayed = activeTab === "pending" ? pending : library;
 
     const handleSubmitReview = async (sessionId: string) => {
@@ -101,7 +105,7 @@ export default function MySessionsPage() {
                             </div>
                         ) : activeTab === "pending" ? (
                             <div className="space-y-4">
-                                {displayed.map(session => (
+                                {displayed.map((session: any) => (
                                     <div key={session.id} className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
                                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[2rem] ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-100"}`} />
                                         <div className="flex flex-col md:flex-row gap-6 pl-4">
@@ -126,7 +130,7 @@ export default function MySessionsPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {displayed.map(session => (
+                                {displayed.map((session: any) => (
                                     <div key={session.id}>
                                         <SessionVideoCard
                                             session={session}
@@ -134,7 +138,7 @@ export default function MySessionsPage() {
                                             onComplete={async () => {
                                                 const res = await markSessionCompletedByMentee(session.id);
                                                 if (res.success) {
-                                                    setSessions(await getMySessionsAsMentee());
+                                                    mutate();
                                                 }
                                             }}
                                             isActive={false}

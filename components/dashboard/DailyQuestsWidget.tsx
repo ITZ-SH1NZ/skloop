@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Sunrise, FastForward } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/utils/supabase/client";
 import { claimDailyQuest } from "@/actions/task-actions";
-import { getUserQuestProgress, getSealedChests, QuestProgress, skipQuestWithConsumable } from "@/actions/quest-actions";
+import { skipQuestWithConsumable, QuestProgress } from "@/actions/quest-actions";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
-import { getResumeCourseSlug } from "@/actions/course-actions";
+import useSWR from "swr";
+import { fetchDailyQuests } from "@/lib/swr-fetchers";
 
 // Map string icon names from DB to Lucide components
 const ICON_MAP: Record<string, any> = {
@@ -31,60 +31,29 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
     const { profile, user, refreshProfile } = useUser();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabType>("daily");
-    const [questsData, setQuestsData] = useState<Record<TabType, QuestProgress[]>>({
-        daily: [],
-        weekly: [],
-        monthly: []
-    });
-    const [chestCount, setChestCount] = useState(0);
-    const [lastCourseSlug, setLastCourseSlug] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [claimingId, setClaimingId] = useState<string | null>(null);
     const [claimFeedback, setClaimFeedback] = useState<{ id: string; message: string } | null>(null);
 
-    const fetchAllQuests = async () => {
-        setIsLoading(true);
-        const supabase = createClient();
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser) return;
+    const { data, isLoading, mutate } = useSWR(
+        user?.id ? ['dailyQuests', user.id] : null,
+        fetchDailyQuests as any,
+        { revalidateOnFocus: false }
+    );
 
-        // Fetch all cycles concurrently for instant tab switching
-        const [daily, weekly, monthly, chests, resumeSlug] = await Promise.all([
-            getUserQuestProgress(authUser.id, 'daily'),
-            getUserQuestProgress(authUser.id, 'weekly'),
-            getUserQuestProgress(authUser.id, 'monthly'),
-            getSealedChests(authUser.id),
-            getResumeCourseSlug(authUser.id)
-        ]);
-
-        setQuestsData({ daily, weekly, monthly });
-        setChestCount(chests.length);
-        if (resumeSlug) {
-            setLastCourseSlug(resumeSlug);
-        }
-        setIsLoading(false);
-    };
-
-    useEffect(() => {
-        fetchAllQuests();
-    }, [refreshKey]);
+    const questsData = data?.questsData || { daily: [], weekly: [], monthly: [] };
+    const chestCount = data?.chestCount || 0;
+    const lastCourseSlug = data?.lastCourseSlug || null;
 
     const quests = questsData[activeTab] || [];
 
     const handleClaimQuest = async (questId: string) => {
-        const supabase = createClient();
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser || claimingId) return;
-
+        if (!user?.id || claimingId) return;
         setClaimingId(questId);
         try {
-            // We use the legacy wrapper which delegates to the new system,
-            // because it handles the special "login" and "codele" validation logic natively.
-            const result = await claimDailyQuest(authUser.id, questId);
+            const result = await claimDailyQuest(user.id, questId);
             if (result.success) {
                 setClaimFeedback({ id: questId, message: result.message });
-                // Re-fetch to get new progress + chest states
-                await fetchAllQuests();
+                await mutate(); // revalidate SWR cache
                 await refreshProfile();
                 setTimeout(() => setClaimFeedback(null), 3000);
             } else {
@@ -103,7 +72,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
             const result = await skipQuestWithConsumable(user.id, questKey, activeTab);
             if (result.success) {
                 setClaimFeedback({ id: questKey, message: "Quest Skipped! ⚡" });
-                await fetchAllQuests();
+                await mutate(); // revalidate SWR cache
                 await refreshProfile();
                 setTimeout(() => setClaimFeedback(null), 3000);
             } else {
@@ -116,7 +85,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
         }
     };
 
-    const completedCount = quests.filter(q => q.is_completed).length;
+    const completedCount = quests.filter((q: any) => q.is_completed).length;
     const requiredForChest = 3;
     const chestProgress = Math.min(completedCount, requiredForChest);
     const chestReady = chestProgress === requiredForChest;
@@ -196,7 +165,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                                         const Icon = ICON_MAP[quest.icon] || Gift;
                                         const isDone = quest.is_completed;
                                         const isClaiming = claimingId === quest.key;
-                                        const feedback = claimFeedback?.id === quest.key ? claimFeedback.message : null;
+                                        const feedback = claimFeedback?.id === quest.key ? claimFeedback?.message : null;
                                         const progressRaw = quest.auto_progress === -1 ? 1 : quest.auto_progress;
 
                                         let hrefProps = {};

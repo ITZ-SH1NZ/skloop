@@ -12,19 +12,14 @@ interface LeaderboardEntry {
     isCurrentUser?: boolean;
 }
 
-import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { fetchCodeleLeaderboard } from "@/lib/swr-fetchers";
 
 export default function DailyCodeleLeaderboard() {
-    const [leaderboard, setLeaderboard] = useState<any[]>([]);
-
-    useEffect(() => {
-        const fetchLeaderboard = async () => {
-            const { getCodeleLeaderboard } = await import("@/actions/codele-actions");
-            const data = await getCodeleLeaderboard('global');
-            setLeaderboard(data);
-        };
-        fetchLeaderboard();
-    }, []);
+    const { data: leaderboard = [], isLoading } = useSWR(
+        ['codeleLeaderboard'],
+        fetchCodeleLeaderboard as any
+    );
     return (
         <div className="w-full">
             {/* Header */}

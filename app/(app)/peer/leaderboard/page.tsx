@@ -8,67 +8,49 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Trophy, Globe, Users, Coins, Zap, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/utils/supabase/client";
-import { getGlobalLeaderboard, getFriendsLeaderboard, getUserRank } from "@/actions/leaderboard-actions";
+import useSWR from "swr";
+import { fetchGlobalLeaderboard, fetchFriendsLeaderboard, fetchUserRank, type LeaderboardUser } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
-interface LeaderboardUser {
-    id: string;
-    rank: number;
-    name: string;
-    username: string;
-    avatarUrl: string;
-    xp: number;
-    coins: number;
-    streak: number;
-    trend: "up" | "down" | "same";
-}
+
 
 export default function LeaderboardPage() {
     const [activeTab, setActiveTab] = useState<"global" | "friends">("global");
     const [metric, setMetric] = useState<"xp" | "coins">("xp");
 
-    const [globalData, setGlobalData] = useState<LeaderboardUser[]>([]);
-    const [friendsData, setFriendsData] = useState<LeaderboardUser[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-    const [myFallbackRank, setMyFallbackRank] = useState<{ rank: number; xp: number; coins: number; name: string; avatarUrl: string } | null>(null);
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
 
-    useEffect(() => {
-        const fetchLeaderboard = async () => {
-            setIsLoading(true);
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setCurrentUserId(user.id);
+    // 1. Fetch Global Top 50
+    const { data: globalDataData, isLoading: isGlobalLoading } = useSWR(
+        ['globalLeaderboard', metric],
+        fetchGlobalLeaderboard as any
+    );
+    const globalData = globalDataData || [];
 
-            // 1. Fetch Global Top 50
-            const global = await getGlobalLeaderboard(metric);
-            setGlobalData(global);
+    // 2. Fetch Friends Rankings
+    const { data: friendsDataData, isLoading: isFriendsLoading } = useSWR(
+        currentUserId ? ['friendsLeaderboard', currentUserId, metric] : null,
+        fetchFriendsLeaderboard as any
+    );
+    const friendsData = friendsDataData || [];
 
-            if (user) {
-                // 2. Fetch Friends Rankings
-                const friends = await getFriendsLeaderboard(user.id, metric);
-                setFriendsData(friends);
+    // 3. Fetch user's own fallback rank if they are not in the top 50
+    const isInTop50 = currentUserId ? globalData.some((p: LeaderboardUser) => p.id === currentUserId) : true;
+    
+    // We only fetch this if they are logged in and NOT in the top 50
+    const { data: myFallbackRank, isLoading: isRankLoading } = useSWR(
+        (currentUserId && !isInTop50 && globalData.length > 0) ? ['userRank', currentUserId, metric] : null,
+        fetchUserRank as any
+    );
 
-                // 3. Fetch user's own rank if not in the global top list
-                const isInTop50 = global.some(p => p.id === user.id);
-                if (!isInTop50) {
-                    const fallback = await getUserRank(user.id, metric);
-                    setMyFallbackRank(fallback);
-                } else {
-                    setMyFallbackRank(null);
-                }
-            }
+    const isLoading = isGlobalLoading || (currentUserId && isFriendsLoading) || isRankLoading;
 
-            setIsLoading(false);
-        };
+    const data: LeaderboardUser[] = activeTab === "global" ? globalData : friendsData;
+    const topThree = data.filter((u: LeaderboardUser) => u.rank <= 3);
+    const rest = data.filter((u: LeaderboardUser) => u.rank > 3);
 
-        fetchLeaderboard();
-    }, [metric]); // Re-fetch when metric changes
-
-    const data = activeTab === "global" ? globalData : friendsData;
-    const topThree = data.filter(u => u.rank <= 3);
-    const rest = data.filter(u => u.rank > 3);
-
-    const currentUserRank = data.find(u => u.id === currentUserId);
+    const currentUserRank = data.find((u: LeaderboardUser) => u.id === currentUserId);
 
     return (
         <div className="flex flex-col bg-zinc-50/50">

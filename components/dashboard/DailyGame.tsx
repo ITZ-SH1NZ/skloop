@@ -244,7 +244,11 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
             // Win or loss both complete the quest — quitting (never reaching here) does not
             // We use claimQuestProgress directly to bypass UI validations that might race with the upsert above
             const { claimQuestProgress } = await import('@/actions/quest-actions');
-            await claimQuestProgress(user.id, 'codele', 'daily', 1, 1);
+            await Promise.all([
+                claimQuestProgress(user.id, 'codele',     'daily',   1, 1),   // daily: play once
+                claimQuestProgress(user.id, 'codele_3w',  'weekly',  1, 3),   // weekly: play 3x
+                claimQuestProgress(user.id, 'codele_15m', 'monthly', 1, 15),  // monthly: play 15x
+            ]);
             // Refresh the profile so XP/coins update immediately in the UI
             await refreshProfile();
             // Notify parent (e.g. dashboard) so it can refresh the quests widget

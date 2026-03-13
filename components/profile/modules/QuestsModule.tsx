@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sunrise, Terminal, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Flame, Gift, CheckCircle2, Circle, ArrowRight, Sparkles } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { getUserQuestProgress, getSealedChests, QuestProgress } from "@/actions/quest-actions";
+import useSWR, { useSWRConfig } from "swr";
+import { fetchDailyQuests } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
-import { getResumeCourseSlug } from "@/actions/course-actions";
 
 const ICON_MAP: Record<string, any> = {
     'sunrise': Sunrise,
@@ -24,51 +23,34 @@ const ICON_MAP: Record<string, any> = {
 type TabType = "daily" | "weekly" | "monthly";
 
 export function QuestsModule() {
-    const { user } = useUser();
+    const { user, refreshProfile } = useUser();
+    const { mutate } = useSWRConfig();
     const [activeTab, setActiveTab] = useState<TabType>("daily");
-    const [questsData, setQuestsData] = useState<Record<TabType, QuestProgress[]>>({
-        daily: [],
-        weekly: [],
-        monthly: []
-    });
-    const [isLoading, setIsLoading] = useState(true);
-    const [lastCourseSlug, setLastCourseSlug] = useState<string | null>(null);
+    
+    const { data, isLoading } = useSWR(
+        user?.id ? ['dailyQuests', user.id] : null,
+        fetchDailyQuests as any,
+        { revalidateOnFocus: false }
+    );
+
+    const questsData = data?.questsData || { daily: [], weekly: [], monthly: [] };
+    const lastCourseSlug = data?.lastCourseSlug || null;
 
     const [claimingId, setClaimingId] = useState<string | null>(null);
     const [claimFeedback, setClaimFeedback] = useState<{ id: string; message: string } | null>(null);
-    const { refreshProfile } = useUser();
-
-    const fetchAllQuests = async () => {
-        setIsLoading(true);
-        if (!user) return;
-
-        // Fetch all cycles concurrently for instant tab switching
-        const [daily, weekly, monthly, resumeSlug] = await Promise.all([
-            getUserQuestProgress(user.id, 'daily'),
-            getUserQuestProgress(user.id, 'weekly'),
-            getUserQuestProgress(user.id, 'monthly'),
-            getResumeCourseSlug(user.id)
-        ]);
-
-        setQuestsData({ daily, weekly, monthly });
-        if (resumeSlug) {
-            setLastCourseSlug(resumeSlug);
-        }
-        setIsLoading(false);
-    };
 
     const handleClaimQuest = async (questId: string) => {
         if (!user || claimingId) return;
 
         setClaimingId(questId);
         try {
-            // Re-import dynamically or just use the same action wrapper used by widget
             const { claimDailyQuest } = await import('@/actions/task-actions');
             const result = await claimDailyQuest(user.id, questId);
 
             setClaimFeedback({ id: questId, message: result.message });
             if (result.success) {
-                await fetchAllQuests();
+                // Mutate the quests cache to reflect changes immediately
+                mutate(['dailyQuests', user.id]);
                 await refreshProfile();
             }
             setTimeout(() => setClaimFeedback(null), 3000);
@@ -77,16 +59,10 @@ export function QuestsModule() {
         }
     };
 
-    useEffect(() => {
-        if (user) {
-            fetchAllQuests();
-        }
-    }, [user]);
-
     const quests = questsData[activeTab] || [];
 
     // Calculate chest progress based on completions for the current visible tab
-    const completedCount = quests.filter(q => q.is_completed).length;
+    const completedCount = quests.filter((q: any) => q.is_completed).length;
     const requiredForChest = 3;
     const chestProgress = Math.min(completedCount, requiredForChest);
 

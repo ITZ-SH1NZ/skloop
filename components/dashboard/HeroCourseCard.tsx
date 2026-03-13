@@ -1,28 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useUser } from "@/context/UserContext";
-import { createClient } from "@/utils/supabase/client";
-import { getHeroCourse } from "@/actions/course-actions";
+import useSWR from "swr";
+import { fetchHeroCourse } from "@/lib/swr-fetchers";
 
 export default function HeroCourseCard() {
     const { user } = useUser();
-    const [course, setCourse] = useState<any>(null);
 
-    useEffect(() => {
-        const fetchCourse = async () => {
-            if (user) {
-                const data = await getHeroCourse(user.id);
-                if (data) {
-                    setCourse(data);
-                }
-            }
-        };
-        fetchCourse();
-    }, []);
+    const { data: course } = useSWR(
+        user?.id ? ['heroCourse', user.id] : null,
+        fetchHeroCourse as any,
+        { revalidateOnFocus: false }
+    );
 
     if (!course) {
         return (

@@ -259,7 +259,19 @@ export async function claimDailyQuest(
 
     // 2. Delegate to the new Quest Engine
     const { claimQuestProgress } = await import('./quest-actions');
-    const result = await claimQuestProgress(userId, questId, 'daily', 1, 1);
+    
+    let result;
+    if (questId === 'login') {
+        // Track the daily login AND the weekly/monthly streaks in parallel
+        const [dailyResult] = await Promise.all([
+            claimQuestProgress(userId, 'login',      'daily',   1, 1),
+            claimQuestProgress(userId, 'streak_7',   'weekly',  1, 7),
+            claimQuestProgress(userId, 'streak_20m', 'monthly', 1, 20),
+        ]);
+        result = dailyResult;
+    } else {
+        result = await claimQuestProgress(userId, questId, 'daily', 1, 1);
+    }
 
     if (!result.success) {
         return { success: false, message: result.message || 'Failed to claim quest.' };

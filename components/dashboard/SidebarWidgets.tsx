@@ -2,81 +2,29 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Trophy, Target, Zap, Calendar, Clock, MapPin, ExternalLink, ArrowRight } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import confetti from "canvas-confetti";
+import useSWR from "swr";
+import { fetchActivityChart, fetchTopLearners, fetchNextWorkshop } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 export function ActivityChart() {
+    const { user } = useUser();
     const [isReportOpen, setIsReportOpen] = useState(false);
-    const [data, setData] = useState<any[]>([]);
-    const [totalTime, setTotalTime] = useState(0);
-    const [dailyAvg, setDailyAvg] = useState(0);
-    const [focusAreas, setFocusAreas] = useState<{ area: string, percentage: number }[]>([]);
 
-    useEffect(() => {
-        const fetchActivity = async () => {
-            const { createClient } = await import('@/utils/supabase/client');
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
+    const { data } = useSWR(
+        user?.id ? ['activityChart', user.id] : null,
+        fetchActivityChart as any,
+        { revalidateOnFocus: false }
+    );
 
-            if (user) {
-                // Determine start date (7 days ago)
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 7);
-                const dateStr = startDate.toISOString().split('T')[0];
-
-                const { data: logs, error } = await supabase
-                    .from('activity_logs')
-                    .select('activity_date, hours_spent, focus_area')
-                    .eq('user_id', user.id)
-                    .gte('activity_date', dateStr)
-                    .order('activity_date', { ascending: true });
-
-                if (logs && !error) {
-                    // Aggregate logs by day to match recharts format
-                    const aggregated: Record<string, number> = {};
-                    const focuses: Record<string, number> = {};
-                    let total = 0;
-
-                    // Initialize last 7 days with 0
-                    for (let i = 6; i >= 0; i--) {
-                        const d = new Date();
-                        d.setDate(d.getDate() - i);
-                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                        aggregated[dayName] = 0;
-                    }
-
-                    logs.forEach(log => {
-                        const date = new Date(log.activity_date);
-                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                        const hours = Number(log.hours_spent);
-                        if (aggregated[dayName] !== undefined) {
-                            aggregated[dayName] += hours;
-                            total += hours;
-                        }
-
-                        const area = log.focus_area || 'Other';
-                        focuses[area] = (focuses[area] || 0) + hours;
-                    });
-
-                    const chartData = Object.entries(aggregated).map(([day, hours]) => ({ day, hours }));
-                    setData(chartData);
-                    setTotalTime(total);
-                    setDailyAvg(total / 7);
-
-                    const focusList = Object.entries(focuses).map(([area, h]) => ({
-                        area,
-                        percentage: total > 0 ? Math.round((h / total) * 100) : 0
-                    })).sort((a, b) => b.percentage - a.percentage);
-
-                    setFocusAreas(focusList);
-                }
-            }
-        };
-        fetchActivity();
-    }, []);
+    const chartData = data?.chartData || [];
+    const totalTime = data?.totalTime || 0;
+    const dailyAvg = data?.dailyAvg || 0;
+    const focusAreas = data?.focusAreas || [];
 
     return (
         <>
@@ -93,7 +41,7 @@ export function ActivityChart() {
 
                 <div className="flex-1 w-full -ml-4">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={data}>
+                        <AreaChart data={chartData}>
                             <defs>
                                 <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#D4F268" stopOpacity={0.8} />
@@ -162,7 +110,7 @@ export function ActivityChart() {
                         <h4 className="font-bold text-slate-800 mb-4">Focus Areas</h4>
                         <div className="space-y-3">
                             {focusAreas.length > 0 ? (
-                                focusAreas.map((focus, i) => (
+                                focusAreas.map((focus: any, i: number) => (
                                     <div key={focus.area}>
                                         <div className="flex justify-between text-xs font-bold mb-1">
                                             <span>{focus.area}</span>
@@ -191,40 +139,20 @@ export function ActivityChart() {
 
 export function LeaderboardWidget() {
     const [selectedUser, setSelectedUser] = useState<any>(null);
-    const [users, setUsers] = useState<any[]>([]);
     const router = useRouter();
 
-    useEffect(() => {
-        const fetchLeaderboard = async () => {
-            const { createClient } = await import('@/utils/supabase/client');
-            const supabase = createClient();
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('username, full_name, xp, avatar_url')
-                .order('xp', { ascending: false })
-                .limit(5);
-
-            if (data && !error) {
-                const formattedUsers = data.map((u, i) => ({
-                    name: u.full_name || u.username || `Pilot_${i + 1}`,
-                    xp: u.xp || 0,
-                    rank: i + 1,
-                    avatar: u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.full_name || u.username || 'P')}&background=random`,
-                    title: 'Skloop Pilot',
-                    badges: ['🔥', '✨', '💻']
-                }));
-                setUsers(formattedUsers);
-            }
-        };
-        fetchLeaderboard();
-    }, []);
+    const { data: users = [] } = useSWR(
+        ['topLearners'],
+        fetchTopLearners as any,
+        { revalidateOnFocus: false }
+    );
 
     return (
         <>
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <h3 className="font-bold text-slate-800 mb-6">Top Learners</h3>
                 <div className="space-y-6">
-                    {users.map((u, i) => (
+                    {users.map((u: any, i: number) => (
                         <motion.div
                             key={i}
                             initial={{ opacity: 0, x: -20 }}
@@ -299,28 +227,12 @@ export function LeaderboardWidget() {
 export function UpcomingWorkshop() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isRegistered, setIsRegistered] = useState(false);
-    const [workshop, setWorkshop] = useState<any>(null);
 
-    useEffect(() => {
-        const fetchWorkshop = async () => {
-            const { createClient } = await import('@/utils/supabase/client');
-            const supabase = createClient();
-
-            // Fetch next upcoming workshop
-            const { data, error } = await supabase
-                .from('workshops')
-                .select('*')
-                .gte('start_time', new Date().toISOString())
-                .order('start_time', { ascending: true })
-                .limit(1)
-                .maybeSingle();
-
-            if (data && !error) {
-                setWorkshop(data);
-            }
-        };
-        fetchWorkshop();
-    }, []);
+    const { data: workshop } = useSWR(
+        ['nextWorkshop'],
+        fetchNextWorkshop as any,
+        { revalidateOnFocus: false }
+    );
 
     const handleRegister = (e: React.MouseEvent | null) => {
         if (e) e.stopPropagation();

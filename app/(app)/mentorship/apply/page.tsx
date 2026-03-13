@@ -6,24 +6,25 @@ import { ArrowLeft, CheckCircle, Shield, Award, Zap, Star, Loader2, Sparkles } f
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { getMyMentorStatus, applyVeteranPath, redeemVouchCode } from "@/actions/mentorship-actions";
+import useSWR from "swr";
+import { fetchMentorStatus } from "@/lib/swr-fetchers";
 
 export default function BecomeMentorPage() {
     const router = useRouter();
-    const [status, setStatus] = useState<{ isMentor: boolean; level: number } | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+
+    const { data: status, isLoading, error: fetchError } = useSWR(
+        ['mentorStatus'],
+        fetchMentorStatus as any,
+        {
+            revalidateOnFocus: false
+        }
+    );
+
     const [vouchCode, setVouchCode] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        getMyMentorStatus().then(data => {
-            setStatus(data);
-            setIsLoading(false);
-            if (data.isMentor) {
-                // If already a mentor, redirect to dashboard or show success
-            }
-        });
-    }, []);
+
 
     const handleVeteranApply = async () => {
         setIsSubmitting(true);

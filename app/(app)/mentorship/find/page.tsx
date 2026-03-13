@@ -1,46 +1,49 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, Filter, Star, CheckCircle, X, Loader2, Play, Users, Award } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { getMentors, getPublicSessions, type MentorCard, type MentorSession } from "@/actions/mentorship-actions";
 import { UserProfileModal } from "@/components/profile/UserProfileModal";
+import useSWR from "swr";
+import { fetchFindMentorData } from "@/lib/swr-fetchers";
 
 export default function FindMentorPage() {
     const [tab, setTab] = useState<"mentors" | "videos">("mentors");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSkill, setSelectedSkill] = useState("All");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
-    const [mentors, setMentors] = useState<MentorCard[]>([]);
-    const [videos, setVideos] = useState<MentorSession[]>([]);
-    const [allSkills, setAllSkills] = useState<string[]>(["All"]);
-    const [isLoading, setIsLoading] = useState(true);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-    useEffect(() => {
-        const load = async () => {
-            setIsLoading(true);
-            const [m, v] = await Promise.all([getMentors(), getPublicSessions()]);
-            setMentors(m);
-            setVideos(v);
-            const skills = new Set<string>();
-            m.forEach(mentor => mentor.skills.forEach(s => skills.add(s)));
-            setAllSkills(["All", ...Array.from(skills)]);
-            setIsLoading(false);
-        };
-        load();
-    }, []);
+    const { data: mentorData, isLoading } = useSWR(
+        ['findMentorData'],
+        fetchFindMentorData as any,
+        {
+            revalidateOnFocus: false
+        }
+    );
 
-    const filteredMentors = mentors.filter(m => {
+    const mentors = mentorData?.mentors || [];
+    const videos = mentorData?.videos || [];
+
+    const allSkills = useMemo(() => {
+        const skills = new Set<string>();
+        mentors.forEach((mentor: any) => mentor.skills.forEach((s: string) => skills.add(s)));
+        return ["All", ...Array.from(skills)];
+    }, [mentors]);
+
+
+
+    const filteredMentors = mentors.filter((m: any) => {
         const target = `${m.name} ${m.headline || ""} ${m.skills.join(" ")}`.toLowerCase();
         const matchSearch = target.includes(searchTerm.toLowerCase());
         const matchSkill = selectedSkill === "All" || m.skills.includes(selectedSkill);
         return matchSearch && matchSkill;
     });
 
-    const filteredVideos = videos.filter(v => {
+    const filteredVideos = videos.filter((v: any) => {
         const target = `${v.title} ${v.topic || ""} ${v.description || ""} ${v.mentorName}`.toLowerCase();
         return target.includes(searchTerm.toLowerCase());
     });
@@ -128,7 +131,7 @@ export default function FindMentorPage() {
                                     </button>
                                 </div>
                                 <div className="p-6 flex flex-wrap gap-2 max-h-64 overflow-y-auto">
-                                    {allSkills.map(skill => (
+                                    {allSkills.map((skill: any) => (
                                         <button key={skill} onClick={() => { setSelectedSkill(skill); setIsFilterOpen(false); }}
                                             className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border-2 ${selectedSkill === skill ? "bg-zinc-900 text-white border-zinc-900" : "bg-white border-zinc-100 text-zinc-600 hover:border-[#D4F268]"}`}>
                                             {skill}
@@ -158,7 +161,7 @@ export default function FindMentorPage() {
                             </motion.div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredMentors.map((mentor, i) => (
+                                {filteredMentors.map((mentor: any, i: number) => (
                                     <motion.div
                                         key={mentor.id}
                                         layout
@@ -202,7 +205,7 @@ export default function FindMentorPage() {
 
                                         {mentor.skills.length > 0 && (
                                             <div className="flex flex-wrap gap-1.5 mb-4 mt-auto relative z-10">
-                                                {mentor.skills.slice(0, 3).map(skill => (
+                                                {mentor.skills.slice(0, 3).map((skill: any) => (
                                                     <span key={skill} className="bg-zinc-50 text-zinc-600 text-[11px] font-bold px-3 py-1 rounded-lg border border-zinc-100 uppercase tracking-wide">{skill}</span>
                                                 ))}
                                             </div>
@@ -235,7 +238,7 @@ export default function FindMentorPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredVideos.map((video, i) => (
+                                {filteredVideos.map((video: any, i: number) => (
                                     <VideoCard key={video.id} video={video} index={i} />
                                 ))}
                             </div>

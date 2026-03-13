@@ -9,6 +9,9 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
+import useSWR from "swr";
+import { fetchWorkspaceProjects } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 const INITIAL_PROJECTS = [
     {
@@ -54,9 +57,9 @@ const INITIAL_PROJECTS = [
 ];
 
 export default function WorkspacePage() {
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
     const supabase = createClient();
-    const [projects, setProjects] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -64,13 +67,18 @@ export default function WorkspacePage() {
     const [newProjectName, setNewProjectName] = useState("");
     const [newProjectStatus, setNewProjectStatus] = useState("Planning");
 
+    const { data: projects = [], isLoading, mutate } = useSWR(
+        currentUserId ? ['workspaceProjects', currentUserId] : null,
+        fetchWorkspaceProjects as any
+    );
+
     const searchParams = useSearchParams();
     const router = useRouter();
     const { toast } = useToast();
     const searchQuery = searchParams.get("q")?.toLowerCase();
 
     const filteredProjects = searchQuery
-        ? projects.filter(p => p.title.toLowerCase().includes(searchQuery))
+        ? projects.filter((p: any) => p.title.toLowerCase().includes(searchQuery))
         : projects;
 
     const handleCreateProject = async () => {
@@ -109,8 +117,9 @@ export default function WorkspacePage() {
                 return;
             }
 
-            // Refresh project state
-            setProjects([{ ...projectData, members: 1 }, ...projects]);
+            // Optimistic mutation: add new project to cache immediately
+            mutate([{ ...projectData, members: 1, deadline: "7 days" }, ...projects], false);
+            
             toast(`"${newProjectName}" has been added to your workspace.`, "success");
 
             setIsModalOpen(false);
@@ -120,39 +129,6 @@ export default function WorkspacePage() {
     };
 
     useEffect(() => {
-        const fetchWorkspace = async () => {
-            setIsLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                // Fetch projects the user is a member of
-                const { data, error } = await supabase
-                    .from('project_members')
-                    .select(`
-                        project_id,
-                        projects (
-                            id,
-                            title,
-                            description,
-                            status,
-                            color,
-                            created_at
-                        )
-                    `)
-                    .eq('user_id', user.id);
-
-                if (data && !error) {
-                    // Normalize the nested query result
-                    const normalizedProjects = data.map((item: any) => ({
-                        ...item.projects,
-                        members: 1, // Placeholder until a member count aggregation is performed
-                        deadline: "7 days" // Local UI placeholder
-                    }));
-                    setProjects(normalizedProjects);
-                }
-            }
-            setIsLoading(false);
-        };
-        fetchWorkspace();
 
         if (searchParams.get("action") === "new") {
             setIsModalOpen(true);
@@ -223,7 +199,7 @@ export default function WorkspacePage() {
                         transition={{ duration: 0.15, ease: "easeOut" }}
                         className={cn("gap-6 xl:gap-8", viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col")}
                     >
-                        {filteredProjects.map((project, i) => (
+                        {filteredProjects.map((project: any, i: number) => (
                             <motion.div
                                 key={project.id}
                                 initial={{ opacity: 0, scale: 0.98 }}

@@ -9,75 +9,28 @@ import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
 import { createClient } from "@/utils/supabase/client";
+import useSWR from "swr";
+import { fetchStudyCircles } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 export default function StudyCirclesPage() {
     const [searchTerm, setSearchTerm] = useState("");
-    const [circles, setCircles] = useState<StudyCircle[]>([]);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
+    const { data: circlesData, isLoading: isCirclesLoading, mutate } = useSWR(
+        currentUserId ? ['studyCircles', currentUserId] : null,
+        fetchStudyCircles as any
+    );
+
+    const circles: StudyCircle[] = circlesData || [];
+    const isLoading = isCirclesLoading || (currentUserId && !circlesData);
 
     const router = useRouter();
 
-    useEffect(() => {
-        const fetchCircles = async () => {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            setCurrentUserId(user.id);
-
-            // Fetch public group conversations
-            const { data: convos } = await supabase
-                .from('conversations')
-                .select('id, title, description, tags, avatar_url, privacy')
-                .eq('type', 'group')
-                .eq('privacy', 'public')
-                .order('created_at', { ascending: false });
-
-            if (!convos) {
-                setIsLoading(false);
-                return;
-            }
-
-            // Fetch participant counts separately (works around RLS on nested joins)
-            const convoIds = convos.map(c => c.id);
-
-            const { data: participants } = await supabase
-                .from('conversation_participants')
-                .select('conversation_id, user_id')
-                .in('conversation_id', convoIds);
-
-            // Build a map: conversationId -> { count, isJoined }
-            const countMap = new Map<string, { count: number; isJoined: boolean }>();
-            if (participants) {
-                for (const p of participants) {
-                    const existing = countMap.get(p.conversation_id) || { count: 0, isJoined: false };
-                    existing.count += 1;
-                    if (p.user_id === user.id) existing.isJoined = true;
-                    countMap.set(p.conversation_id, existing);
-                }
-            }
-
-            const formatted: StudyCircle[] = convos.map(c => {
-                const stats = countMap.get(c.id) || { count: 0, isJoined: false };
-                return {
-                    id: c.id,
-                    name: c.title || 'Unnamed Circle',
-                    avatarUrl: c.avatar_url || undefined,
-                    topic: c.tags?.[0] || 'General',
-                    description: c.description || 'A study circle for eager learners.',
-                    memberCount: stats.count,
-                    maxMembers: 50,
-                    tags: c.tags || [],
-                    isJoined: stats.isJoined,
-                };
-            });
-
-            setCircles(formatted);
-            setIsLoading(false);
-        };
-        fetchCircles();
-    }, []);
+    // Fetch logic removed (handled by SWR)
 
 
     const filteredCircles = circles.filter(c =>
@@ -101,9 +54,9 @@ export default function StudyCirclesPage() {
         const supabase = createClient();
 
         // Optimistic UI update
-        setCircles(prev => prev.map(c =>
+        mutate(circles.map(c =>
             c.id === id ? { ...c, isJoined: true, memberCount: c.memberCount + 1 } : c
-        ));
+        ), false);
 
         // Insert participant
         const { error } = await supabase.from('conversation_participants').insert({
@@ -112,12 +65,13 @@ export default function StudyCirclesPage() {
         });
 
         if (!error) {
+            mutate(); // Revalidate
             router.push(`/peer/chat?circleId=${id}`);
         } else {
             // Revert on error
-            setCircles(prev => prev.map(c =>
+            mutate(circles.map(c =>
                 c.id === id ? { ...c, isJoined: false, memberCount: c.memberCount - 1 } : c
-            ));
+            ), false);
         }
     };
 
@@ -152,7 +106,8 @@ export default function StudyCirclesPage() {
             isJoined: true,
         };
 
-        setCircles(prev => [circle, ...prev]);
+        mutate([circle, ...circles], false);
+        mutate();
 
         confetti({
             particleCount: 100,

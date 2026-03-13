@@ -9,6 +9,7 @@ import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
 import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
+import { signOutAction } from "@/actions/user-actions";
 
 interface Notification {
     id: string;
@@ -69,14 +70,22 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
         setUnreadCount(prev => Math.max(0, prev - 1));
     };
 
-    // Instant logout
+    // Instant logout via Server Action
     const handleLogout = async () => {
         if (isLoggingOut) return;
         setIsLoggingOut(true);
-        // Fire and forget signout, then redirect immediately
-        supabase.auth.signOut(); // don't await — just fire
-        document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-        router.push('/login');
+        try {
+            const result = await signOutAction();
+            if (result.success) {
+                // Use window.location for a full page refresh/clear on logout
+                window.location.href = '/login';
+            }
+        } catch (error) {
+            console.error("Logout failed:", error);
+            // Fallback for safety
+            supabase.auth.signOut();
+            window.location.href = '/login';
+        }
     };
 
     const formatTimeAgo = (dateStr: string) => {

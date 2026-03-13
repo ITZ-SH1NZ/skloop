@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 
-import { motion } from "framer-motion";
 import { Trophy, Flame, Clock, BookOpen, BarChart3, Info } from "lucide-react";
+import useSWR from "swr";
+import { fetchCodeleStats } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
+import { motion } from "framer-motion";
 
 const TERMS = [
     { term: "Hoisting", def: "In JavaScript, variable and function declarations are moved to the top of their containing scope during the compile phase." },
@@ -14,17 +17,18 @@ const TERMS = [
 ];
 
 export default function DailyCodeleStats() {
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
     const [termIndex, setTermIndex] = useState(0);
     const [timeLeft, setTimeLeft] = useState("");
-    const [stats, setStats] = useState<any>(null);
+
+    const { data: stats } = useSWR(
+        currentUserId ? ['codeleStats', currentUserId] : null,
+        fetchCodeleStats as any
+    );
 
     useEffect(() => {
-        const fetchStats = async () => {
-            const { getCodeleStats } = await import("@/actions/codele-actions");
-            const data = await getCodeleStats();
-            setStats(data);
-        };
-        fetchStats();
 
         const calculateTimeLeft = () => {
             const now = new Date();

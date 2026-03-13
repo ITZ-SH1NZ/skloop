@@ -21,13 +21,23 @@ import {
 import { useUser } from "@/context/UserContext";
 import { MentorSettingsModal } from "@/components/mentorship/MentorSettingsModal";
 import { MentorHandbookModal } from "@/components/mentorship/MentorHandbookModal";
+import useSWR from "swr";
+import { fetchMentorDashboardData } from "@/lib/swr-fetchers";
 
 export default function MentorDashboardPage() {
     const { user } = useUser(); // Get user from browser client (goes through proxy)
-    const [status, setStatus] = useState<{ isMentor: boolean; level: number; xp: number; profile?: any } | null>(null);
-    const [sessions, setSessions] = useState<{ pending: MentorSession[]; upcoming: MentorSession[]; history: MentorSession[]; published: MentorSession[]; stats: any } | null>(null);
-    const [vouchCodes, setVouchCodes] = useState<VouchCode[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+
+    const { data: dashboardData, isLoading, mutate } = useSWR(
+        user?.id ? ['mentorDashboard', user.id] : null,
+        fetchMentorDashboardData as any,
+        {
+            revalidateOnFocus: false
+        }
+    );
+
+    const status = dashboardData?.status || null;
+    const sessions = dashboardData?.sessions || null;
+    const vouchCodes = dashboardData?.vouchCodes || [];
 
     // UI State
     const [activeTab, setActiveTab] = useState<"requests" | "upcoming" | "history">("requests");
@@ -40,29 +50,9 @@ export default function MentorDashboardPage() {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     const loadData = async (uid?: string) => {
-        const resolvedId = uid || user?.id;
-        console.log("=== MENTOR DASHBOARD: loadData ===");
-        console.log("Resolved user ID:", resolvedId);
-        const [s, m, v] = await Promise.all([
-            getMyMentorStatus(resolvedId),
-            getMySessionsAsMentor(),
-            getMyVouchCodes()
-        ]);
-        console.log("getMyMentorStatus result:", JSON.stringify(s, null, 2));
-        console.log("isMentor flag:", s?.isMentor);
-        console.log("level:", s?.level, "| xp:", s?.xp);
-        console.log("mentor_profile:", s?.profile);
-        setStatus(s);
-        setSessions(m);
-        setVouchCodes(v);
-        setIsLoading(false);
+        // Now handled by SWR
+        mutate();
     };
-
-    useEffect(() => {
-        if (user?.id) {
-            loadData(user.id);
-        }
-    }, [user?.id]);
 
 
     const handleAction = async (id: string, action: "accept" | "decline" | "complete" | "delete") => {
@@ -255,7 +245,7 @@ export default function MentorDashboardPage() {
                     />
                     <StatCard
                         label="Total Earned"
-                        value={`${(sessions?.history?.filter(h => h.status === 'completed').length || 0) * (status?.profile?.hourlyRate || 0)}`}
+                        value={`${(sessions?.history?.filter((h: any) => h.status === 'completed').length || 0) * (status?.profile?.hourlyRate || 0)}`}
                         icon={CurrencyCoin}
                         color="bg-emerald-500"
                     />
@@ -306,7 +296,7 @@ export default function MentorDashboardPage() {
                                             <p className="font-bold">No pending requests.</p>
                                         </div>
                                     ) : (
-                                        sessions?.pending.map(req => (
+                                        sessions?.pending.map((req: any) => (
                                             <motion.div key={req.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                                 className="bg-white p-6 rounded-[2.5rem] border border-zinc-100 shadow-sm flex flex-col md:flex-row items-center gap-6">
                                                 <div className="flex items-center gap-4 w-full md:w-auto">
@@ -343,7 +333,7 @@ export default function MentorDashboardPage() {
                                             <p className="font-bold">No upcoming sessions.</p>
                                         </div>
                                     ) : (
-                                        sessions?.upcoming.map(req => (
+                                        sessions?.upcoming.map((req: any) => (
                                             <motion.div key={req.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                                 className="bg-white p-6 rounded-[2.5rem] border border-zinc-100 shadow-sm flex flex-col md:flex-row items-center gap-6">
                                                 <div className="flex items-center gap-4 w-full md:w-auto">
@@ -379,7 +369,7 @@ export default function MentorDashboardPage() {
                                             <p className="font-bold">No past sessions.</p>
                                         </div>
                                     ) : (
-                                        sessions?.history.map(req => (
+                                        sessions?.history.map((req: any) => (
                                             <motion.div key={req.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                                                 className="bg-zinc-50 p-6 rounded-[2.5rem] border border-zinc-100/50 flex flex-col md:flex-row items-center gap-6 opacity-80 hover:opacity-100 transition-opacity">
                                                 <div className="flex items-center gap-4 w-full md:w-auto">
@@ -474,7 +464,7 @@ export default function MentorDashboardPage() {
                             </AnimatePresence>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {sessions?.published.map(rec => (
+                                {sessions?.published.map((rec: any) => (
                                     <div key={rec.id} className="bg-white p-5 rounded-[2.5rem] border border-zinc-100 flex items-start gap-4 group hover:border-[#D4F268] transition-colors relative">
                                         <div className="w-16 h-16 rounded-[1.5rem] bg-zinc-50 flex items-center justify-center shrink-0 group-hover:bg-[#D4F268]/20 transition-colors">
                                             <Video size={24} className="text-zinc-400 group-hover:text-black" />
@@ -591,7 +581,7 @@ export default function MentorDashboardPage() {
                                 {vouchCodes.length === 0 ? (
                                     <p className="text-zinc-300 text-[10px] font-bold italic">No codes generated yet.</p>
                                 ) : (
-                                    vouchCodes.slice(0, 5).map(c => (
+                                    vouchCodes.slice(0, 5).map((c: any) => (
                                         <div key={c.id} className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
                                             <code className="text-xs font-black tracking-wider text-zinc-600">{c.code}</code>
                                             <div className="flex items-center gap-2">

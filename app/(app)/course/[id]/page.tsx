@@ -7,7 +7,9 @@ import { Loader2 } from "lucide-react";
 import FocusTrackHeader from "@/components/course/FocusTrackHeader";
 import FocusModule from "@/components/course/FocusModule";
 import StickyContinueButton from "@/components/course/StickyContinueButton";
-import { createClient } from "@/utils/supabase/client";
+import useSWR from "swr";
+import { fetchCourseTrack } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 interface Lesson {
     id: string;
@@ -40,198 +42,26 @@ export default function CoursePage() {
     const router = useRouter();
     const courseId = params.id as string;
 
-    const [trackData, setTrackData] = useState<CourseData | null>(null);
-    const [modules, setModules] = useState<Module[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { user } = useUser();
+    
+    // Fetch Course Track mapping via centralized SWR fetcher
+    const { data: swrData, isLoading: isSwrLoading } = useSWR(
+        user && courseId ? ['course', courseId, user.id] : null,
+        fetchCourseTrack as any
+    );
+
     const [activeModuleId, setActiveModuleId] = useState<number>(0);
 
+    // Sync initial activeModuleId into local state for manual toggling
     useEffect(() => {
-        const fetchCourse = async () => {
-            setIsLoading(true);
-            const supabase = createClient();
+        if (swrData?.activeModuleId && !activeModuleId) {
+            setActiveModuleId(swrData.activeModuleId);
+        }
+    }, [swrData, activeModuleId]);
 
-            // Get current user for progress tracking
-            const { data: { user } } = await supabase.auth.getUser();
-
-            // ── Try 1: Look in the `courses` table by slug ──
-            const { data: course } = await supabase
-                .from("courses")
-                .select("id, title, total_lessons")
-                .eq("slug", courseId)
-                .maybeSingle();
-
-            if (course) {
-                // Course table path (original logic)
-                const { data: lessons } = await supabase
-                    .from("lessons")
-                    .select("id, title, order_index, content, video_url")
-                    .eq("course_id", course.id)
-                    .order("order_index", { ascending: true });
-
-                let completedLessonIds = new Set<string>();
-                if (user && lessons) {
-                    const { data: progress } = await supabase
-                        .from("user_lesson_progress")
-                        .select("lesson_id")
-                        .eq("user_id", user.id)
-                        .in("lesson_id", lessons.map((l) => l.id));
-                    if (progress) completedLessonIds = new Set(progress.map((p) => p.lesson_id));
-                }
-
-                const lessonList = lessons ?? [];
-                const completedCount = lessonList.filter((l) => completedLessonIds.has(l.id)).length;
-                const progress = lessonList.length > 0
-                    ? Math.round((completedCount / lessonList.length) * 100)
-                    : 0;
-
-                let isPreviousLessonCompleted = true;
-                const LESSONS_PER_MODULE = 4;
-                const builtModules: Module[] = [];
-                for (let i = 0; i < lessonList.length; i += LESSONS_PER_MODULE) {
-                    const chunk = lessonList.slice(i, i + LESSONS_PER_MODULE);
-                    const moduleNum = Math.floor(i / LESSONS_PER_MODULE) + 1;
-                    const moduleLessons: Lesson[] = chunk.map((l) => {
-                        const completed = completedLessonIds.has(l.id);
-                        const locked = !isPreviousLessonCompleted;
-                        isPreviousLessonCompleted = completed;
-                        return {
-                            id: l.id,
-                            title: l.title,
-                            order_index: l.order_index,
-                            isCompleted: completed,
-                            type: l.video_url ? "video" : "article",
-                            duration: (l as any).content_data?.duration || (l as any).content_data?.readTime || "10 min",
-                            isLocked: locked,
-                        };
-                    });
-                    const allDone = moduleLessons.every((l) => l.isCompleted);
-                    const anyDone = moduleLessons.some((l) => l.isCompleted);
-                    builtModules.push({
-                        id: moduleNum,
-                        title: `Module ${moduleNum}`,
-                        description: chunk[0]?.content || `Continue your learning journey in this module.`,
-                        lessons: moduleLessons,
-                        status: allDone ? "completed" : anyDone ? "in-progress" : "in-progress",
-                    });
-                }
-
-                const firstActive = builtModules.find((m) => m.status === "in-progress");
-                setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
-                const firstUncompleted = lessonList.find((l) => !completedLessonIds.has(l.id)) || lessonList[0];
-
-                setTrackData({
-                    title: course.title,
-                    progress,
-                    totalModules: builtModules.length,
-                    completedModules: builtModules.filter((m) => m.status === "completed").length,
-                    currentLesson: {
-                        id: firstUncompleted?.id ?? "",
-                        title: firstUncompleted?.title ?? "Start Learning",
-                    },
-                });
-                setModules(builtModules);
-                setIsLoading(false);
-                return;
-            }
-
-            // ── Try 2: Fall back to the `tracks` table (same data the Roadmap uses) ──
-            const { data: track } = await supabase
-                .from("tracks")
-                .select("id, title")
-                .eq("slug", courseId)
-                .maybeSingle();
-
-            if (!track) {
-                // Neither table has this slug
-                setIsLoading(false);
-                return;
-            }
-
-            // Fetch modules for this track
-            const { data: dbModules } = await supabase
-                .from("modules")
-                .select("id, title, description, order_index")
-                .eq("track_id", track.id)
-                .order("order_index");
-
-            if (!dbModules || dbModules.length === 0) {
-                setIsLoading(false);
-                return;
-            }
-
-            // Fetch all topics for these modules
-            const { data: topics } = await supabase
-                .from("topics")
-                .select("id, module_id, title, order_index, type, content_data")
-                .in("module_id", dbModules.map((m) => m.id))
-                .order("order_index", { ascending: true });
-
-            // Fetch topic progress
-            let completedTopicIds = new Set<string>();
-            if (user && topics) {
-                const { data: progress } = await supabase
-                    .from("user_topic_progress")
-                    .select("topic_id")
-                    .eq("user_id", user.id)
-                    .eq("status", "completed")
-                    .in("topic_id", topics.map((t) => t.id));
-                if (progress) completedTopicIds = new Set(progress.map((p) => p.topic_id));
-            }
-
-            const totalTopics = topics?.length ?? 0;
-            const completedCount = topics?.filter((t) => completedTopicIds.has(t.id)).length ?? 0;
-            const progress = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
-
-            let isPreviousLessonCompleted = true;
-
-            // Map modules → our Module interface (topics become lessons)
-            const builtModules: Module[] = dbModules.map((mod, idx) => {
-                const modTopics = (topics ?? []).filter((t) => t.module_id === mod.id);
-                const moduleLessons: Lesson[] = modTopics.map((t) => {
-                    const completed = completedTopicIds.has(t.id);
-                    const locked = !isPreviousLessonCompleted;
-                    isPreviousLessonCompleted = completed;
-                    return {
-                        id: t.id,
-                        title: t.title,
-                        order_index: t.order_index,
-                        isCompleted: completed,
-                        type: t.type as any,
-                        duration: (t.content_data as any)?.duration || (t.content_data as any)?.readTime || "10 min",
-                        isLocked: locked,
-                    };
-                });
-                const allDone = moduleLessons.every((l) => l.isCompleted);
-                const anyDone = moduleLessons.some((l) => l.isCompleted);
-                return {
-                    id: idx + 1,
-                    title: mod.title,
-                    description: mod.description || `Module ${idx + 1}`,
-                    lessons: moduleLessons,
-                    status: allDone ? "completed" : anyDone ? "in-progress" : "in-progress",
-                };
-            });
-
-            const firstActive = builtModules.find((m) => m.status === "in-progress");
-            setActiveModuleId(firstActive?.id ?? builtModules[0]?.id ?? 0);
-            const firstUncompletedTopic = topics?.find((t) => !completedTopicIds.has(t.id)) || topics?.[0];
-
-            setTrackData({
-                title: track.title,
-                progress,
-                totalModules: builtModules.length,
-                completedModules: builtModules.filter((m) => m.status === "completed").length,
-                currentLesson: {
-                    id: firstUncompletedTopic?.id ?? "",
-                    title: firstUncompletedTopic?.title ?? "Start Learning",
-                },
-            });
-            setModules(builtModules);
-            setIsLoading(false);
-        };
-
-        fetchCourse();
-    }, [courseId]);
+    const trackData = swrData?.trackData || null;
+    const modules = swrData?.modules || [];
+    const isLoading = isSwrLoading || (courseId && user && !swrData);
 
     const handleModuleClick = (id: number) => {
         setActiveModuleId((prev) => (prev === id ? 0 : id));
@@ -285,7 +115,7 @@ export default function CoursePage() {
 
                 <motion.div layout={typeof window !== "undefined" && window.innerWidth >= 768} className="space-y-4">
                     <AnimatePresence initial={false}>
-                        {modules.map((module) => (
+                        {modules.map((module: Module) => (
                             <FocusModule
                                 key={module.id}
                                 moduleNumber={module.id}

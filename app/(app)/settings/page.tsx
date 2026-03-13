@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import { fetchUserProfile } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
+import { signOutAction } from "@/actions/user-actions";
 
 const tabs = [
     { id: "general", label: "General", icon: User },
@@ -49,12 +53,11 @@ export default function SettingsPage() {
 
                     <button
                         className="flex items-center gap-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors"
-                        onClick={() => {
-                            // Fire and forget, then redirect immediately
-                            const supabase = createClient();
-                            supabase.auth.signOut();
-                            document.cookie = "has_seen_onboarding=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-                            router.push("/login");
+                        onClick={async () => {
+                            const result = await signOutAction();
+                            if (result.success) {
+                                window.location.href = '/login';
+                            }
                         }}
                     >
                         <LogOut size={18} />
@@ -84,7 +87,13 @@ export default function SettingsPage() {
 
 function GeneralSettings({ toast }: { toast: any }) {
     const supabase = createClient();
-    const [isLoading, setIsLoading] = useState(true);
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
+    const { data: profile, isLoading: isProfileLoading, mutate } = useSWR(
+        currentUserId ? ['userProfile', currentUserId] : null,
+        fetchUserProfile as any
+    );
     const [isSaving, setIsSaving] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -95,45 +104,21 @@ function GeneralSettings({ toast }: { toast: any }) {
         avatar_url: ""
     });
 
+    const [hasInitialized, setHasInitialized] = useState(false);
+
     useEffect(() => {
-        const fetchProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('full_name, username, bio, avatar_url')
-                    .eq('id', user.id)
-                    .single();
-
-                const meta = user.user_metadata || {};
-                let profileData = {
-                    full_name: meta.full_name || "",
-                    username: meta.username || "",
-                    bio: "",
-                    avatar_url: meta.avatar_url || ""
-                };
-
-                if (data && !error) {
-                    profileData = {
-                        full_name: data.full_name || profileData.full_name,
-                        username: data.username || profileData.username,
-                        bio: data.bio || "",
-                        avatar_url: data.avatar_url || profileData.avatar_url
-                    };
-                }
-
-                setFormData({
-                    full_name: profileData.full_name,
-                    username: profileData.username,
-                    email: user.email || "",
-                    bio: profileData.bio,
-                    avatar_url: profileData.avatar_url
-                });
-            }
-            setIsLoading(false);
-        };
-        fetchProfile();
-    }, [supabase]);
+        if (profile && user && !hasInitialized) {
+            const meta = user.user_metadata || {};
+            setFormData({
+                full_name: profile.full_name || meta.full_name || "",
+                username: profile.username || meta.username || "",
+                email: user.email || "",
+                bio: profile.bio || "",
+                avatar_url: profile.avatar_url || meta.avatar_url || ""
+            });
+            setHasInitialized(true);
+        }
+    }, [profile, user, hasInitialized]);
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -152,11 +137,15 @@ function GeneralSettings({ toast }: { toast: any }) {
             if (error) {
                 toast(`Failed to update profile: ${error.message}`, "error");
             } else {
+                mutate({ ...profile, ...formData }, false); // Optimistic UI update
+                mutate(); // Revalidate
                 toast("Profile updated!", "success");
             }
         }
         setIsSaving(false);
     };
+
+    const isLoading = isProfileLoading || (currentUserId && !profile && !hasInitialized);
 
     if (isLoading) {
         return <div className="py-12 flex justify-center"><div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-800 animate-spin"></div></div>;

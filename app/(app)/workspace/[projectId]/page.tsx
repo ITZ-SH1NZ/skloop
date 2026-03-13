@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { createClient } from "@/utils/supabase/client";
+import useSWR from "swr";
+import { fetchWorkspaceProjectDetails } from "@/lib/swr-fetchers";
 
 export default function WorkspaceProjectBoard() {
     const params = useParams();
@@ -16,56 +18,21 @@ export default function WorkspaceProjectBoard() {
     const supabase = createClient();
     const { toast } = useToast();
 
-    const [project, setProject] = useState<any>(null);
-    const [tasks, setTasks] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: { project = null, tasks = [] } = {}, isLoading, mutate } = useSWR(
+        projectId ? ['workspaceProjectDetails', projectId] : null,
+        fetchWorkspaceProjectDetails as any,
+        {
+            onError: (error) => {
+                toast("Project not found or access denied.", "error");
+                router.push('/workspace');
+            }
+        }
+    );
 
     // Modal state for new task
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const [newTaskDesc, setNewTaskDesc] = useState("");
-
-    const fetchProjectAndTasks = async () => {
-        setIsLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            router.push('/login');
-            return;
-        }
-
-        // Fetch Project Details
-        const { data: projectData, error: projectError } = await supabase
-            .from('projects')
-            .select('*')
-            .eq('id', projectId)
-            .single();
-
-        if (projectError) {
-            toast("Project not found or access denied.", "error");
-            router.push('/workspace');
-            return;
-        }
-        setProject(projectData);
-
-        // Fetch Tasks linked to this project
-        const { data: tasksData, error: tasksError } = await supabase
-            .from('project_tasks')
-            .select('*')
-            .eq('project_id', projectId)
-            .order('created_at', { ascending: true });
-
-        if (!tasksError && tasksData) {
-            setTasks(tasksData);
-        }
-
-        setIsLoading(false);
-    };
-
-    useEffect(() => {
-        if (projectId) {
-            fetchProjectAndTasks();
-        }
-    }, [projectId, supabase]);
 
     const handleCreateTask = async () => {
         if (!newTaskTitle.trim()) return;
@@ -88,7 +55,7 @@ export default function WorkspaceProjectBoard() {
         if (error) {
             toast(`Error creating task: ${error.message}`, "error");
         } else if (insertedTask) {
-            setTasks([...tasks, insertedTask]);
+            mutate({ project, tasks: [...tasks, insertedTask] }, false);
             toast("Task created successfully.", "success");
             setIsTaskModalOpen(false);
             setNewTaskTitle("");
@@ -105,7 +72,7 @@ export default function WorkspaceProjectBoard() {
         if (error) {
             toast(`Failed to move task: ${error.message}`, "error");
         } else {
-            setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+            mutate({ project, tasks: tasks.map((t: any) => t.id === taskId ? { ...t, status: newStatus } : t) }, false);
         }
     };
 
@@ -162,7 +129,7 @@ export default function WorkspaceProjectBoard() {
             {/* Kanban Board */}
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 overflow-x-auto pb-8">
                 {COLUMNS.map(col => {
-                    const columnTasks = tasks.filter(t => t.status === col.id);
+                    const columnTasks = tasks.filter((t: any) => t.status === col.id);
                     return (
                         <div key={col.id} className="flex flex-col min-w-[300px]">
                             <div className="flex items-center justify-between mb-4 px-1">
@@ -176,7 +143,7 @@ export default function WorkspaceProjectBoard() {
 
                             <div className={`flex-1 rounded-3xl p-4 border ${col.color} flex flex-col gap-3 min-h-[500px]`}>
                                 <AnimatePresence>
-                                    {columnTasks.map(task => (
+                                    {columnTasks.map((task: any) => (
                                         <motion.div
                                             key={task.id}
                                             layout

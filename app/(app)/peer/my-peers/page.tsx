@@ -9,14 +9,24 @@ import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/utils/supabase/client";
+import useSWR from "swr";
+import { fetchPeers } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 export default function MyPeersPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<"friends" | "explore" | "requests">("friends");
     const [searchQuery, setSearchQuery] = useState("");
-    const [peers, setPeers] = useState<PeerProfile[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
+    // Fetch Peers with SWR
+    const { data: peersData, isLoading: isLoadingPeers, mutate } = useSWR(
+        currentUserId ? ['peers', currentUserId] : null,
+        fetchPeers as any
+    );
+    const peers: PeerProfile[] = peersData || [];
+    const isLoading = isLoadingPeers || (currentUserId && !peersData);
 
     // Add Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -27,79 +37,6 @@ export default function MyPeersPage() {
 
     // Profile Modal State
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchPeers = async () => {
-            const supabase = createClient();
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            setCurrentUserId(user.id);
-
-            // Fetch Connections
-            const { data: connections } = await supabase
-                .from('connections')
-                .select('*')
-                .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
-
-            if (!connections) {
-                setIsLoading(false);
-                return;
-            }
-
-            // Get all unique user IDs from connections (excluding self)
-            const peerIds = new Set<string>();
-            connections.forEach(conn => {
-                if (conn.requester_id !== user.id) peerIds.add(conn.requester_id);
-                if (conn.recipient_id !== user.id) peerIds.add(conn.recipient_id);
-            });
-
-            if (peerIds.size === 0) {
-                setIsLoading(false);
-                return;
-            }
-
-            // Fetch Profiles for those connections
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('*')
-                .in('id', Array.from(peerIds));
-
-            if (profiles) {
-                const formattedPeers: PeerProfile[] = profiles.map(p => {
-                    // Find the connection relationship
-                    const conn = connections.find(c =>
-                        (c.requester_id === user.id && c.recipient_id === p.id) ||
-                        (c.recipient_id === user.id && c.requester_id === p.id)
-                    );
-
-                    let status: PeerProfile["status"] = "none";
-                    if (conn) {
-                        if (conn.status === 'accepted') status = "friend";
-                        else if (conn.status === 'pending') {
-                            if (conn.requester_id === user.id) status = "pending_outgoing";
-                            else status = "pending_incoming";
-                        }
-                    }
-
-                    return {
-                        id: p.id,
-                        name: p.full_name || p.username || 'Unknown',
-                        username: p.username || `user_${p.id.substring(0, 5)}`,
-                        avatarUrl: p.avatar_url || undefined,
-                        track: p.role || "Learner",
-                        level: p.level || 1,
-                        xp: p.xp || 0,
-                        streak: p.streak || 0,
-                        status,
-                        isOnline: false // Mocked for now until websocket presence
-                    };
-                });
-                setPeers(formattedPeers);
-            }
-            setIsLoading(false);
-        };
-        fetchPeers();
-    }, []);
 
     // Also search users globally when typing in the add modal (exact handle matches)
     useEffect(() => {
@@ -172,14 +109,17 @@ export default function MyPeersPage() {
                 .eq('requester_id', id)
                 .eq('recipient_id', currentUserId);
 
-            setPeers(prev => prev.map(p => p.id === id ? { ...p, status: "friend" } : p));
+            // Optimistic update
+            mutate(peers.map(p => p.id === id ? { ...p, status: "friend" as const } : p), false);
+            mutate();
         } else if (action === "reject") {
             await supabase.from('connections')
                 .delete()
                 .eq('requester_id', id)
                 .eq('recipient_id', currentUserId);
 
-            setPeers(prev => prev.map(p => p.id === id ? { ...p, status: "none" } : p));
+            mutate(peers.map(p => p.id === id ? { ...p, status: "none" as const } : p), false);
+            mutate();
         }
     };
 
@@ -342,9 +282,10 @@ export default function MyPeersPage() {
                                 }));
                                 await supabase.from('connections').insert(inserts);
 
-                                // Add to local state
+                                // Add to optimistic state
                                 const newlyAdded = foundUsers.filter(u => selectedPeers.includes(u.id)).map(u => ({ ...u, status: "pending_outgoing" as const }));
-                                setPeers(prev => [...prev, ...newlyAdded]);
+                                mutate([...peers, ...newlyAdded], false);
+                                mutate();
                             }
                             setIsAddModalOpen(false);
                             setSelectedPeers([]);

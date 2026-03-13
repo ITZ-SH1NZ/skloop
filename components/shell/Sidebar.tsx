@@ -11,13 +11,30 @@ import {
     Bot,
     ShoppingBag,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "../ui/Button";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/Logo";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { preload } from "swr";
+import { fetchUserTasks, 
+    fetchCourseTrack, 
+    fetchPracticeStats, 
+    fetchPeers, 
+    fetchStudyCircles, 
+    fetchGlobalLeaderboard, 
+    fetchMentorStatus, 
+    fetchFindMentorData, 
+    fetchMySessionsAsMentee, 
+    fetchMentorDashboardData,
+    fetchUserProfile,
+    fetchShopData,
+    fetchDailyQuests,
+    fetchHeroCourse
+} from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/Tooltip";
 
@@ -37,9 +54,11 @@ interface NavItemProps {
     pathname: string;
     setMobileOpen?: (open: boolean) => void;
     setIsCollapsed: (collapsed: boolean) => void;
+    user?: any;
 }
 
-const NavItem = ({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsCollapsed }: NavItemProps) => {
+// Wrapped in memo to prevent unnecessary re-renders when parent Sidebar state changes 
+const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsCollapsed, user }: NavItemProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const isActive = pathname === item.href || (item.subItems && item.subItems.some((sub) => pathname === sub.href));
     const showLabel = !isCollapsed || !isDesktop;
@@ -51,6 +70,40 @@ const NavItem = ({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsC
         // simple approach: let user open it, or use useEffect. 
         // For now, let's just keep manual toggle unless active.
     }
+
+    const handlePrefetch = (href: string) => {
+        if (!user) return;
+        if (href === '/dashboard') {
+            preload(['userTasks', user.id], fetchUserTasks as any);
+            preload(['dailyQuests', user.id], fetchDailyQuests as any);
+            preload(['heroCourse', user.id], fetchHeroCourse as any);
+        } else if (href.startsWith('/course/')) {
+            const courseId = href.split('/').pop();
+            if (courseId && courseId !== 'course') {
+                preload(['course', courseId, user.id], fetchCourseTrack as any);
+            }
+        } else if (href === '/practice') {
+            preload(['practiceStats', user.id], fetchPracticeStats as any);
+        } else if (href === '/peer/my-peers') {
+            preload(['peers', user.id], fetchPeers as any);
+        } else if (href === '/peer/study-circles') {
+            preload(['studyCircles'], fetchStudyCircles as any);
+        } else if (href === '/peer/leaderboard') {
+            preload(['globalLeaderboard'], fetchGlobalLeaderboard as any);
+        } else if (href === '/mentorship/apply') {
+            preload(['mentorStatus'], fetchMentorStatus as any);
+        } else if (href === '/mentorship/find') {
+            preload(['findMentorData'], fetchFindMentorData as any);
+        } else if (href === '/mentorship/sessions') {
+            preload(['mySessionsAsMentee'], fetchMySessionsAsMentee as any);
+        } else if (href === '/mentorship/dashboard') {
+            preload(['mentorDashboard', user.id], fetchMentorDashboardData as any);
+        } else if (href === '/profile') {
+            preload(['userProfile', user.id], fetchUserProfile as any);
+        } else if (href === '/shop') {
+            preload(['shopData', user.id], fetchShopData as any);
+        }
+    };
 
     const itemContent = (
         <div className={cn(
@@ -120,6 +173,7 @@ const NavItem = ({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsC
                                     <Link
                                         key={idx}
                                         href={sub.href}
+                                        onMouseEnter={() => handlePrefetch(sub.href)}
                                         onClick={() => setMobileOpen?.(false)}
                                         className={cn(
                                             "block py-2 px-4 rounded-xl text-xs xl:text-sm transition-colors",
@@ -143,6 +197,7 @@ const NavItem = ({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsC
                 <TooltipTrigger asChild>
                     <Link
                         href={item.href}
+                        onMouseEnter={() => handlePrefetch(item.href)}
                         onClick={() => {
                             setMobileOpen?.(false);
                         }}
@@ -159,7 +214,7 @@ const NavItem = ({ item, isCollapsed, isDesktop, pathname, setMobileOpen, setIsC
             </Tooltip>
         </TooltipProvider>
     );
-};
+});
 
 // Extracted SidebarContent to prevent re-renders affecting animation
 interface SidebarContentProps {
@@ -171,6 +226,8 @@ interface SidebarContentProps {
 }
 
 const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIsCollapsed }: SidebarContentProps) => {
+    const { user } = useUser();
+    
     const navItems = [
         { icon: Home, label: "Home", href: "/dashboard" },
         {
@@ -260,6 +317,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
                         pathname={pathname}
                         setMobileOpen={setMobileOpen}
                         setIsCollapsed={setIsCollapsed}
+                        user={user}
                     />
                 ))}
             </nav>

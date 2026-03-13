@@ -105,7 +105,7 @@ export function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalPr
                     coins: data.coins || 0,
                     streak: data.streak || 0,
                     role: data.role || "Learner",
-                    joined_at: data.joined_at || new Date().toISOString(),
+                    joined_at: data.joined_at || data.created_at || new Date().toISOString(),
                     skills: data.skills || [],
                     last_seen: data.last_seen || null
                 });

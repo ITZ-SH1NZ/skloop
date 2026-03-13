@@ -2,6 +2,8 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 /**
  * Calculates user level based on XP (500 XP per level)
@@ -171,4 +173,19 @@ export async function fetchUserProfile(userId: string) {
 
     if (error) return null;
     return data;
+}
+
+/**
+ * Signs out the current user and clears session cookies
+ */
+export async function signOutAction() {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    
+    // Clear custom cookies if any
+    const cookieStore = await cookies();
+    cookieStore.delete('has_seen_onboarding');
+    
+    revalidatePath('/', 'layout');
+    return { success: true };
 }

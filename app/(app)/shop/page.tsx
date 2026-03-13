@@ -12,6 +12,9 @@ import { ShopItem, ShopItemCategory } from "@/lib/shop-items";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
+import useSWR from "swr";
+import { fetchShopData } from "@/lib/swr-fetchers";
+import { useUser } from "@/context/UserContext";
 
 const getIcon = (name: string | null) => {
     if (!name) return HelpCircle;
@@ -27,58 +30,28 @@ const RARITY_CONFIG = {
 
 export default function ShopPage() {
     const { toast } = useToast();
-    const [items, setItems] = useState<ShopItem[]>([]);
-    const [coins, setCoins] = useState<number>(0);
-    const [inventory, setInventory] = useState<string[]>([]);
-    const [streakShields, setStreakShields] = useState<number>(0);
+    const { user } = useUser();
+    const currentUserId = user?.id || null;
+
     const [activeCategory, setActiveCategory] = useState<ShopItemCategory | "all">("all");
-    const [isLoading, setIsLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-    useEffect(() => { loadData(); }, []);
+    const { data: shopData, isLoading: isShopLoading, mutate } = useSWR(
+        currentUserId ? ['shopData', currentUserId] : null,
+        fetchShopData as any
+    );
 
-    const loadData = async () => {
-        setIsLoading(true);
-        try {
-            const supabase = createClient();
+    const items = shopData?.items?.map((item: any) => ({
+        ...item,
+        icon: getIcon(item.icon_name)
+    })) || [];
+    
+    const coins = shopData?.coins || 0;
+    const inventory = shopData?.inventory || [];
+    const streakShields = shopData?.streakShields || 0;
 
-            // 1. Fetch User Profile
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: profile } = await supabase
-                    .from("profiles")
-                    .select("coins, inventory, streak_shields")
-                    .eq("id", user.id)
-                    .single();
-                if (profile) {
-                    setCoins(profile.coins || 0);
-                    setInventory(profile.inventory || []);
-                    setStreakShields(profile.streak_shields || 0);
-                }
-            }
-
-            // 2. Fetch Shop Items from DB
-            const { data: shopItems, error } = await supabase
-                .from("shop_items")
-                .select("*")
-                .order("price", { ascending: true });
-
-            if (!error && shopItems) {
-                // Map DB icons to components
-                const mappedItems = shopItems.map((item: any) => ({
-                    ...item,
-                    icon: getIcon(item.icon_name)
-                }));
-                setItems(mappedItems);
-            }
-        } catch (err) {
-            console.error("Error loading shop data:", err);
-            toast("Failed to load shop items.", "error");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const isLoading = isShopLoading || (currentUserId && !shopData);
 
     const handlePurchase = async (item: ShopItem) => {
         if (coins < item.price) { toast(`Need ${(item.price - coins).toLocaleString()} more coins.`, "error"); return; }
@@ -102,9 +75,13 @@ export default function ShopPage() {
 
             if (error) throw error;
 
-            setCoins(newCoins);
-            setInventory(newInventory);
-            if (item.id === "item_streak_shield") setStreakShields(newShields);
+            mutate({
+                ...shopData,
+                coins: newCoins,
+                inventory: newInventory,
+                streakShields: newShields,
+            }, false);
+            mutate(); // Revalidate background
 
             toast(`${item.name} unlocked. Check your collection!`, "success");
         } catch {
@@ -122,7 +99,7 @@ export default function ShopPage() {
         { id: "consumable", label: "Consumables", Icon: Shield },
     ];
 
-    const filtered = items.filter(i => activeCategory === "all" || i.category === activeCategory);
+    const filtered = items.filter((i: ShopItem) => activeCategory === "all" || i.category === activeCategory);
 
     if (isLoading) return (
         <div className="min-h-screen flex items-center justify-center">
@@ -204,12 +181,12 @@ export default function ShopPage() {
                 {/* Item Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-20">
                     <AnimatePresence mode="popLayout">
-                        {filtered.map((item, idx) => {
+                        {filtered.map((item: ShopItem, idx: number) => {
                             const owned = item.category !== "consumable" && inventory.includes(item.id);
                             const processing = processingId === item.id;
                             const canAfford = coins >= item.price;
-                            const rarity = RARITY_CONFIG[item.rarity];
-                            const Icon = item.icon;
+                            const rarity = RARITY_CONFIG[item.rarity as keyof typeof RARITY_CONFIG];
+                            const Icon = (item as any).icon;
 
                             return (
                                 <motion.div
