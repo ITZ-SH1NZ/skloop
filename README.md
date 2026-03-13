@@ -17,7 +17,7 @@
 
 Skloop is not just a learning management system; it is a **Habit Engineering Platform**. We believe the biggest obstacle to technical mastery is the **Motivation Gap**.
 
-Skloop transforms the अक्सर-sterile process of learning to code into a rich, visceral, and social adventure. Our core philosophy—**"Consistency Beats Intensity"**—is baked into every pixel of the UI.
+Skloop transforms the often-sterile process of learning to code into a rich, visceral, and social adventure. Our core philosophy—**"Consistency Beats Intensity"**—is baked into every pixel of the UI.
 
 ---
 
