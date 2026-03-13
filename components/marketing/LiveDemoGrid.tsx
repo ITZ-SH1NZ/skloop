@@ -7,6 +7,7 @@ import {
     CheckCircle2, Flame, Award, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
+import { useFeedback } from "@/hooks/useFeedback";
 
 const container = {
     hidden: { opacity: 0 },
@@ -29,6 +30,8 @@ const item: Variants = {
 };
 
 export default function LiveDemoGrid() {
+    const { trigger } = useFeedback();
+
     return (
         <section className="relative w-full max-w-7xl mx-auto py-24">
             <div className="text-center mb-16">
@@ -46,7 +49,7 @@ export default function LiveDemoGrid() {
                 className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-[280px]"
             >
                 {/* 1. Dashboard Mock (Large) */}
-                <motion.div variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-2 relative group overflow-hidden bg-white rounded-3xl border border-[#E5E5E0] shadow-sm hover:shadow-xl transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-2 relative group overflow-hidden bg-white rounded-3xl border border-[#E5E5E0] shadow-sm hover:shadow-xl transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-br from-[#FAFAFA] to-white z-0" />
                     <div className="relative z-10 p-8 h-full flex flex-col">
                         <div className="flex items-center gap-3 mb-6">
@@ -88,7 +91,7 @@ export default function LiveDemoGrid() {
                 </motion.div>
 
                 {/* 2. Tracks Mock */}
-                <motion.div variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex flex-col justify-between group hover:shadow-xl transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex flex-col justify-between group hover:shadow-xl transition-all duration-300">
                     <div className="flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-3 mb-2">
@@ -114,7 +117,7 @@ export default function LiveDemoGrid() {
                 </motion.div>
 
                 {/* 3. Daily Games Mock */}
-                <motion.div variants={item} className="col-span-1 md:col-span-1 lg:col-span-1 row-span-1 bg-[#1A1A1A] text-white rounded-3xl p-8 relative overflow-hidden group hover:shadow-xl hover:shadow-[#D4F268]/20 transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-1 lg:col-span-1 row-span-1 bg-[#1A1A1A] text-white rounded-3xl p-8 relative overflow-hidden group hover:shadow-xl hover:shadow-[#D4F268]/20 transition-all duration-300">
                     <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 group-hover:opacity-20 transition-all duration-500">
                         <Gamepad2 className="w-32 h-32 text-[#D4F268]" />
                     </div>
@@ -124,14 +127,14 @@ export default function LiveDemoGrid() {
                 </motion.div>
 
                 {/* 4. Peers/Community */}
-                <motion.div variants={item} className="col-span-1 md:col-span-1 lg:col-span-1 row-span-1 bg-[#D4F268] rounded-3xl p-8 group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-1 lg:col-span-1 row-span-1 bg-[#D4F268] rounded-3xl p-8 group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                     <Users className="w-8 h-8 text-black mb-4" />
                     <h3 className="text-xl font-bold text-black mb-2">Peers & Circles</h3>
                     <p className="text-black/70 text-sm font-medium">Chat, collaborate, and compete globally.</p>
                 </motion.div>
 
                 {/* 5. Mentorship */}
-                <motion.div variants={item} className="col-span-1 md:col-span-1 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex items-center gap-6 group hover:shadow-xl transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-1 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex items-center gap-6 group hover:shadow-xl transition-all duration-300">
                     <div className="w-16 h-16 rounded-full bg-[#FAFAFA] border border-[#E5E5E0] flex items-center justify-center shrink-0">
                         <UserCheck className="w-8 h-8 text-[#1A1A1A]" />
                     </div>
@@ -142,7 +145,7 @@ export default function LiveDemoGrid() {
                 </motion.div>
 
                 {/* 6. Loopy AI */}
-                <motion.div variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex items-center gap-6 relative overflow-hidden group hover:shadow-xl hover:border-[#D4F268] transition-all duration-300">
+                <motion.div onHoverStart={() => trigger('hover')} variants={item} className="col-span-1 md:col-span-2 lg:col-span-2 row-span-1 bg-white rounded-3xl border border-[#E5E5E0] p-8 flex items-center gap-6 relative overflow-hidden group hover:shadow-xl hover:border-[#D4F268] transition-all duration-300">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#D4F268]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="relative z-10 flex-1">
                         <h3 className="text-xl font-bold text-[#1A1A1A] mb-2 flex items-center gap-2">

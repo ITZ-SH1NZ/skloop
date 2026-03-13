@@ -9,6 +9,7 @@ import DailyCodeleCalendar from "@/components/practice/DailyCodeleCalendar";
 import DailyCodeleLeaderboard from "@/components/practice/DailyCodeleLeaderboard";
 import { Gamepad2, Calendar, Trophy } from "lucide-react";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { useFeedback } from "@/hooks/useFeedback";
 
 type Tab = "play" | "archive" | "leaderboard";
 
@@ -21,6 +22,7 @@ const getWordForDate = (date: string): string => {
 };
 
 export default function Page() {
+    const { trigger } = useFeedback();
     const [activeTab, setActiveTab] = useState<Tab>("play");
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [revealedWord, setRevealedWord] = useState<string | null>(null);
@@ -48,7 +50,10 @@ export default function Page() {
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => {
+                                trigger('click');
+                                setActiveTab(tab.id);
+                            }}
                             className={`
                                 relative px-3 py-2 md:px-6 md:py-3 rounded-xl font-bold text-xs md:text-sm uppercase tracking-wider md:tracking-widest
                                 transition-colors flex items-center gap-1.5 md:gap-2 whitespace-nowrap flex-1 md:flex-initial justify-center
@@ -98,6 +103,7 @@ export default function Page() {
                     {activeTab === "archive" && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <DailyCodeleCalendar onPlayPastPuzzle={(date) => {
+                                trigger('click');
                                 setSelectedDate(date);
                                 setRevealedWord(getWordForDate(date));
                             }} />
@@ -132,6 +138,7 @@ export default function Page() {
 
                                     <button
                                         onClick={() => {
+                                            trigger('pop');
                                             setRevealedWord(null);
                                             setSelectedDate(null);
                                             setActiveTab("play");

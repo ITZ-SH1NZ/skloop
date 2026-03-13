@@ -10,6 +10,7 @@ import confetti from "canvas-confetti";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { useUser } from "@/context/UserContext";
 import { createClient } from "@/utils/supabase/client";
+import { useFeedback } from "@/hooks/useFeedback";
 
 // Valid words for guesses — includes all puzzle words + common English words
 // so players are never blocked on a reasonable guess attempt
@@ -97,6 +98,7 @@ const VALID_WORDS = new Set([
 
 
 export default function DailyGame({ isOpen, onClose, inline = false, onComplete }: { isOpen: boolean; onClose: () => void; inline?: boolean; onComplete?: () => void }) {
+    const { trigger } = useFeedback();
     const { user, refreshProfile } = useUser();
     const [solution, setSolution] = useState("");
     const [guesses, setGuesses] = useState<string[]>(Array(6).fill(""));
@@ -147,15 +149,19 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
 
             if (e.key === "Enter") {
                 if (currentGuess.length !== 5) {
+                    trigger('error');
                     setShakeRow(true);
                     setTimeout(() => setShakeRow(false), 500);
                     return;
                 }
+                trigger('click');
                 submitGuess();
             } else if (e.key === "Backspace") {
+                trigger('pop');
                 setCurrentGuess((prev) => prev.slice(0, -1));
             } else if (/^[a-zA-Z]$/.test(e.key)) {
                 if (currentGuess.length < 5) {
+                    trigger('pop');
                     setCurrentGuess((prev) => (prev + e.key).toUpperCase());
                 }
             }
@@ -168,6 +174,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
     const submitGuess = () => {
         // Validate word is in the valid word list
         if (!VALID_WORDS.has(currentGuess)) {
+            trigger('error');
             setErrorMessage(`"${currentGuess}" is not part of the word list`);
             setShakeRow(true);
             setTimeout(() => {
@@ -245,6 +252,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
         };
 
         if (currentGuess === solution) {
+            trigger('success');
             setGameState("won");
             checkGameEnd("won", currentRow + 1, currentGuess);
             confetti({
@@ -254,6 +262,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
                 colors: ["#D4F268", "#1A1A1A", "#FFFFFF"]
             });
         } else if (currentRow === 5) {
+            trigger('error');
             setGameState("lost");
             checkGameEnd("lost", 6, currentGuess);
         } else {
@@ -268,15 +277,19 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
 
         if (key === "ENTER") {
             if (currentGuess.length !== 5) {
+                trigger('error');
                 setShakeRow(true);
                 setTimeout(() => setShakeRow(false), 500);
                 return;
             }
+            trigger('click');
             submitGuess();
         } else if (key === "←") {
+            trigger('pop');
             setCurrentGuess((prev) => prev.slice(0, -1));
         } else {
             if (currentGuess.length < 5) {
+                trigger('pop');
                 setCurrentGuess((prev) => prev + key);
             }
         }
@@ -399,6 +412,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
 
                     <Button
                         onClick={() => {
+                            trigger('pop');
                             setGuesses(Array(6).fill(""));
                             setCurrentGuess("");
                             setCurrentRow(0);

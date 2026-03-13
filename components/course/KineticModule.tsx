@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform, Variants } from "framer-motion";
 import { useRef } from "react";
 import LessonItem, { LessonProps } from "./LessonItem";
 import { Check, Lock } from "lucide-react";
+import { useFeedback } from "@/hooks/useFeedback";
 
 interface KineticModuleProps {
     moduleNumber: number;
@@ -16,6 +17,7 @@ interface KineticModuleProps {
 }
 
 export default function KineticModule({ moduleNumber, title, description, lessons, status, index, totalModules }: KineticModuleProps) {
+    const { trigger } = useFeedback();
     const cardRef = useRef<HTMLDivElement>(null);
     const { scrollYProgress } = useScroll({
         target: cardRef,
@@ -61,6 +63,7 @@ export default function KineticModule({ moduleNumber, title, description, lesson
             }}
         >
             <motion.div
+                onHoverStart={() => !isLocked && trigger('hover')}
                 style={{ scale: isLocked ? 1 : scale, opacity: isLocked ? 0.6 : opacity }}
                 className={`
                     relative overflow-hidden rounded-[2.5rem] border backdrop-blur-sm transition-shadow duration-500

@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import { Check, X, ArrowRight, Award, RefreshCcw } from "lucide-react";
+import { useFeedback } from "@/hooks/useFeedback";
 
 interface Question {
     question: string;
@@ -19,6 +20,7 @@ interface QuizViewerProps {
 }
 
 export default function QuizViewer({ quizData, onComplete }: QuizViewerProps) {
+    const { trigger } = useFeedback();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [isAnswered, setIsAnswered] = useState(false);
@@ -55,11 +57,15 @@ export default function QuizViewer({ quizData, onComplete }: QuizViewerProps) {
         setSelectedOption(index);
         setIsAnswered(true);
         if (index === correctIndex) {
+            trigger('success');
             setScore(prev => prev + 1);
+        } else {
+            trigger('error');
         }
     };
 
     const handleNext = () => {
+        trigger('click');
         if (currentIndex < quizData.questions.length - 1) {
             setCurrentIndex(prev => prev + 1);
             setSelectedOption(null);
@@ -70,6 +76,7 @@ export default function QuizViewer({ quizData, onComplete }: QuizViewerProps) {
     };
 
     const handleRetry = () => {
+        trigger('click');
         setCurrentIndex(0);
         setSelectedOption(null);
         setIsAnswered(false);
@@ -99,7 +106,7 @@ export default function QuizViewer({ quizData, onComplete }: QuizViewerProps) {
 
                 {passed ? (
                     <button
-                        onClick={onComplete}
+                        onClick={() => { trigger('success'); onComplete(); }}
                         className="px-12 py-4 bg-lime-400 text-zinc-900 rounded-2xl font-black shadow-xl shadow-lime-400/20 hover:bg-lime-500 transition-all active:scale-95"
                     >
                         Claim Your XP
