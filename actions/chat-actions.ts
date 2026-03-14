@@ -2,6 +2,12 @@
 
 import { createClient } from "@/utils/supabase/server";
 
+export interface MessageAttachment {
+    url: string;
+    type: 'image' | 'video' | 'audio' | 'file';
+    name?: string;
+}
+
 export interface MessageRow {
     id: string;
     senderId: string;
@@ -9,8 +15,15 @@ export interface MessageRow {
     senderAvatar?: string;
     text?: string;
     caption?: string;
-    mediaUrl?: string;
-    type: "text" | "image" | "sticker" | "gif";
+    mediaUrl?: string; // Legacy support
+    attachments?: MessageAttachment[];
+    type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file";
+    status?: 'sent' | 'delivered' | 'read';
+    replyToId?: string;
+    isEdited?: boolean;
+    editedAt?: Date;
+    isDeleted?: boolean;
+    reactions?: { emoji: string; count: number; userIds: string[] }[];
     timestamp: Date;
 }
 
@@ -28,12 +41,22 @@ export async function getConversationMessages(conversationId: string): Promise<M
             content,
             caption,
             type,
+            status,
+            reply_to_id,
+            attachments,
+            is_edited,
+            edited_at,
+            is_deleted,
             created_at,
             profiles (
                 id,
                 full_name,
                 username,
                 avatar_url
+            ),
+            message_reactions (
+                emoji,
+                user_id
             )
         `)
         .eq('conversation_id', conversationId)
@@ -50,7 +73,6 @@ export async function getConversationMessages(conversationId: string): Promise<M
         const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
         const isGif = isUrl && m.content.includes('giphy.com');
 
-        // Safety check for the 'type' column which might be added via SQL
         const msgType = m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
 
         return {
@@ -62,6 +84,22 @@ export async function getConversationMessages(conversationId: string): Promise<M
             caption: m.caption || undefined,
             type: msgType as any,
             mediaUrl: isUrl ? m.content : undefined,
+            attachments: m.attachments || [],
+            status: m.status || 'sent',
+            replyToId: m.reply_to_id || undefined,
+            isEdited: m.is_edited || false,
+            editedAt: m.edited_at ? new Date(m.edited_at) : undefined,
+            isDeleted: m.is_deleted || false,
+            reactions: m.message_reactions ? (m.message_reactions as any[]).reduce((acc: any[], r) => {
+                const existing = acc.find(a => a.emoji === r.emoji);
+                if (existing) {
+                    existing.count++;
+                    existing.userIds.push(r.user_id);
+                } else {
+                    acc.push({ emoji: r.emoji, count: 1, userIds: [r.user_id] });
+                }
+                return acc;
+            }, []) : [],
             timestamp: new Date(m.created_at),
         } as MessageRow;
     });
@@ -76,7 +114,9 @@ export async function sendMessage(
     senderId: string,
     content: string,
     type: MessageRow['type'] = 'text',
-    caption?: string
+    caption?: string,
+    attachments: MessageAttachment[] = [],
+    replyToId?: string
 ) {
     const supabase = await createClient();
 
@@ -87,7 +127,10 @@ export async function sendMessage(
             sender_id: senderId,
             content: content,
             type: type,
+            attachments: attachments,
             ...(caption ? { caption } : {}),
+            ...(replyToId ? { reply_to_id: replyToId } : {}),
+            status: 'sent'
         })
         .select()
         .single();
@@ -352,3 +395,100 @@ export async function uploadChatFile(formData: FormData): Promise<string | null>
     return publicUrl;
 }
 
+/**
+ * Edits an existing message.
+ */
+export async function editMessage(messageId: string, content: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { data, error } = await supabase
+        .from('messages')
+        .update({
+            content: content,
+            is_edited: true,
+            edited_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('sender_id', user.id) // Security check
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Marks a message as deleted.
+ */
+export async function deleteMessage(messageId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { data, error } = await supabase
+        .from('messages')
+        .update({
+            is_deleted: true,
+            content: "Message deleted" // Wipe content for safety
+        })
+        .eq('id', messageId)
+        .eq('sender_id', user.id) // Security check
+        .select()
+        .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Marks all unread messages from a specific sender in a conversation as read.
+ */
+export async function markMessagesAsRead(conversationId: string, peerId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const { error } = await supabase
+        .from('messages')
+        .update({ status: 'read' })
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', peerId)
+        .neq('status', 'read');
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+/**
+ * Toggles an emoji reaction on a message.
+ */
+export async function toggleReaction(messageId: string, emoji: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Check if reaction exists
+    const { data: existing } = await supabase
+        .from('message_reactions')
+        .select('id')
+        .eq('message_id', messageId)
+        .eq('user_id', user.id)
+        .eq('emoji', emoji)
+        .maybeSingle();
+
+    if (existing) {
+        // Remove it
+        await supabase.from('message_reactions').delete().eq('id', existing.id);
+        return { action: 'removed' };
+    } else {
+        // Add it
+        await supabase.from('message_reactions').insert({
+            message_id: messageId,
+            user_id: user.id,
+            emoji
+        });
+        return { action: 'added' };
+    }
+}

@@ -584,6 +584,7 @@ function ChatPageContent() {
                     >
                         <ChatWindow
                             peer={selectedPeer}
+                            currentUserId={currentUserId}
                             onBack={() => setSelectedPeerId(null)}
                             onPeerUpdate={handlePeerUpdate}
                         />
