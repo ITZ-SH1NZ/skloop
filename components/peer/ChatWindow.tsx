@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { 
-    Send, Plus, Image as ImageIcon, Smile, X, Search, 
-    ArrowLeft, Info, Users as UsersIcon, FileText, 
-    Mic, Square, Check, Video, Reply, Share2, 
+import {
+    Send, Plus, Image as ImageIcon, Smile, X, Search,
+    ArrowLeft, Info, Users as UsersIcon, FileText,
+    Mic, Square, Check, Video, Reply, Share2,
     Play, Pause, FastForward, ChevronDown, Copy, Star, Pin, Gift, Trash2,
     Bot, BarChart2, Calendar, Palette, PinOff, Zap, Sparkles, Clock, AlertCircle, MoreVertical, Link
 } from "lucide-react";
@@ -15,13 +15,13 @@ import { LoopyMascot, LoopyMood } from "../loopy/LoopyMascot";
 import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
-import { 
-    getConversationMessages, sendMessage, MessageRow, uploadChatFile, 
+import {
+    getConversationMessages, sendMessage, MessageRow, uploadChatFile,
     markMessagesAsRead, deleteMessage, toggleReaction,
     pinMessage, unpinMessage, getPinnedMessage,
     createPoll, getPoll, votePoll,
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
-    type MessageAttachment 
+    type MessageAttachment
 } from "@/actions/chat-actions";
 import { soundManager } from "@/lib/sound";
 
@@ -42,12 +42,12 @@ const LinkPreview = ({ url, isMe }: { url: string; isMe?: boolean }) => {
         let cancelled = false;
         fetch(`/api/og-preview?url=${encodeURIComponent(url)}`)
             .then(r => r.json())
-            .then(d => { 
-                if (!cancelled) { 
+            .then(d => {
+                if (!cancelled) {
                     ogCache[url] = d;
-                    setOg(d); 
-                    setLoading(false); 
-                } 
+                    setOg(d);
+                    setLoading(false);
+                }
             })
             .catch(() => { if (!cancelled) { setLoading(false); } });
         return () => { cancelled = true; };
@@ -66,9 +66,9 @@ const LinkPreview = ({ url, isMe }: { url: string; isMe?: boolean }) => {
     }
 
     return (
-        <motion.a 
-            href={url} 
-            target="_blank" 
+        <motion.a
+            href={url}
+            target="_blank"
             rel="noopener noreferrer"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -133,7 +133,7 @@ const PollMessage = ({ pollId, currentUserId }: { pollId: string; currentUserId:
                 fetchPoll();
             })
             .subscribe();
-        
+
         return () => { supabase.removeChannel(channel); };
     }, [pollId]);
 
@@ -231,12 +231,12 @@ const VoicePlayer = ({ url }: { url: string }) => {
                         const progress = (currentTime / (duration || 1)) * 100;
                         const isPlayed = (i / waveform.length) * 100 < progress;
                         return (
-                            <motion.div 
-                                key={i} 
+                            <motion.div
+                                key={i}
                                 animate={{ height: isPlaying ? [h, h * 1.5, h] : h }}
                                 transition={{ duration: 0.5, repeat: isPlaying ? Infinity : 0, delay: i * 0.05 }}
-                                className={`w-[3px] rounded-full transition-colors duration-300 ${isPlayed ? 'bg-[#84cc16]' : 'bg-zinc-300'}`} 
-                                style={{ height: `${h}px` }} 
+                                className={`w-[3px] rounded-full transition-colors duration-300 ${isPlayed ? 'bg-[#84cc16]' : 'bg-zinc-300'}`}
+                                style={{ height: `${h}px` }}
                             />
                         );
                     })}
@@ -255,7 +255,7 @@ const VoicePlayer = ({ url }: { url: string }) => {
 
 const renderReplyContent = (msg: MessageRow) => {
     if (msg.isDeleted) return <span className="text-zinc-400 italic">Message deleted</span>;
-    
+
     // Check for media first
     const hasImage = msg.mediaUrl || msg.attachments?.some(a => a.type === 'image');
     const hasVideo = msg.attachments?.some(a => a.type === 'video');
@@ -475,7 +475,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             });
         } else if (isAtBottom) {
             scrollToBottom();
-        if (messages.length > 0) setLastReadId(messages[messages.length - 1].id);
+            if (messages.length > 0) setLastReadId(messages[messages.length - 1].id);
         }
     }, [messages, isAtBottom]);
 
@@ -489,7 +489,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             ]);
             setMessages(history);
             setPinnedMsg(pinned);
-            
+
             // Mark as read when loading history
             await markMessagesAsRead(peer.id, peer.peerId || peer.id);
 
@@ -505,9 +505,9 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         const supabase = createClient();
         const channel = supabase
             .channel(`chat:messages:${peer.id}`)
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
                 table: 'messages',
                 filter: `conversation_id=eq.${peer.id}`
             }, async (payload) => {
@@ -537,8 +537,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     }
                 } else if (payload.eventType === 'UPDATE') {
                     const updated = payload.new as any;
-                    setMessages(prev => prev.map(m => m.id === updated.id ? { 
-                        ...m, 
+                    setMessages(prev => prev.map(m => m.id === updated.id ? {
+                        ...m,
                         isDeleted: updated.is_deleted,
                         text: updated.is_deleted ? "Message deleted" : updated.content,
                         status: updated.status,
@@ -556,7 +556,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             }, async (payload) => {
                 const reaction = (payload.new || payload.old) as any;
                 const msgId = reaction.message_id;
-                
+
                 setMessages(prev => {
                     return prev.map(m => {
                         if (m.id !== msgId) return m;
@@ -565,10 +565,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             const existing = nextReactions.find(r => r.emoji === reaction.emoji);
                             if (existing) {
                                 if (!existing.userIds.includes(reaction.user_id)) {
-                                    nextReactions = nextReactions.map(r => 
-                                        r.emoji === reaction.emoji 
-                                        ? { ...r, count: r.count + 1, userIds: [...r.userIds, reaction.user_id] }
-                                        : r
+                                    nextReactions = nextReactions.map(r =>
+                                        r.emoji === reaction.emoji
+                                            ? { ...r, count: r.count + 1, userIds: [...r.userIds, reaction.user_id] }
+                                            : r
                                     );
                                 }
                             } else {
@@ -578,10 +578,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             const existing = nextReactions.find(r => r.emoji === reaction.emoji);
                             if (existing) {
                                 if (existing.count > 1) {
-                                    nextReactions = nextReactions.map(r => 
-                                        r.emoji === reaction.emoji 
-                                        ? { ...r, count: r.count - 1, userIds: r.userIds.filter(id => id !== reaction.user_id) }
-                                        : r
+                                    nextReactions = nextReactions.map(r =>
+                                        r.emoji === reaction.emoji
+                                            ? { ...r, count: r.count - 1, userIds: r.userIds.filter(id => id !== reaction.user_id) }
+                                            : r
                                     );
                                 } else {
                                     nextReactions = nextReactions.filter(r => r.emoji !== reaction.emoji);
@@ -629,7 +629,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         }
 
         const supabase = createClient();
-        
+
         // 1. Initial State from profile
         const fetchInitialStatus = async () => {
             const { data: profile } = await supabase
@@ -637,11 +637,11 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                 .select('last_seen')
                 .eq('id', peer.peerId || peer.id)
                 .single();
-            
+
             if (profile?.last_seen) {
                 const lastSeen = new Date(profile.last_seen);
                 const diff = (new Date().getTime() - lastSeen.getTime()) / 1000;
-                
+
                 if (diff < 120) {
                     setIsPeerOnline(true);
                 } else {
@@ -838,10 +838,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
 
     const handleCreatePollAction = async () => {
         if (!peer || !currentUserId || !pollQuestion || pollOptions.filter(o => o.trim()).length < 2) return;
-        
+
         const options = pollOptions.filter(o => o.trim()).map(o => ({ text: o }));
         const tempId = `temp-poll-${Date.now()}`;
-        
+
         // Optimistic update
         const optimisticPollMsg: MessageRow = {
             id: tempId,
@@ -853,7 +853,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             status: 'sent',
             pollId: 'temp' // Temporary indicator
         };
-        
+
         setMessages(prev => [...prev, optimisticPollMsg]);
         setShowPollCreator(false);
         setPollQuestion("");
@@ -864,10 +864,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         try {
             const { message: savedMsg, poll: savedPoll } = await createPoll(peer.id, currentUserId, pollQuestion, options);
             // Update the optimistic message with real IDs
-            setMessages(prev => prev.map(m => m.id === tempId ? { 
-                ...m, 
-                id: savedMsg.id, 
-                pollId: savedPoll.id 
+            setMessages(prev => prev.map(m => m.id === tempId ? {
+                ...m,
+                id: savedMsg.id,
+                pollId: savedPoll.id
             } : m));
         } catch (err) {
             console.error("Poll creation failed", err);
@@ -885,7 +885,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             setShowSchedulePicker(false);
             setScheduledTime("");
             soundManager.playClick(0.7);
-            
+
             // Fetch future scheduled messages (simplified)
             // In a real app, you'd have getPendingScheduledMessages(peer.id, currentUserId)
             setPendingScheduledMsgs(prev => [...prev, { id: 'temp-' + Date.now(), content: inputValue, scheduled_at: targetTime }]);
@@ -916,7 +916,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         if (!peer || !currentUserId) return;
         const text = customText || inputValue;
         const type = customType || 'text';
-        
+
         if (!text.trim() && !pendingFiles.length && !customUrl) return;
 
         // Optimistic update
@@ -931,7 +931,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             status: 'sent',
             attachments: pendingFiles.map(pf => ({ url: pf.previewUrl || "", type: pf.type, name: pf.file.name }))
         };
-        
+
         if (customUrl) optimisticMsg.text = customUrl; // For GIFs
 
         setMessages(prev => [...prev, optimisticMsg]);
@@ -947,16 +947,16 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                 const publicUrl = await uploadChatFile(formData);
                 return publicUrl ? { url: publicUrl, type: pf.type, name: pf.file.name } : null;
             });
-            
+
             const uploaded = (await Promise.all(uploadPromises)).filter((a): a is { url: string; type: 'image' | 'video' | 'audio' | 'file'; name: string } => a !== null);
 
             const finalUrl = customUrl || text;
             const msgId = await sendMessage(peer.id, currentUserId, finalUrl, type as any, undefined, uploaded, replyTo?.id);
-            
+
             // Link local ID to server ID
             setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: msgId } : m));
             sentMessageIds.current.add(msgId);
-            
+
             setPendingFiles([]);
             setShowAttachments(false);
             setShowEmojiPicker(false);
@@ -993,7 +993,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
+
             // Audio Logic for Visualizer
             const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const analyser = audioCtx.createAnalyser();
@@ -1002,7 +1002,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             analyser.fftSize = 64;
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
-            
+
             analyserRef.current = analyser;
             audioCtxRef.current = audioCtx;
 
@@ -1031,9 +1031,9 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             setRecordingTime(0);
             recordingTimerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
             soundManager.playClick(0.6);
-        } catch (err) { 
+        } catch (err) {
             console.error(err);
-            alert("Microphone access is required to send voice notes."); 
+            alert("Microphone access is required to send voice notes.");
         }
     };
 
@@ -1050,14 +1050,14 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         // Auto-scroll to bottom on send
         scrollToBottom();
         if (!recordedAudio || !peer || !currentUserId) return;
-        
+
         const tempId = `temp-${Date.now()}`;
         const optimisticAttachments: MessageAttachment[] = [{ url: recordedAudio.url, type: 'audio', name: 'voice-note.webm' }];
         const optimisticMsg: MessageRow = { id: tempId, senderId: currentUserId, attachments: optimisticAttachments, type: "audio", status: "sent", timestamp: new Date() };
-        
+
         setMessages(prev => [...prev, optimisticMsg]);
         setRecordedAudio(null);
-        
+
         try {
             const formData = new FormData();
             formData.append('file', new File([recordedAudio.blob], 'voice-note.webm', { type: 'audio/webm' }));
@@ -1126,7 +1126,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     </div>
                     <div className={`min-w-0 flex flex-col ${isGroup ? 'cursor-pointer' : ''}`} onClick={() => isGroup && setShowInfoPanel(true)}>
                         <h3 className={`text-sm md:text-base font-black truncate leading-tight flex items-center gap-1.5 ${isGroup ? 'text-zinc-900' : ''}`}>
-                            {peer?.name} 
+                            {peer?.name}
                             {!isGroup && <span className={`w-1.5 h-1.5 rounded-full ${isPeerOnline ? 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.5)]' : 'bg-zinc-300'}`} />}
                         </h3>
                         {typingUsers.size > 0 ? (
@@ -1143,21 +1143,21 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     <Button variant="ghost" size="icon" className="text-zinc-500 hover:text-zinc-900 transition-all" onClick={() => setIsSearching(!isSearching)}>
                         <Search size={18} />
                     </Button>
-                    
+
                     {/* Unified Actions Menu - Structural Three Dots */}
                     <div className="relative">
-                        <button 
+                        <button
                             onClick={() => setShowMoreMenu(!showMoreMenu)}
                             className={`p-2 rounded-xl transition-all duration-300 ${showMoreMenu ? 'bg-zinc-100 text-[#84cc16] shadow-inner' : 'hover:bg-zinc-50 text-zinc-400'}`}
                         >
                             <MoreVertical size={18} strokeWidth={2.5} />
                         </button>
-                        
+
                         <AnimatePresence>
                             {showMoreMenu && (
                                 <>
                                     <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ opacity: 0, scale: 0.98, y: 5, x: 0 }}
                                         animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
                                         exit={{ opacity: 0, scale: 0.98, y: 5 }}
@@ -1165,7 +1165,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                         className="absolute right-0 top-full mt-2 w-56 bg-white/80 backdrop-blur-2xl border border-zinc-300/50 rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.1)] z-50 p-1.5 overflow-hidden origin-top-right ring-1 ring-black/5"
                                     >
                                         <div className="text-[8px] font-black text-zinc-400 px-3 py-2 uppercase tracking-[0.2em] border-b border-zinc-100/50 mb-1">Architectural Tools</div>
-                                        
+
                                         <div className="grid gap-1">
                                             {[
                                                 { icon: Sparkles, label: 'Summarize', color: 'text-lime-600', bg: 'bg-lime-50', action: () => handleLoopyAction('summarize') },
@@ -1173,12 +1173,12 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                 { icon: Palette, label: 'Chat Themes', color: 'text-purple-600', bg: 'bg-purple-50', action: () => setShowThemePicker(true) },
                                                 ...(isGroup ? [{ icon: Info, label: 'Circle Info', color: 'text-zinc-600', bg: 'bg-zinc-100', action: () => setShowInfoPanel(true) }] : [])
                                             ].map((item, i) => (
-                                                <motion.button 
+                                                <motion.button
                                                     key={item.label}
                                                     initial={{ opacity: 0, x: -5 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     transition={{ delay: i * 0.04 }}
-                                                    onClick={() => { item.action(); setShowMoreMenu(false); }} 
+                                                    onClick={() => { item.action(); setShowMoreMenu(false); }}
                                                     className={`w-full flex items-center gap-3 px-3 py-2.5 hover:${item.bg} rounded-md text-[13px] font-bold text-zinc-700 transition-all group/item active:scale-[0.98]`}
                                                 >
                                                     <div className={`w-8 h-8 rounded-md ${item.bg} border border-black/5 flex items-center justify-center ${item.color} group-hover/item:shadow-sm group-hover/item:scale-105 transition-all`}>
@@ -1200,7 +1200,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     {isSearching && (
                         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute inset-0 bg-white/95 backdrop-blur-xl flex items-center px-4 md:px-6 gap-3 z-50">
                             <Search size={18} className="text-zinc-400" />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="Search conversation..."
                                 value={msgSearchTerm}
@@ -1243,14 +1243,14 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                         {/* Browsing Banner - Moved OUTSIDE scroll container for fixed visibility */}
                         <AnimatePresence>
                             {!isAtBottom && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, y: 20, x: '-50%' }}
                                     animate={{ opacity: 1, y: 0, x: '-50%' }}
                                     exit={{ opacity: 0, y: 20, x: '-50%' }}
                                     className="absolute bottom-6 left-1/2 z-50 pointer-events-none"
                                 >
                                     <div className="pointer-events-auto">
-                                        <Button 
+                                        <Button
                                             onClick={() => scrollToBottom()}
                                             className="bg-zinc-900/95 backdrop-blur-md text-white border border-white/10 shadow-2xl rounded-xl px-5 py-2.5 flex items-center gap-2 hover:bg-black transition-all active:scale-95 group"
                                         >
@@ -1266,7 +1266,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             )}
                         </AnimatePresence>
 
-                        <div 
+                        <div
                             ref={scrollContainerRef}
                             onScroll={handleScroll}
                             className="flex-1 overflow-y-auto p-4 md:p-8 space-y-2 relative scroll-smooth custom-scrollbar"
@@ -1286,15 +1286,15 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                             const repliedMsg = msg.replyToId ? messages.find(m => m.id === msg.replyToId) : null;
                                             const nextMsg = group.messages[msgIndex + 1];
                                             const isSameAuthorAsNext = nextMsg?.senderId === msg.senderId;
-                                            
+
                                             // Check for unread line
-                                            const isFirstUnread = lastReadId && group.messages[msgIndex-1]?.id === lastReadId;
+                                            const isFirstUnread = lastReadId && group.messages[msgIndex - 1]?.id === lastReadId;
 
                                             const isHighlighted = msg.id === highlightedId;
 
                                             return (
-                                                <motion.div 
-                                                    key={String(msg.id) || `msg-${msgIndex}`} 
+                                                <motion.div
+                                                    key={String(msg.id) || `msg-${msgIndex}`}
                                                     id={`msg-${msg.id}`}
                                                     className="rounded-xl transition-all duration-500"
                                                 >
@@ -1305,40 +1305,40 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                             <div className="h-px flex-1 bg-gradient-to-l from-transparent to-red-100" />
                                                         </div>
                                                     )}
-                                                    <motion.div 
-                                                        initial={{ opacity: 0, y: 10 }} 
-                                                        animate={{ opacity: 1, y: 0 }} 
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
                                                         className={`flex ${isMe ? "justify-end" : "justify-start"} group ${isSameAuthorAsNext ? 'mb-0.5' : 'mb-4'}`}
                                                     >
                                                         {!isMe && (
                                                             <div className="w-8 md:w-10 flex-shrink-0 mr-2 flex flex-col justify-start">
-                                                                {(msgIndex === 0 || group.messages[msgIndex-1]?.senderId !== msg.senderId) && (
-                                                                    <Avatar 
-                                                                        src={msg.senderAvatar || peer?.avatarUrl} 
-                                                                        fallback={(msg.senderName || peer?.name || 'U').charAt(0)} 
-                                                                        className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-zinc-100 shadow-sm" 
+                                                                {(msgIndex === 0 || group.messages[msgIndex - 1]?.senderId !== msg.senderId) && (
+                                                                    <Avatar
+                                                                        src={msg.senderAvatar || peer?.avatarUrl}
+                                                                        fallback={(msg.senderName || peer?.name || 'U').charAt(0)}
+                                                                        className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-zinc-100 shadow-sm"
                                                                     />
                                                                 )}
                                                             </div>
                                                         )}
                                                         <div className={`max-w-[85%] md:max-w-[70%] relative ${isMe ? "items-end ml-auto" : "items-start"} flex flex-col group/msg`}>
                                                             <div className="relative flex items-start group">
-                                                                <button 
-                                                                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : msg.id); }} 
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : msg.id); }}
                                                                     className={`absolute top-0 ${isMe ? 'right-full mr-1' : 'left-full ml-1'} p-1.5 rounded-full bg-white shadow-md text-zinc-400 hover:text-zinc-900 transition-all opacity-0 group-hover/msg:opacity-100 z-30 border border-zinc-100`}
                                                                 >
                                                                     <ChevronDown size={14} className={isMenuOpen ? 'rotate-180' : ''} />
                                                                 </button>
-                                                                
+
                                                                 <AnimatePresence mode="popLayout">
                                                                     {isMenuOpen && (
                                                                         <>
                                                                             <div key="menu-overlay" className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)} />
-                                                                            <motion.div 
+                                                                            <motion.div
                                                                                 key={`menu-${msg.id}`}
-                                                                                initial={{ opacity: 0, scale: 0.95, y: -10 }} 
-                                                                                animate={{ opacity: 1, scale: 1, y: 0 }} 
-                                                                                exit={{ opacity: 0, scale: 0.95, y: -10 }} 
+                                                                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                                                                 className={`absolute top-8 ${isMe ? 'right-0' : 'left-0'} w-56 bg-white/95 backdrop-blur-xl rounded-xl shadow-2xl border border-zinc-200/50 p-1.5 z-50 overflow-hidden shadow-zinc-300/20`}
                                                                             >
                                                                                 {/* Reaction Bar */}
@@ -1346,11 +1346,11 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                                                     {['❤️', '👍', '🔥', '😂', '😮', '😢'].map(emoji => {
                                                                                         const hasReacted = currentUserId && msg.reactions?.some(r => r.emoji === emoji && r.userIds.includes(currentUserId));
                                                                                         return (
-                                                                                            <motion.button 
-                                                                                                key={emoji} 
-                                                                                                whileHover={{ scale: 1.3 }} 
-                                                                                                whileTap={{ scale: 0.8 }} 
-                                                                                                onClick={() => { toggleReaction(msg.id, emoji); setActiveMenuId(null); soundManager.playClick(0.7); }} 
+                                                                                            <motion.button
+                                                                                                key={emoji}
+                                                                                                whileHover={{ scale: 1.3 }}
+                                                                                                whileTap={{ scale: 0.8 }}
+                                                                                                onClick={() => { toggleReaction(msg.id, emoji); setActiveMenuId(null); soundManager.playClick(0.7); }}
                                                                                                 className={`text-xl transition-all ${hasReacted ? 'grayscale-0' : 'grayscale-[0.3] hover:grayscale-0'}`}
                                                                                             >
                                                                                                 {emoji}
@@ -1358,19 +1358,19 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                                                         );
                                                                                     })}
                                                                                 </div>
-                                                                                <button onClick={() => { setReplyTo(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Reply size={16} className="text-zinc-400"/> Reply</button>
-                                                                                {isMe && !msg.isDeleted && <button onClick={() => { setEditingMsg(msg); setInputValue(msg.text || ""); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><FileText size={16} className="text-blue-400"/> Edit</button>}
-                                                                                <button onClick={() => { handlePinMessage(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-amber-600 transition-colors text-left"><Pin size={16} className="fill-current"/> Pin Message</button>
-                                                                                <button onClick={() => { setForwardMsg(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Share2 size={16} className="text-zinc-400"/> Forward</button>
+                                                                                <button onClick={() => { setReplyTo(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Reply size={16} className="text-zinc-400" /> Reply</button>
+                                                                                {isMe && !msg.isDeleted && <button onClick={() => { setEditingMsg(msg); setInputValue(msg.text || ""); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><FileText size={16} className="text-blue-400" /> Edit</button>}
+                                                                                <button onClick={() => { handlePinMessage(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-amber-600 transition-colors text-left"><Pin size={16} className="fill-current" /> Pin Message</button>
+                                                                                <button onClick={() => { setForwardMsg(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Share2 size={16} className="text-zinc-400" /> Forward</button>
                                                                                 {msg.text && <button onClick={() => { navigator.clipboard.writeText(msg.text!); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Copy size={16} className="text-zinc-400" /> Copy</button>}
                                                                                 <button onClick={() => setActiveMenuId(null)} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Star size={16} className="text-amber-400" /> Star</button>
-                                                                                {isMe && <button onClick={() => { handleDelete(msg.id); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-red-50 rounded-xl text-sm font-semibold text-red-600 transition-colors text-left border-t border-zinc-50 mt-1"><X size={16} className="text-red-400"/> Delete</button>}
+                                                                                {isMe && <button onClick={() => { handleDelete(msg.id); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-red-50 rounded-xl text-sm font-semibold text-red-600 transition-colors text-left border-t border-zinc-50 mt-1"><X size={16} className="text-red-400" /> Delete</button>}
                                                                             </motion.div>
                                                                         </>
                                                                     )}
                                                                 </AnimatePresence>
 
-                                                                <motion.div 
+                                                                <motion.div
                                                                     animate={isHighlighted ? {
                                                                         boxShadow: isMe ? "0 0 25px rgba(212, 242, 104, 0.8)" : "0 0 25px rgba(132, 204, 22, 0.6)",
                                                                         border: isMe ? "2px solid rgba(0,0,0,0.1)" : "2px solid #D4F268"
@@ -1381,8 +1381,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                                     className={`min-w-[80px] max-w-full flex flex-col rounded-lg overflow-hidden transition-all duration-300 z-10 ${isMe ? "bg-[#D4F268] text-[#1A1A1A] rounded-br-none shadow-sm shadow-[#D4F268]/5" : "bg-white text-[#1A1A1A] rounded-bl-none shadow-sm shadow-zinc-200/5"}`}
                                                                 >
                                                                     {repliedMsg && (
-                                                                        <div 
-                                                                            className="relative cursor-pointer group/reply" 
+                                                                        <div
+                                                                            className="relative cursor-pointer group/reply"
                                                                             onClick={() => scrollToMessage(repliedMsg.id)}
                                                                         >
                                                                             <div className={`absolute -left-3 top-4 w-3 h-8 border-l-2 border-t-2 border-zinc-200 rounded-tl-lg pointer-events-none opacity-50 group-hover/reply:border-lime-400 group-hover/reply:opacity-100 transition-all`} />
@@ -1437,7 +1437,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                             {msg.reactions && msg.reactions.length > 0 && (
                                                                 <div className={`flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                                                     {msg.reactions.map(react => (
-                                                                        <motion.button 
+                                                                        <motion.button
                                                                             key={react.emoji}
                                                                             initial={{ scale: 0 }}
                                                                             animate={{ scale: 1 }}
@@ -1474,11 +1474,11 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     <div className="w-full bg-white/95 backdrop-blur-xl border-t border-zinc-200 z-40 shrink-0 transition-all duration-300 md:static fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-[env(safe-area-inset-bottom)] md:pb-6">
                         <AnimatePresence mode="popLayout">
                             {showEmojiPicker && (
-                                <motion.div 
+                                <motion.div
                                     key="emoji-picker"
-                                    initial={{ opacity: 0, y: 20 }} 
-                                    animate={{ opacity: 1, y: 0 }} 
-                                    exit={{ opacity: 0, y: 20 }} 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 20 }}
                                     className="absolute bottom-full right-4 mb-4 z-50 shadow-2xl rounded-xl overflow-hidden border border-zinc-200"
                                 >
                                     <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" skinTonePosition="none" />
@@ -1486,7 +1486,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             )}
 
                             {showAttachments && (
-                                <motion.div 
+                                <motion.div
                                     key="attachment-menu"
                                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1589,25 +1589,25 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                 </motion.div>
                             )}
                         </AnimatePresence>
-                        <form 
-                            onSubmit={(e) => { 
-                                e.preventDefault(); 
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
                                 if (isRecording) { stopRecording(); return; }
                                 if (recordedAudio) { handleSendVoice(); return; }
-                                editingMsg ? handleEdit(editingMsg.id, inputValue) : handleSend(); 
-                            }} 
+                                editingMsg ? handleEdit(editingMsg.id, inputValue) : handleSend();
+                            }}
                             className="flex items-center gap-2 p-2 pl-4 bg-zinc-100/80 backdrop-blur-md rounded-xl border border-zinc-200/60 focus-within:border-zinc-400 focus-within:bg-white transition-all"
                         >
                             {isRecording ? (
                                 <div key="recording-strip" className="flex-1 flex items-center gap-3 px-2 h-12 text-zinc-900 overflow-hidden">
                                     <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
                                     <span className="font-black text-[10px] uppercase tracking-widest text-zinc-400 shrink-0">{formatTime(recordingTime)}</span>
-                                    
+
                                     <div className="flex-1 h-8 flex items-center justify-center gap-[3px]">
                                         {audioLevels.map((level, i) => (
-                                            <motion.div 
+                                            <motion.div
                                                 key={i}
-                                                animate={{ height: level }} 
+                                                animate={{ height: level }}
                                                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                                                 className="w-[2px] bg-[#D4F268] rounded-full"
                                                 style={{ height: '4px' }}
@@ -1633,10 +1633,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                     <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder={editingMsg ? "Edit message..." : "Message..."} className="flex-1 bg-transparent border-0 py-3 outline-none font-semibold text-zinc-900 placeholder:text-zinc-400" />
                                     <Button size="icon" type="button" variant="ghost" className="text-zinc-400 hover:text-zinc-600 transition-colors" onClick={() => setShowEmojiPicker(!showEmojiPicker)} aria-label="Emoji Picker"><Smile size={24} /></Button>
                                     {(inputValue.trim() || pendingFiles.length > 0) ? (
-                                        <Button 
-                                            key="send-btn" 
-                                            size="icon" 
-                                            type="submit" 
+                                        <Button
+                                            key="send-btn"
+                                            size="icon"
+                                            type="submit"
                                             onMouseDown={handleLongPressStart}
                                             onMouseUp={handleLongPressEnd}
                                             onMouseLeave={handleLongPressEnd}
@@ -1658,23 +1658,23 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                 {/* Side Info Panel */}
                 {localPeer && isGroup && (
                     <div className={`${showInfoPanel ? 'w-80 border-l border-zinc-200' : 'w-0'} transition-all duration-300 overflow-hidden hidden md:block shrink-0 h-full bg-white`}>
-                        <CircleInfoPanel 
-                            peer={localPeer} 
-                            isOpen={showInfoPanel} 
-                            onClose={() => setShowInfoPanel(false)} 
-                            onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)} 
+                        <CircleInfoPanel
+                            peer={localPeer}
+                            isOpen={showInfoPanel}
+                            onClose={() => setShowInfoPanel(false)}
+                            onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)}
                         />
                     </div>
                 )}
-                
+
                 {/* Mobile Info Panel Overlay */}
                 {localPeer && isGroup && (
                     <div className="md:hidden">
-                        <CircleInfoPanel 
-                            peer={localPeer} 
-                            isOpen={showInfoPanel} 
-                            onClose={() => setShowInfoPanel(false)} 
-                            onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)} 
+                        <CircleInfoPanel
+                            peer={localPeer}
+                            isOpen={showInfoPanel}
+                            onClose={() => setShowInfoPanel(false)}
+                            onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)}
                         />
                     </div>
                 )}
@@ -1708,10 +1708,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             {/* Media Gallery Modal */}
             <AnimatePresence>
                 {showMediaGallery && (
-                    <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-2xl flex flex-col p-6"
                     >
                         <div className="flex justify-between items-center mb-8">
@@ -1733,7 +1733,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                     }
                                     return allMedia;
                                 }).map((media, i) => (
-                                    <motion.button 
+                                    <motion.button
                                         key={`${media.url}-${i}`}
                                         initial={{ opacity: 0, scale: 0.9 }}
                                         animate={{ opacity: 1, scale: 1 }}
@@ -1762,7 +1762,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             {/* Loopy AI Panel */}
             <AnimatePresence>
                 {showLoopyPanel && (
-                    <motion.div 
+                    <motion.div
                         initial={{ y: "100%" }}
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
@@ -1776,7 +1776,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             </div>
                             <h2 className="text-xl font-black text-zinc-900 mb-1">Loopy Chat Companion</h2>
                             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-8 text-center px-10">Contextual Mastery Engine</p>
-                            
+
                             <div className="w-full max-w-md bg-zinc-50 rounded-2xl border border-zinc-100 p-4 min-h-[120px] mb-6 relative">
                                 {isLoopyTyping ? (
                                     <div className="flex flex-col gap-2 italic text-zinc-400 text-sm p-4">
@@ -1788,9 +1788,9 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                         <span>Loopy is thinking...</span>
                                     </div>
                                 ) : loopyResponse ? (
-                                    <motion.div 
-                                        initial={{ opacity: 0 }} 
-                                        animate={{ opacity: 1 }} 
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
                                         className="text-sm font-semibold text-zinc-800 leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar pr-2"
                                     >
                                         <div className="space-y-4 prose-sm prose-zinc">
@@ -1814,7 +1814,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                     </div>
                                 )}
                             </div>
-                            
+
                             <Button className="w-full max-w-md bg-zinc-900 hover:bg-black text-white rounded-xl py-6 font-black uppercase tracking-widest text-xs" onClick={() => { setShowLoopyPanel(false); setLoopyResponse(null); }}>
                                 Got it, Loopy!
                             </Button>
@@ -1826,14 +1826,14 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             {/* Theme Picker */}
             <AnimatePresence>
                 {showThemePicker && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
                         onClick={() => setShowThemePicker(false)}
                     >
-                        <motion.div 
+                        <motion.div
                             initial={{ scale: 0.9, y: 20 }}
                             animate={{ scale: 1, y: 0 }}
                             className="bg-white rounded-3xl shadow-2xl p-6 w-full max-sm:max-w-[320px] max-w-sm border border-zinc-200"
@@ -1850,7 +1850,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                     { id: 'mystic', name: 'Mystic Forest', class: 'bg-gradient-to-br from-purple-100 via-indigo-50 to-blue-50' },
                                     { id: 'crystal', name: 'Crystal Caves', class: 'bg-gradient-to-br from-cyan-100 via-sky-50 to-blue-50' }
                                 ].map(t => (
-                                    <button 
+                                    <button
                                         key={t.id}
                                         onClick={() => { setChatTheme(t.id as any); setShowThemePicker(false); soundManager.playClick(0.6); }}
                                         className={`group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 transition-all ${chatTheme === t.id ? 'border-lime-500 ring-2 ring-lime-100' : 'border-zinc-100 hover:border-zinc-300'}`}
@@ -1870,14 +1870,14 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             {/* Poll Creator */}
             <AnimatePresence>
                 {showPollCreator && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 z-[70] bg-black/40 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-4"
                         onClick={() => setShowPollCreator(false)}
                     >
-                        <motion.div 
+                        <motion.div
                             initial={{ y: "100%" }}
                             animate={{ y: 0 }}
                             className="bg-white rounded-t-3xl md:rounded-3xl shadow-2xl p-6 w-full max-w-md border-t md:border border-zinc-200"
@@ -1890,8 +1890,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">The Question</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={pollQuestion}
                                         onChange={e => setPollQuestion(e.target.value)}
                                         placeholder="What's on your mind?"
@@ -1902,8 +1902,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Options</label>
                                     {pollOptions.map((opt, i) => (
                                         <div key={i} className="flex gap-2">
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 value={opt}
                                                 onChange={e => {
                                                     const next = [...pollOptions];
@@ -1926,7 +1926,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                         </Button>
                                     )}
                                 </div>
-                                <Button 
+                                <Button
                                     className="w-full bg-[#84cc16] hover:bg-lime-600 text-white font-black uppercase tracking-widest text-xs py-6 rounded-xl shadow-lg shadow-lime-500/20 mt-4 disabled:opacity-50"
                                     onClick={handleCreatePollAction}
                                     disabled={!pollQuestion || pollOptions.filter(o => o.trim()).length < 2}
@@ -1942,14 +1942,14 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             {/* Message Scheduling Modal */}
             <AnimatePresence>
                 {showSchedulePicker && (
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 z-[80] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
                         onClick={() => setShowSchedulePicker(false)}
                     >
-                        <motion.div 
+                        <motion.div
                             initial={{ scale: 0.9, y: 20 }}
                             animate={{ scale: 1, y: 0 }}
                             className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-sm border border-zinc-200"
@@ -1961,9 +1961,9 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                 </h3>
                                 <p className="text-xs font-bold opacity-80 mt-1 uppercase tracking-widest text-[#1A1A1A]">Select Date & Time</p>
                             </div>
-                            <SchedulePicker 
-                                onSelect={(iso) => { handleScheduleAction(iso); setShowSchedulePicker(false); }} 
-                                onCancel={() => setShowSchedulePicker(false)} 
+                            <SchedulePicker
+                                onSelect={(iso) => { handleScheduleAction(iso); setShowSchedulePicker(false); }}
+                                onCancel={() => setShowSchedulePicker(false)}
                             />
                         </motion.div>
                     </motion.div>

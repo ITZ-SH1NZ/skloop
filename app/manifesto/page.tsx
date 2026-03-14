@@ -1,178 +1,290 @@
 "use client";
 
-import React from "react";
-import { motion, Variants } from "framer-motion";
-import { Sparkles, Swords, BrainCircuit, Terminal, Skull, AlertOctagon, Joystick, Zap, Users, ShieldAlert, Cpu } from "lucide-react";
+import React, { useState, useEffect, useCallback, memo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, Swords, BrainCircuit, Rocket, ChevronRight, Zap, Target, Cpu, Users, Activity, Star } from "lucide-react";
 import Link from "next/link";
+import { LoopyMascot, LoopyMood } from "@/components/loopy/LoopyMascot";
+import { soundManager } from "@/lib/sound";
 
-export default function ManifestoPage() {
-    const containerVariants: Variants = {
-        hidden: { opacity: 0 },
-        show: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1 }
-        }
-    };
+// --- THE INFINITE STAGE COMPONENTS ---
 
-    const itemVariants: Variants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
-    };
+const BackgroundDecoration = memo(({ color }: { color: string }) => (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <motion.div 
+            animate={{ 
+                scale: [1, 1.2, 1],
+                rotate: [0, 90, 180, 270, 360],
+                opacity: [0.05, 0.1, 0.05]
+            }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            className={`absolute top-[-10%] -right-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] bg-${color}-400/20`}
+        />
+        <motion.div 
+            animate={{ 
+                scale: [1.2, 1, 1.2],
+                rotate: [360, 270, 180, 90, 0],
+                opacity: [0.03, 0.08, 0.03]
+            }}
+            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+            className={`absolute bottom-[-10%] -left-[10%] w-[50vw] h-[50vw] rounded-full blur-[100px] bg-${color}-500/10`}
+        />
+    </div>
+));
+
+const TypewriterDialogue = ({ text }: { text: string }) => {
+    const [displayedText, setDisplayedText] = useState("");
+    
+    useEffect(() => {
+        setDisplayedText("");
+        let i = 0;
+        const interval = setInterval(() => {
+            if (i <= text.length) {
+                setDisplayedText(text.slice(0, i));
+                i++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 30);
+        return () => clearInterval(interval);
+    }, [text]);
 
     return (
-        <article className="prose prose-zinc max-w-none prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-p:font-semibold prose-p:text-lg prose-p:leading-relaxed md:prose-p:text-xl prose-a:text-lime-600 prose-a:font-bold">
-            <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ type: "spring", bounce: 0.4 }}
-            >
-                <div className="inline-block px-4 py-1.5 rounded-full bg-lime-300 text-black text-xs md:text-sm font-black uppercase tracking-widest shadow-[2px_2px_0_0_#000] border-2 border-black mb-8">
-                    Official Strategy Guide
-                </div>
+        <span className="relative">
+            {displayedText}
+            <motion.span 
+                animate={{ opacity: [1, 0] }}
+                transition={{ duration: 0.5, repeat: Infinity }}
+                className="inline-block w-1 h-3 md:w-1.5 md:h-5 bg-lime-400 ml-1 translate-y-0.5"
+            />
+        </span>
+    );
+};
 
-                <h1 className="text-5xl md:text-7xl mb-12 text-black leading-tight tracking-tighter shadow-sm">The Skloop Manifesto</h1>
+const missions = [
+    {
+        id: "prologue",
+        label: "01",
+        title: "The Overwhelm",
+        icon: Target,
+        mood: "thinking" as LoopyMood,
+        accent: "cyan",
+        dialogue: "So many tabs. No meaningful progress.",
+        headline: "LOST IN THE NOISE.",
+        description: "95% of us quit because traditional learning is a sterile, lonely void. I don't need another dictionary; I need a map."
+    },
+    {
+        id: "the-grind",
+        label: "02",
+        title: "The Wall",
+        icon: Swords,
+        mood: "annoyed" as LoopyMood,
+        accent: "red",
+        dialogue: "I'm stuck. Tutorial hell is real.",
+        headline: "TUTORIAL HELL.",
+        description: "Passive consumption is a trap that feels like progress. I'm ready to stop watching and start fighting for my mastery."
+    },
+    {
+        id: "the-solution",
+        label: "03",
+        title: "The Spark",
+        icon: Cpu,
+        mood: "surprised" as LoopyMood,
+        accent: "blue",
+        dialogue: "Finally, this feels like real building.",
+        headline: "THE ENGINE ALIGNS.",
+        description: "Visceral feedback, multiplayer guilds, and AI tutors. Finally, a platform that speaks the language of my ambition."
+    },
+    {
+        id: "epilogue",
+        label: "04",
+        title: "The Legend",
+        icon: Rocket,
+        mood: "celebrating" as LoopyMood,
+        accent: "lime",
+        dialogue: "I am ready. Let's play now.",
+        headline: "LEVEL 01 AWAITS.",
+        description: "Don't just learn to code. Conquer the loop. My journey into the engineering elite starts right here."
+    }
+];
 
-                {/* 01. PROLOGUE */}
-                <section id="prologue" className="mb-20 md:mb-32 scroll-mt-32">
-                    <h2 className="flex items-center gap-3 text-3xl md:text-4xl mb-8 border-b-4 border-black pb-4">
-                        <Sparkles className="text-lime-500 w-8 h-8 md:w-10 md:h-10" /> 01. Prologue
-                    </h2>
-                    
-                    <p className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-zinc-800 mb-8 max-w-3xl">
-                        Learning to build the future shouldn't feel like reading a <span className="line-through text-red-500 decoration-4">dictionary</span>.
-                    </p>
+export default function ManifestoPage() {
+    const [activeTab, setActiveTab] = useState(0);
+    const [isMounted, setIsMounted] = useState(false);
+    const [isTransitioning, setIsTransitioning] = useState(false);
 
-                    <div className="not-prose bg-black border-4 border-black p-6 md:p-8 my-8 relative shadow-[8px_8px_0_0_#d4f268] group hover:-translate-y-1 hover:shadow-[12px_12px_0_0_#d4f268] transition-all">
-                        <div className="flex items-center gap-2 text-lime-400 font-mono text-sm md:text-base mb-4 bg-zinc-900 inline-flex px-3 py-1 rounded">
-                            <Terminal className="w-4 h-4" /> root@skloop:~# cat reality_check.txt
-                        </div>
-                        <p className="text-white font-mono text-sm md:text-base leading-relaxed">
-                            <span className="text-lime-400">&gt; WARNING:</span> The standard path to engineering mastery is broken.<br/><br/>
-                            Stop reading manuals. Start fighting bosses.
-                        </p>
-                    </div>
-                </section>
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
-                {/* 02. THE GRIND */}
-                <section id="the-grind" className="mb-20 md:mb-32 scroll-mt-32">
-                    <h2 className="flex items-center gap-3 text-3xl md:text-4xl mb-10 border-b-4 border-black pb-4">
-                        <Swords className="text-orange-500 w-8 h-8 md:w-10 md:h-10" /> 02. The Grind
-                    </h2>
-                    
-                    <p className="mb-8 font-bold text-zinc-600 tracking-wide">Leveling up shouldn't mean hitting the same Level 1 slime for 500 hours.</p>
+    const handleTabChange = useCallback((idx: number) => {
+        if (idx === activeTab) return;
+        soundManager.playClick(0.5);
+        setIsTransitioning(true);
+        setActiveTab(idx);
+        setTimeout(() => setIsTransitioning(false), 400);
+    }, [activeTab]);
 
-                    <motion.div 
-                        variants={containerVariants}
-                        initial="hidden"
-                        whileInView="show"
-                        viewport={{ once: true, margin: "-100px" }}
-                        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 not-prose"
-                    >
-                        {/* Debuff Card 1 */}
-                        <motion.div variants={itemVariants} className="bg-red-50 border-4 border-red-900 rounded-xl p-6 shadow-[6px_6px_0_0_#7f1d1d] relative overflow-hidden group">
-                            <div className="absolute -right-4 -top-4 text-red-100 opacity-50 group-hover:scale-110 transition-transform">
-                                <Skull className="w-24 h-24" />
-                            </div>
-                            <h4 className="flex items-center gap-2 font-black text-red-900 text-lg uppercase tracking-wide mb-3 relative z-10"><AlertOctagon className="w-5 h-5"/> Tutorial Hell</h4>
-                            <p className="text-red-800 text-sm font-semibold relative z-10">Passive watching = 0% retention. 100% false confidence.</p>
-                        </motion.div>
+    if (!isMounted) return null;
 
-                        {/* Debuff Card 2 */}
-                        <motion.div variants={itemVariants} className="bg-orange-50 border-4 border-orange-900 rounded-xl p-6 shadow-[6px_6px_0_0_#7c2d12] relative overflow-hidden group">
-                            <div className="absolute -right-4 -top-4 text-orange-100 opacity-50 group-hover:scale-110 transition-transform">
-                                <ShieldAlert className="w-24 h-24" />
-                            </div>
-                            <h4 className="flex items-center gap-2 font-black text-orange-900 text-lg uppercase tracking-wide mb-3 relative z-10"><Cpu className="w-5 h-5"/> Mindless Copy</h4>
-                            <p className="text-orange-800 text-sm font-semibold relative z-10">Copy-pasting formatted code without understanding the <i>'why'</i>.</p>
-                        </motion.div>
+    const currentMission = missions[activeTab];
 
-                        {/* Debuff Card 3 */}
-                        <motion.div variants={itemVariants} className="bg-zinc-100 border-4 border-zinc-900 rounded-xl p-6 shadow-[6px_6px_0_0_#18181b] relative overflow-hidden group">
-                            <div className="absolute -right-4 -top-4 text-zinc-200 opacity-50 group-hover:scale-110 transition-transform">
-                                <Users className="w-24 h-24" />
-                            </div>
-                            <h4 className="flex items-center gap-2 font-black text-zinc-900 text-lg uppercase tracking-wide mb-3 relative z-10"><Zap className="w-5 h-5"/> Blank Canvas</h4>
-                            <p className="text-zinc-700 text-sm font-semibold relative z-10">Staring at blank IDEs feeling absolute imposter syndrome.</p>
-                        </motion.div>
-                    </motion.div>
-                </section>
+    return (
+        <div className="h-full w-full relative flex flex-col items-center justify-center p-6 md:p-12 overflow-hidden">
+            
+            <BackgroundDecoration color={currentMission.accent} />
 
-                {/* 03. THE ENGINE */}
-                <section id="the-solution" className="mb-20 md:mb-32 scroll-mt-32">
-                    <h2 className="flex items-center gap-3 text-3xl md:text-4xl mb-10 border-b-4 border-black pb-4">
-                        <BrainCircuit className="text-cyan-500 w-8 h-8 md:w-10 md:h-10" /> 03. The Engine
-                    </h2>
-                    
-                    <p className="md:text-2xl font-black mb-10">
-                        Skloop is an operating system for your engineering career, <span className="text-lime-600 underline decoration-black decoration-4 underline-offset-4">injected with the DNA of a video game.</span>
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 not-prose">
+            {/* THE INFINITE STAGE */}
+            <div className="w-full max-w-7xl relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12 lg:gap-24">
+                
+                {/* LEFT: THE CHARACTER (DE-BOXED) */}
+                <motion.div 
+                    initial={{ opacity: 0, x: -50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="relative order-2 lg:order-1 shrink-0"
+                >
+                    <div className="relative group">
+                        {/* Character Aura */}
                         <motion.div 
-                            whileHover={{ y: -5, x: -5 }}
-                            className="bg-white border-4 border-black p-6 shadow-[8px_8px_0_0_#000] relative"
-                        >
-                            <div className="w-12 h-12 bg-lime-300 border-2 border-black rounded-full flex items-center justify-center mb-4 absolute -top-6 -left-4 shadow-[4px_4px_0_0_#000]">
-                                <Joystick className="w-6 h-6 text-black" />
-                            </div>
-                            <h4 className="font-black text-2xl mb-3 mt-2 uppercase tracking-tight">Tactile Learning</h4>
-                            <p className="font-semibold text-zinc-600">Extreme tactile feedback. Every keystroke is rewarded.</p>
-                        </motion.div>
+                            animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
+                            transition={{ duration: 4, repeat: Infinity }}
+                            className={`absolute inset-0 blur-[60px] rounded-full bg-${currentMission.accent}-400/30 scale-150`}
+                        />
                         
-                        <motion.div 
-                            whileHover={{ y: -5, x: -5 }}
-                            className="bg-white border-4 border-black p-6 shadow-[8px_8px_0_0_#000] relative"
+                        <motion.div
+                            animate={{ y: [0, -10, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="relative z-10"
                         >
-                            <div className="w-12 h-12 bg-cyan-300 border-2 border-black rounded-full flex items-center justify-center mb-4 absolute -top-6 -left-4 shadow-[4px_4px_0_0_#000]">
-                                <Users className="w-6 h-6 text-black" />
-                            </div>
-                            <h4 className="font-black text-2xl mb-3 mt-2 uppercase tracking-tight">Multiplayer Mode</h4>
-                            <p className="font-semibold text-zinc-600">Join guilds, conquer leaderboards, and spectate live coding battles.</p>
+                            <LoopyMascot size={isMounted ? (window.innerWidth < 768 ? 160 : window.innerWidth < 1024 ? 240 : 380) : 380} mood={currentMission.mood} />
                         </motion.div>
 
+                        {/* Speech Bubble (Open Style) */}
                         <motion.div 
-                            whileHover={{ y: -5, x: -5 }}
-                            className="bg-black text-white border-4 border-black p-6 md:p-10 shadow-[8px_8px_0_0_#d4f268] md:col-span-2 relative overflow-hidden"
+                            key={activeTab}
+                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            className="absolute -top-24 left-1/2 -translate-x-1/2 md:-top-20 md:-right-20 md:left-auto md:translate-x-0 z-20 w-max"
                         >
-                            <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none">
-                                <Terminal className="w-64 h-64 -mb-16 -mr-16" />
+                            <div className="bg-white border-2 md:border-4 border-black p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-[4px_4px_0_0_#000] md:shadow-[8px_8px_0_0_#000] max-w-[200px] md:max-w-[280px]">
+                                <div className="text-[8px] md:text-xs font-black uppercase tracking-widest mb-2 text-zinc-400">User Emotion</div>
+                                <p className="font-black text-[10px] md:text-lg leading-tight italic">
+                                    "<TypewriterDialogue text={currentMission.dialogue} />"
+                                </p>
+                                {/* Bubble Pointer */}
+                                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 w-3 h-3 md:w-4 md:h-4 bg-white border-r-2 md:border-r-4 border-b-2 md:border-b-4 border-black rotate-45" />
                             </div>
-                            <h4 className="font-black text-lime-400 text-3xl mb-4 uppercase tracking-tight relative z-10 flex items-center gap-3">
-                                <Zap className="w-8 h-8 text-lime-400" />
-                                Intelligent NPCs (AI Tutors)
-                            </h4>
-                            <p className="font-medium text-zinc-300 text-lg md:text-xl max-w-2xl relative z-10">
-                                Context-aware companions that nudge you forward <span className="text-white border-b-2 border-lime-400 cursor-pointer hover:bg-lime-400 hover:text-black transition-colors rounded">without spoiling the solution</span>.
+                        </motion.div>
+                    </div>
+                </motion.div>
+
+                {/* RIGHT: THE CONTENT (SPACIOUS) */}
+                <div className="flex-1 order-1 lg:order-2 text-center lg:text-left w-full">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, y: 20, filter: "blur(10px)" }}
+                            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, y: -20, filter: "blur(10px)" }}
+                            transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                            className="space-y-4 md:space-y-8"
+                        >
+                            <div className="inline-flex items-center gap-2 md:gap-3 bg-black text-white px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] shadow-lg">
+                                <Activity size={12} className="text-lime-400" />
+                                Mission {currentMission.label}
+                            </div>
+
+                            <h1 className="text-4xl md:text-6xl lg:text-[7rem] font-black uppercase tracking-tighter leading-[0.9] md:leading-[0.85] text-black">
+                                {currentMission.headline.split(' ').map((word, i) => (
+                                    <span key={i} className={i === 1 ? `text-${currentMission.accent}-500` : ""}>
+                                        {word}{" "}<br className="hidden md:block" />
+                                    </span>
+                                ))}
+                            </h1>
+
+                            <p className="text-base md:text-2xl lg:text-3xl font-bold text-zinc-500 max-w-2xl mx-auto lg:mx-0 leading-tight">
+                                {currentMission.description}
                             </p>
+
+                            {activeTab === 3 && (
+                                <motion.div 
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="pt-4 md:pt-8"
+                                >
+                                    <Link href="/signup">
+                                        <button className="bg-lime-400 border-2 md:border-4 border-black px-8 py-4 md:px-12 md:py-6 rounded-xl md:rounded-[2rem] text-xl md:text-3xl font-black uppercase tracking-tighter shadow-[6px_6px_0_0_#000] md:shadow-[12px_12px_0_0_#000] hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[16px_16px_0_0_#000] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all">
+                                            Start Quest
+                                        </button>
+                                    </Link>
+                                </motion.div>
+                            )}
                         </motion.div>
-                    </div>
-                </section>
+                    </AnimatePresence>
+                </div>
+            </div>
 
-                {/* 04. EPILOGUE */}
-                <section id="epilogue" className="mb-10 scroll-mt-32">
-                    <h2 className="text-3xl md:text-4xl mb-8 border-b-4 border-black pb-4 font-black">
-                        04. Epilogue
-                    </h2>
-                    <p className="text-2xl md:text-4xl font-black mb-8 uppercase tracking-tighter text-zinc-900 border-l-4 border-lime-400 pl-6">
-                        It's time to play the game of engineering.
-                    </p>
+            {/* MINIMALIST HUD NAVIGATION */}
+            <div className="fixed bottom-6 md:bottom-12 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-4 md:gap-6">
+                <div className="bg-white/40 backdrop-blur-xl border border-black/10 p-1.5 md:p-2 rounded-2xl md:rounded-[2rem] flex gap-2 md:gap-3 shadow-2xl">
+                    {missions.map((m, idx) => {
+                        const bgColors: Record<string, string> = {
+                            cyan: "bg-cyan-400",
+                            red: "bg-red-400",
+                            blue: "bg-blue-400",
+                            lime: "bg-lime-400"
+                        };
+                        const activeBg = bgColors[m.accent] || "bg-black";
 
-                    <div className="mt-20 text-center not-prose">
-                        <Link href="/signup">
-                            <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="group relative inline-flex items-center justify-center px-12 py-6 text-2xl font-black text-black bg-lime-400 border-4 border-black overflow-hidden shadow-[8px_8px_0_0_#000] hover:shadow-[12px_12px_0_0_#000] hover:-translate-y-1 transition-all uppercase tracking-widest rounded-2xl"
+                        return (
+                            <button
+                                key={m.id}
+                                onClick={() => handleTabChange(idx)}
+                                className={`
+                                    relative w-10 h-10 md:w-14 md:h-14 rounded-lg md:rounded-[1.5rem] flex items-center justify-center transition-all group
+                                    ${activeTab === idx 
+                                        ? `${activeBg} text-black scale-110 shadow-lg` 
+                                        : "bg-white/50 text-zinc-400 hover:bg-white hover:text-black hover:scale-105"}
+                                `}
                             >
-                                <span className="absolute inset-0 w-full h-full -mt-1 rounded-lg opacity-30 bg-gradient-to-b from-transparent via-transparent to-black"></span>
-                                <span className="relative flex items-center gap-3">
-                                    Start Your Adventure <Swords className="w-8 h-8 group-hover:rotate-12 transition-transform" />
-                                </span>
-                            </motion.button>
-                        </Link>
-                    </div>
-                </section>
-            </motion.div>
-        </article>
+                                <m.icon size={isMounted ? (window.innerWidth < 768 ? 18 : 24) : 24} className={activeTab === idx ? "text-black" : ""} />
+                                {activeTab === idx && (
+                                    <motion.div 
+                                        layoutId="hud-active"
+                                        className="absolute -top-0.5 -right-0.5 w-2 h-2 md:w-4 md:h-4 bg-black border md:border-2 border-white rounded-full"
+                                    />
+                                )}
+                                
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full mb-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    <div className="bg-black text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                                        {m.title}
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                <div className="flex items-center gap-2 text-zinc-400 font-black text-[10px] uppercase tracking-[0.4em] opacity-50">
+                    <Star size={12} /> The Eternal Loop <Star size={12} />
+                </div>
+            </div>
+
+            {/* TRANSITION OVERLAY (SCANLINES) */}
+            <AnimatePresence>
+                {isTransitioning && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 0.05 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] bg-black pointer-events-none flex items-center justify-center"
+                    >
+                        <div className="text-white font-mono text-4xl font-black uppercase animate-pulse">Loading Mission...</div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+        </div>
     );
 }
