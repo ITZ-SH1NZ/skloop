@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { memo } from "react";
 
 export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating";
 
-export const LoopyMascot = ({ size = 80, mood = "happy" }: { size?: number, mood?: LoopyMood }) => {
+export const LoopyMascot = memo(({ size = 80, mood = "happy" }: { size?: number, mood?: LoopyMood }) => {
     // Mood-based configurations for interpolation
     const moodConfigs: Record<LoopyMood, any> = {
         happy: { 
@@ -136,4 +137,4 @@ export const LoopyMascot = ({ size = 80, mood = "happy" }: { size?: number, mood
             />
         </motion.div>
     );
-};
+});

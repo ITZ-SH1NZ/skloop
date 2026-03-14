@@ -4,9 +4,8 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ShoppingBag, Shield, CreditCard, Palette, Tag, Zap,
-    CheckCircle, Loader2, HelpCircle
+    CheckCircle, Loader2, HelpCircle, Crown, Circle, Diamond, GitBranch
 } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { ShopItem, ShopItemCategory } from "@/lib/shop-items";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
@@ -16,9 +15,13 @@ import useSWR from "swr";
 import { fetchShopData } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
 
+const ICON_MAP: Record<string, any> = {
+    Shield, Crown, Zap, Circle, Diamond, CreditCard, GitBranch, ShoppingBag, Palette, Tag
+};
+
 const getIcon = (name: string | null) => {
     if (!name) return HelpCircle;
-    return (LucideIcons as any)[name] || HelpCircle;
+    return ICON_MAP[name] || HelpCircle;
 };
 
 const RARITY_CONFIG = {

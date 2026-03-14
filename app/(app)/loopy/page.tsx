@@ -6,6 +6,8 @@ import { Bot, Sparkles, Send, Terminal, Gamepad2, BrainCircuit, Flame } from "lu
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { LoopyHeader } from "@/components/loopy/LoopyHeader";
+import { LoopyMascot } from "@/components/loopy/LoopyMascot";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 // API Route handles Python integration
 // API Route handles Python integration (Vercel Function)
@@ -19,6 +21,7 @@ interface Message {
 }
 
 export default function LoopyPage() {
+    const isMobile = !useMediaQuery("(min-width: 768px)");
     const [mode, setMode] = useState<Mode>("select");
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -129,13 +132,8 @@ export default function LoopyPage() {
                                 >
                                     {/* Mascot - Scaled down for mobile */}
                                     <div className="absolute inset-0 bg-lime-400/40 blur-[40px] rounded-full" />
-                                    <div className="w-24 h-24 md:w-48 md:h-48 relative z-10 filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.15)] mx-auto">
-                                        <Image
-                                            src="/loopy.webp"
-                                            alt="Loopy Mascot"
-                                            fill
-                                            className="object-contain"
-                                        />
+                                    <div className="w-24 h-24 md:w-48 md:h-48 relative z-10 filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.15)] mx-auto flex items-center justify-center">
+                                        <LoopyMascot size={isMobile ? 120 : 200} mood="happy" />
                                     </div>
                                 </motion.div>
                                 <h2 className="text-2xl md:text-4xl font-black text-slate-900 mb-2 md:mb-3 tracking-tight">I'm Loopy!</h2>
@@ -209,12 +207,7 @@ export default function LoopyPage() {
                                     >
                                         {msg.role === "assistant" && (
                                             <div className="w-12 h-12 shrink-0 relative -bottom-4 filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
-                                                <Image
-                                                    src="/loopy.webp"
-                                                    alt="Loopy"
-                                                    fill
-                                                    className="object-contain"
-                                                />
+                                                <LoopyMascot size={48} mood={mode === "story" ? "surprised" : "happy"} />
                                             </div>
                                         )}
 
@@ -234,7 +227,7 @@ export default function LoopyPage() {
                                 {isLoading && (
                                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-4 items-end justify-start">
                                         <div className="w-12 h-12 shrink-0 relative filter drop-shadow-md">
-                                            <Image src="/loopy.webp" alt="Loopy" fill className="object-contain animate-bounce" />
+                                            <LoopyMascot size={48} mood="thinking" />
                                         </div>
                                         <div className="bg-white px-5 py-4 rounded-[2rem] rounded-bl-[4px] shadow-sm border border-zinc-100 flex items-center gap-2">
                                             <span className={`w-2.5 h-2.5 rounded-full animate-bounce ${mode === 'story' ? 'bg-amber-400' : 'bg-[#D4F268]'}`} style={{ animationDelay: "0ms" }} />
