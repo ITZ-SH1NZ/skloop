@@ -255,46 +255,57 @@ function ChatPageContent() {
     const groups = convosData?.groups || [];
     const isLoading = isConvosLoading || (currentUserId && !convosData);
 
-    // ── Presence broadcasting + last_seen heartbeat ──────────────────────────
+    // ── Presence Tracking ──────────────────────────────────
+    const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+
     useEffect(() => {
+        if (!currentUserId) return;
         const supabase = createClient();
-        let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
-        let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+        
+        const channel = supabase.channel('presence:chat', {
+            config: { presence: { key: currentUserId } },
+        });
 
-        const initPresence = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // 1. Supabase Realtime Presence — broadcast that this user is online
-            presenceChannel = supabase.channel('presence:online', {
-                config: { presence: { key: user.id } },
-            });
-            presenceChannel
-                .on('presence', { event: 'sync' }, () => { }) // keep channel alive
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await presenceChannel!.track({ user_id: user.id, online_at: new Date().toISOString() });
-                    }
-                });
-
-            // 2. Update last_seen immediately and then every 60 seconds
-            const updateLastSeen = async () => {
-                await supabase
-                    .from('profiles')
-                    .update({ last_seen: new Date().toISOString() })
-                    .eq('id', user.id);
-            };
-            updateLastSeen();
-            heartbeatInterval = setInterval(updateLastSeen, 60_000);
+        const handleSync = () => {
+            const state = channel.presenceState();
+            const ids = new Set<string>();
+            Object.keys(state).forEach(id => ids.add(id));
+            setOnlineUserIds(ids);
         };
 
-        initPresence();
+        channel
+            .on('presence', { event: 'sync' }, handleSync)
+            .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+                setOnlineUserIds(prev => new Set(prev).add(key));
+            })
+            .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+                setOnlineUserIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(key);
+                    return next;
+                });
+            })
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    await channel.track({ online_at: new Date().toISOString() });
+                }
+            });
+
+        // Update last_seen heartbeat
+        const updateLastSeen = async () => {
+            await supabase
+                .from('profiles')
+                .update({ last_seen: new Date().toISOString() })
+                .eq('id', currentUserId);
+        };
+        updateLastSeen();
+        const heartbeatInterval = setInterval(updateLastSeen, 60_000);
 
         return () => {
-            if (presenceChannel) presenceChannel.unsubscribe();
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            channel.unsubscribe();
+            clearInterval(heartbeatInterval);
         };
-    }, []);
+    }, [currentUserId]);
 
     useEffect(() => {
         const handleInitialRoute = async () => {
@@ -371,7 +382,7 @@ function ChatPageContent() {
     };
 
     return (
-        <div className="flex flex-1 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
+        <div className="flex flex-1 min-w-0 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
             {/* Sidebar List */}
             <div className={`w-full md:w-[380px] flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
                 <motion.div
@@ -472,7 +483,9 @@ function ChatPageContent() {
                                                                     fallback={chat.name.charAt(0)}
                                                                     className="w-[46px] h-[46px] rounded-full shrink-0 object-cover border border-zinc-200"
                                                                 />
-                                                                <div className="absolute right-0 bottom-0 w-3 h-3 bg-lime-400 rounded-full border-2 border-white" />
+                                                                {onlineUserIds.has(chat.peerId || chat.id) && (
+                                                                    <div className="absolute right-0 bottom-0 w-3 h-3 bg-lime-400 rounded-full border-2 border-white shadow-[0_0_8px_rgba(163,230,53,0.4)]" />
+                                                                )}
                                                             </div>
                                                             <div className="flex-1 min-w-0 pr-1">
                                                                 <div className="flex justify-between items-baseline mb-0.5">
@@ -576,7 +589,7 @@ function ChatPageContent() {
                 {selectedPeer ? (
                     <motion.div
                         key={selectedPeer.id}
-                        className="fixed inset-0 h-[100dvh] md:h-auto md:static md:inset-auto md:flex-1 md:flex md:flex-col bg-white z-50 md:z-auto shadow-[-4px_0_24px_-10px_rgba(0,0,0,0.05)] md:shadow-none"
+                        className="fixed inset-0 h-[100dvh] md:h-auto md:static md:inset-auto md:flex-1 md:min-w-0 md:flex md:flex-col bg-white z-50 md:z-auto shadow-[-4px_0_24px_-10px_rgba(0,0,0,0.05)] md:shadow-none"
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0 }}

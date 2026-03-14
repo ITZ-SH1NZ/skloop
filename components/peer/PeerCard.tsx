@@ -65,7 +65,7 @@ export function PeerCard({ peer, onAction, onClick }: PeerCardProps) {
 
                     {/* Online Dot */}
                     {peer.isOnline && (
-                        <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white z-10" />
+                        <div className="absolute top-0 right-0 w-3 h-3 bg-[#84cc16] rounded-full ring-2 ring-white z-10 shadow-[0_0_8px_rgba(132,204,22,0.4)]" />
                     )}
                 </div>
 

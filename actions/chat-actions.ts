@@ -17,7 +17,7 @@ export interface MessageRow {
     caption?: string;
     mediaUrl?: string; // Legacy support
     attachments?: MessageAttachment[];
-    type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file";
+    type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file" | "poll";
     status?: 'sent' | 'delivered' | 'read';
     replyToId?: string;
     isEdited?: boolean;
@@ -25,6 +25,7 @@ export interface MessageRow {
     isDeleted?: boolean;
     reactions?: { emoji: string; count: number; userIds: string[] }[];
     timestamp: Date;
+    pollId?: string; // Link to polls table for type === 'poll'
 }
 
 /**
@@ -47,6 +48,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             is_edited,
             edited_at,
             is_deleted,
+            poll_id,
             created_at,
             profiles (
                 id,
@@ -80,7 +82,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             senderId: m.sender_id,
             senderName: profile?.full_name || profile?.username || 'User',
             senderAvatar: profile?.avatar_url,
-            text: !isUrl ? m.content : undefined,
+            text: m.content || undefined,
             caption: m.caption || undefined,
             type: msgType as any,
             mediaUrl: isUrl ? m.content : undefined,
@@ -90,6 +92,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             isEdited: m.is_edited || false,
             editedAt: m.edited_at ? new Date(m.edited_at) : undefined,
             isDeleted: m.is_deleted || false,
+            pollId: m.poll_id || undefined,
             reactions: m.message_reactions ? (m.message_reactions as any[]).reduce((acc: any[], r) => {
                 const existing = acc.find(a => a.emoji === r.emoji);
                 if (existing) {
@@ -197,13 +200,19 @@ export async function getUserConversations() {
                 id, type, title, tags, description, avatar_url, updated_at
             )
         `)
-        .eq('user_id', user.id)
-        .order('joined_at', { ascending: false });
-
+        .eq('user_id', user.id);
+    
     if (error || !myConvos || myConvos.length === 0) {
         console.log("[Chat Action] getUserConversations: No conversations found", error);
         return { dms: [], groups: [] };
     }
+
+    // Sort by updated_at manually since we're joining
+    myConvos.sort((a, b) => {
+        const timeA = new Date((a.conversations as any)?.updated_at || 0).getTime();
+        const timeB = new Date((b.conversations as any)?.updated_at || 0).getTime();
+        return timeB - timeA;
+    });
     console.log("[Chat Action] getUserConversations: Found", myConvos.length, "participants/convo links");
 
     const convoIds = myConvos.map((mc: any) => mc.conversation_id);
@@ -492,3 +501,237 @@ export async function toggleReaction(messageId: string, emoji: string) {
         return { action: 'added' };
     }
 }
+
+// ============================================================
+// PINNED MESSAGES
+// ============================================================
+
+/**
+ * Pins a message in a conversation (overwrites any existing pin).
+ */
+export async function pinMessage(conversationId: string, messageId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Upsert: remove existing pin and add new one
+    await supabase.from('pinned_messages').delete().eq('conversation_id', conversationId);
+    const { data, error } = await supabase.from('pinned_messages').insert({
+        conversation_id: conversationId,
+        message_id: messageId,
+        pinned_by: user.id,
+    }).select().single();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Unpins the current pinned message in a conversation.
+ */
+export async function unpinMessage(conversationId: string) {
+    const supabase = await createClient();
+    const { error } = await supabase
+        .from('pinned_messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+/**
+ * Fetches the current pinned message for a conversation.
+ */
+export async function getPinnedMessage(conversationId: string) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('pinned_messages')
+        .select(`
+            message_id,
+            messages (
+                id,
+                content,
+                sender_id,
+                type,
+                profiles ( full_name, username )
+            )
+        `)
+        .eq('conversation_id', conversationId)
+        .maybeSingle();
+
+    if (error) return null;
+    if (!data) return null;
+
+    const msg = Array.isArray(data.messages) ? data.messages[0] : data.messages as any;
+    const profile = Array.isArray(msg?.profiles) ? msg?.profiles[0] : msg?.profiles;
+    return {
+        messageId: data.message_id,
+        text: msg?.content,
+        senderName: profile?.full_name || profile?.username || 'User',
+    };
+}
+
+// ============================================================
+// POLLS
+// ============================================================
+
+export interface PollOption { text: string; }
+
+/**
+ * Creates a poll and sends it as a message in the conversation.
+ */
+export async function createPoll(
+    conversationId: string,
+    senderId: string,
+    question: string,
+    options: PollOption[]
+) {
+    const supabase = await createClient();
+
+    // First create the message placeholder
+    const { data: msgData, error: msgError } = await supabase
+        .from('messages')
+        .insert({
+            conversation_id: conversationId,
+            sender_id: senderId,
+            content: `📊 Poll: ${question}`,
+            type: 'poll',
+            status: 'sent',
+        })
+        .select()
+        .single();
+
+    if (msgError) throw new Error(msgError.message);
+
+    // Create the poll
+    const { data: pollData, error: pollError } = await supabase
+        .from('polls')
+        .insert({
+            conversation_id: conversationId,
+            created_by: senderId,
+            message_id: msgData.id,
+            question,
+            options: options,
+        })
+        .select()
+        .single();
+
+    if (pollError) throw new Error(pollError.message);
+
+    // Link poll_id back to message
+    await supabase.from('messages').update({ poll_id: pollData.id }).eq('id', msgData.id);
+
+    return { message: msgData, poll: pollData };
+}
+
+/**
+ * Fetches a poll and its vote counts.
+ */
+export async function getPoll(pollId: string) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('polls')
+        .select(`*, poll_votes ( option_index, user_id )`)
+        .eq('id', pollId)
+        .single();
+
+    if (error) return null;
+    return data;
+}
+
+/**
+ * Records a user's vote on a poll (replaces existing vote).
+ */
+export async function votePoll(pollId: string, optionIndex: number) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Delete existing vote
+    await supabase.from('poll_votes').delete().eq('poll_id', pollId).eq('user_id', user.id);
+
+    // Insert new vote
+    const { data, error } = await supabase.from('poll_votes').insert({
+        poll_id: pollId,
+        user_id: user.id,
+        option_index: optionIndex,
+    }).select().single();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+// ============================================================
+// SCHEDULED MESSAGES
+// ============================================================
+
+/**
+ * Creates a scheduled message to send at a future time.
+ */
+export async function scheduleMessage(
+    conversationId: string,
+    senderId: string,
+    content: string,
+    sendAt: string // ISO string
+) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from('scheduled_messages').insert({
+        conversation_id: conversationId,
+        sender_id: senderId,
+        content,
+        type: 'text',
+        send_at: sendAt,
+    }).select().single();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+/**
+ * Fetches all pending scheduled messages for a conversation
+ * that are overdue (past send_at time).
+ */
+export async function getOverdueScheduledMessages(conversationId: string, userId: string) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', userId)
+        .eq('is_sent', false)
+        .lte('send_at', new Date().toISOString())
+        .order('send_at', { ascending: true });
+
+    if (error) return [];
+    return data || [];
+}
+
+/**
+ * Marks a scheduled message as sent.
+ */
+export async function markScheduledMessageSent(scheduledId: string) {
+    const supabase = await createClient();
+    await supabase.from('scheduled_messages').update({ is_sent: true }).eq('id', scheduledId);
+}
+
+/**
+ * Fetches all pending (future) scheduled messages for the current user in a conversation.
+ */
+export async function getPendingScheduledMessages(conversationId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data } = await supabase
+        .from('scheduled_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', user.id)
+        .eq('is_sent', false)
+        .gt('send_at', new Date().toISOString())
+        .order('send_at', { ascending: true });
+
+    return data || [];
+}
+
