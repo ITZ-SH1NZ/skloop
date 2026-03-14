@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/utils/supabase/client";
 import useSWR from "swr";
 import { fetchPeers } from "@/lib/swr-fetchers";
+import { Avatar } from "@/components/ui/Avatar";
 import { useUser } from "@/context/UserContext";
 
 export default function MyPeersPage() {
@@ -319,16 +320,21 @@ export default function MyPeersPage() {
                             <div
                                 key={peer.id}
                                 onClick={() => setSelectedPeers(prev => prev.includes(peer.id) ? prev.filter(id => id !== peer.id) : [...prev, peer.id])}
-                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedPeers.includes(peer.id) ? "border-lime-500 bg-lime-50" : "border-zinc-100 hover:bg-zinc-50"}`}
+                                className={`flex items-center gap-4 p-3 rounded-xl border cursor-pointer transition-all ${selectedPeers.includes(peer.id) ? "border-lime-500 bg-lime-50" : "border-zinc-100 hover:bg-zinc-50"}`}
                             >
                                 <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${selectedPeers.includes(peer.id) ? "bg-lime-500 border-lime-500" : "border-zinc-300 bg-white"}`}>
                                     {selectedPeers.includes(peer.id) && <Check size={12} className="text-white" />}
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-sm text-zinc-900">{peer.name}</h4>
-                                    <p className="text-xs text-zinc-500">@{peer.username}</p>
+                                <Avatar
+                                    src={peer.avatarUrl}
+                                    fallback={peer.name[0]}
+                                    className="w-10 h-10 rounded-full border border-zinc-200 shadow-sm"
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-bold text-sm text-zinc-900 truncate">{peer.name}</h4>
+                                    <p className="text-xs text-zinc-500 truncate">@{peer.username}</p>
                                 </div>
-                                <div className="ml-auto">
+                                <div className="ml-auto shrink-0">
                                     <div className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500">L{peer.level}</div>
                                 </div>
                             </div>
