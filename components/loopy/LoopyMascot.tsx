@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { memo } from "react";
 
-export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating" | "screaming" | "huddled";
+export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating" | "screaming" | "huddled" | "awakened";
 
 export const LoopyMascot = memo(({ 
     size = 80, 
@@ -61,6 +61,12 @@ export const LoopyMascot = memo(({
             glow: "rgba(148, 163, 184, 0.1)",
             eyeR: 3, eyeY: 65, mouthD: "M45 80 Q50 80 55 80",
             shake: 1
+        },
+        awakened: {
+            colorTop: "#bae6fd", colorMid: "#38bdf8", colorBottom: "#0369a1",
+            glow: "rgba(56, 189, 248, 0.4)",
+            eyeR: 9, eyeY: 55, mouthD: "M46 72 Q50 78 54 72",
+            shake: 0
         }
     };
 

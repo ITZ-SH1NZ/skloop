@@ -90,7 +90,7 @@ const missions = [
         title: "The Spark",
         icon: Cpu,
         mood: "surprised" as LoopyMood,
-        accent: "blue",
+        accent: "amber",
         dialogue: "Finally, this feels like real building.",
         headline: "THE ENGINE ALIGNS.",
         description: "Visceral feedback, multiplayer guilds, and AI tutors. Finally, a platform that speaks the language of my ambition."
@@ -231,7 +231,7 @@ export default function ManifestoPage() {
                         const bgColors: Record<string, string> = {
                             cyan: "bg-cyan-400",
                             red: "bg-red-400",
-                            blue: "bg-blue-400",
+                            amber: "bg-amber-400",
                             lime: "bg-lime-400"
                         };
                         const activeBg = bgColors[m.accent] || "bg-black";
