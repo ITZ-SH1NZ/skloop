@@ -71,7 +71,7 @@ const BiomeDecoration = memo(function BiomeDecoration({
                 top: `${yPos}px`,
                 scale,
                 y: yOffset,
-                transformZ: 0
+                z: 0
             }}
             whileHover={{ 
                 scale: scale * 1.1,
@@ -187,7 +187,7 @@ const DriftingAsset = memo(function DriftingAsset({ index, scrollY, contentHeigh
     return (
         <motion.div
             className="absolute pointer-events-none z-40 will-change-transform"
-            style={{ x, y, rotate, opacity, transformZ: 0 }}
+            style={{ x, y, rotate, opacity, z: 0 }}
         >
             {isNight ? (
                 // Glowing Crystal Shard for Night Biome
