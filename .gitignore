@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+*.sql
+
+# environment/python
+.venv/
+.venv*
+venv/
+venv*
+
+# logs
+*.log
+.next_log.txt
