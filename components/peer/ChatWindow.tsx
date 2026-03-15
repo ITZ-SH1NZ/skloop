@@ -435,6 +435,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
     const scrollContentRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const sentMessageIds = useRef<Set<string>>(new Set());
+    const typingChannelRef = useRef<any>(null);
     const [audioLevels, setAudioLevels] = useState<number[]>(Array(30).fill(2));
     const [recordedAudio, setRecordedAudio] = useState<{ blob: Blob; url: string } | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -682,6 +683,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         if (!peer || !currentUserId) return;
 
         const typingChannel = supabase.channel(`chat:typing:${peer.id}`);
+        typingChannelRef.current = typingChannel;
 
         typingChannel
             .on('broadcast', { event: 'typing' }, ({ payload }) => {
@@ -695,30 +697,35 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                     return next;
                 });
             })
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log(`Subscribed to typing indicators for ${peer.id}`);
+                }
+            });
 
-        return () => { supabase.removeChannel(typingChannel); };
+        return () => {
+            supabase.removeChannel(typingChannel);
+            typingChannelRef.current = null;
+        };
     }, [peer?.id, currentUserId, supabase]);
 
     // Broadcast typing status
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     useEffect(() => {
-        if (!peer || !currentUserId || !inputValue) {
+        if (!peer || !currentUserId || !typingChannelRef.current) return;
+
+        if (!inputValue) {
             // If input is empty, immediately stop typing indicator
-            if (currentUserId && peer) {
-                supabase.channel(`chat:typing:${peer.id}`).send({
-                    type: 'broadcast',
-                    event: 'typing',
-                    payload: { userId: currentUserId, isTyping: false }
-                });
-            }
+            typingChannelRef.current.send({
+                type: 'broadcast',
+                event: 'typing',
+                payload: { userId: currentUserId, isTyping: false }
+            });
             return;
         }
 
-        const typingChannel = supabase.channel(`chat:typing:${peer.id}`);
-
         // Broadcast that we are typing
-        typingChannel.send({
+        typingChannelRef.current.send({
             type: 'broadcast',
             event: 'typing',
             payload: { userId: currentUserId, isTyping: true }
@@ -727,11 +734,13 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         // Set a timeout to stop typing indicator after inactivity
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => {
-            typingChannel.send({
-                type: 'broadcast',
-                event: 'typing',
-                payload: { userId: currentUserId, isTyping: false }
-            });
+            if (typingChannelRef.current) {
+                typingChannelRef.current.send({
+                    type: 'broadcast',
+                    event: 'typing',
+                    payload: { userId: currentUserId, isTyping: false }
+                });
+            }
         }, 3000);
 
         return () => {
