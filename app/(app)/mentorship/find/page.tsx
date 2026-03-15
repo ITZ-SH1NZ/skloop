@@ -1,16 +1,177 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Search, Filter, Star, CheckCircle, X, Loader2, Play, Users, Award } from "lucide-react";
+import { useState, useEffect, useMemo, memo } from "react";
+import { Search, Filter, Star, CheckCircle, X, Loader2, Play, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import { getMentors, getPublicSessions, type MentorCard, type MentorSession } from "@/actions/mentorship-actions";
-import { UserProfileModal } from "@/components/profile/UserProfileModal";
+import { type MentorSession } from "@/actions/mentorship-actions";
+import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { fetchFindMentorData } from "@/lib/swr-fetchers";
+import { useLoading } from "@/components/LoadingProvider";
+
+// Dynamically import heavy modals
+const UserProfileModal = dynamic(() => import("@/components/profile/UserProfileModal").then(m => m.UserProfileModal), {
+    ssr: false,
+    loading: () => <div className="hidden" />
+});
+
+const MentorCard = memo(({ 
+    mentor, 
+    index, 
+    onViewProfile 
+}: { 
+    mentor: any, 
+    index: number, 
+    onViewProfile: (id: string) => void 
+}) => {
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.2) }}
+            className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm hover:shadow-xl hover:shadow-[#D4F268]/10 transition-all group flex flex-col relative overflow-hidden"
+        >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4F268]/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            <div className="flex items-start gap-4 mb-4 relative z-10">
+                <div className="relative">
+                    <Avatar src={mentor.avatarUrl} fallback={mentor.name.slice(0, 2).toUpperCase()} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md" />
+                    <div className="absolute -bottom-1 -right-1 bg-black text-[#D4F268] p-1 rounded-full border-2 border-white">
+                        <CheckCircle size={11} strokeWidth={3} />
+                    </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h3 className="font-black text-lg text-zinc-900 leading-tight truncate group-hover:text-[#5a6d1a] transition-colors">{mentor.name}</h3>
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mt-0.5 truncate">{mentor.headline || "Mentor"}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                    {mentor.avgRating !== null ? (
+                        <>
+                            <div className="flex items-center gap-1 bg-zinc-900 rounded-lg px-2 py-1">
+                                <Star size={11} className="text-[#D4F268] fill-[#D4F268]" />
+                                <span className="text-xs font-bold text-white">{mentor.avgRating}</span>
+                            </div>
+                            <span className="text-[10px] font-medium text-zinc-400">{mentor.reviewCount} reviews</span>
+                        </>
+                    ) : (
+                        <span className="text-[10px] font-bold text-zinc-300 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">New</span>
+                    )}
+                </div>
+            </div>
+
+            {mentor.bio && (
+                <p className="text-zinc-600 text-sm leading-relaxed mb-4 line-clamp-2 font-medium relative z-10">{mentor.bio}</p>
+            )}
+
+            {mentor.skills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4 mt-auto relative z-10">
+                    {mentor.skills.slice(0, 3).map((skill: any) => (
+                        <span key={skill} className="bg-zinc-50 text-zinc-600 text-[11px] font-bold px-3 py-1 rounded-lg border border-zinc-100 uppercase tracking-wide">{skill}</span>
+                    ))}
+                </div>
+            )}
+
+            <div className="pt-4 border-t border-dashed border-zinc-100 flex items-center justify-between relative z-10">
+                <div className={`text-xs font-bold px-3 py-1.5 rounded-full ${mentor.isAccepting ? "bg-green-50 text-green-600" : "bg-zinc-50 text-zinc-400"}`}>
+                    {mentor.isAccepting ? "● Accepting" : "● Paused"}
+                </div>
+                <Button
+                    className="rounded-xl px-5 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all text-sm shadow-lg shadow-zinc-900/10"
+                    onClick={() => onViewProfile(mentor.id)}
+                >
+                    View Profile
+                </Button>
+            </div>
+        </motion.div>
+    );
+});
+MentorCard.displayName = "MentorCard";
+
+const VideoCard = memo(({ video, index }: { video: MentorSession; index: number }) => {
+    const [showEmbed, setShowEmbed] = useState(false);
+    const ytId = extractYouTubeId(video.videoUrl || "");
+    const isPremiering = video.premiereAt && new Date(video.premiereAt) > new Date();
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(index * 0.04, 0.2) }}
+            className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden flex flex-col"
+        >
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem] group">
+                {showEmbed && ytId ? (
+                    <>
+                        <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover:block" onClick={(e) => e.stopPropagation()} />
+                        <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
+                        <iframe
+                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                            className="absolute inset-0 w-full h-full border-0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            sandbox="allow-scripts allow-same-origin allow-presentation"
+                        />
+                    </>
+                ) : (
+                    <>
+                        {video.thumbnailUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
+                        )}
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            {isPremiering ? (
+                                <div className="bg-[#D4F268] text-black px-4 py-2 rounded-full font-black text-sm">
+                                    Premieres {new Date(video.premiereAt!).toLocaleDateString()}
+                                </div>
+                            ) : ytId ? (
+                                <button onClick={() => setShowEmbed(true)} className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
+                                </button>
+                            ) : (
+                                <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"
+                                    className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
+                                </a>
+                            )}
+                        </div>
+                        {isPremiering && (
+                            <div className="absolute top-3 left-3 bg-[#D4F268] text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">
+                                Upcoming
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-black text-zinc-900 text-base leading-tight mb-1 line-clamp-2">{video.title}</h3>
+                {video.topic && <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mb-2">{video.topic}</p>}
+                {video.description && <p className="text-zinc-500 text-sm line-clamp-2 mb-4 flex-1 font-medium">{video.description}</p>}
+
+                <div className="flex items-center gap-2 mt-auto pt-3 border-t border-zinc-50">
+                    <Avatar src={video.mentorAvatar} fallback={video.mentorName.slice(0, 2).toUpperCase()} className="w-7 h-7 rounded-full border border-zinc-200" />
+                    <span className="text-xs font-bold text-zinc-700">{video.mentorName}</span>
+                    <span className="text-zinc-300 ml-auto text-[10px] font-medium">{new Date(video.createdAt).toLocaleDateString()}</span>
+                </div>
+            </div>
+        </motion.div>
+    );
+});
+VideoCard.displayName = "VideoCard";
+
+function extractYouTubeId(url: string): string | null {
+    const regex = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    return url.match(regex)?.[1] ?? null;
+}
 
 export default function FindMentorPage() {
+    const { isLoading: isGlobalLoading } = useLoading();
     const [tab, setTab] = useState<"mentors" | "videos">("mentors");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSkill, setSelectedSkill] = useState("All");
@@ -34,22 +195,25 @@ export default function FindMentorPage() {
         return ["All", ...Array.from(skills)];
     }, [mentors]);
 
-
-
-    const filteredMentors = mentors.filter((m: any) => {
+    const filteredMentors = useMemo(() => mentors.filter((m: any) => {
         const target = `${m.name} ${m.headline || ""} ${m.skills.join(" ")}`.toLowerCase();
         const matchSearch = target.includes(searchTerm.toLowerCase());
         const matchSkill = selectedSkill === "All" || m.skills.includes(selectedSkill);
         return matchSearch && matchSkill;
-    });
+    }), [mentors, searchTerm, selectedSkill]);
 
-    const filteredVideos = videos.filter((v: any) => {
+    const filteredVideos = useMemo(() => videos.filter((v: any) => {
         const target = `${v.title} ${v.topic || ""} ${v.description || ""} ${v.mentorName}`.toLowerCase();
         return target.includes(searchTerm.toLowerCase());
-    });
+    }), [videos, searchTerm]);
 
     return (
-        <div className="flex flex-col bg-[#FAFAFA] min-h-full">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
+            className="flex flex-col bg-[#FAFAFA] min-h-full"
+        >
             {/* Dark Header */}
             <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -162,175 +326,27 @@ export default function FindMentorPage() {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {filteredMentors.map((mentor: any, i: number) => (
-                                    <motion.div
+                                    <MentorCard 
                                         key={mentor.id}
-                                        layout
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        transition={{ duration: 0.2, delay: i * 0.04 }}
-                                        className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm hover:shadow-xl hover:shadow-[#D4F268]/10 transition-all group flex flex-col relative overflow-hidden"
-                                    >
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4F268]/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                                        <div className="flex items-start gap-4 mb-4 relative z-10">
-                                            <div className="relative">
-                                                <Avatar src={mentor.avatarUrl} fallback={mentor.name.slice(0, 2).toUpperCase()} className="w-16 h-16 rounded-2xl border-4 border-white shadow-md" />
-                                                <div className="absolute -bottom-1 -right-1 bg-black text-[#D4F268] p-1 rounded-full border-2 border-white">
-                                                    <CheckCircle size={11} strokeWidth={3} />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-black text-lg text-zinc-900 leading-tight truncate group-hover:text-[#5a6d1a] transition-colors">{mentor.name}</h3>
-                                                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mt-0.5 truncate">{mentor.headline || "Mentor"}</p>
-                                            </div>
-                                            <div className="flex flex-col items-end gap-1 shrink-0">
-                                                {mentor.avgRating !== null ? (
-                                                    <>
-                                                        <div className="flex items-center gap-1 bg-zinc-900 rounded-lg px-2 py-1">
-                                                            <Star size={11} className="text-[#D4F268] fill-[#D4F268]" />
-                                                            <span className="text-xs font-bold text-white">{mentor.avgRating}</span>
-                                                        </div>
-                                                        <span className="text-[10px] font-medium text-zinc-400">{mentor.reviewCount} reviews</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-[10px] font-bold text-zinc-300 bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100">New</span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {mentor.bio && (
-                                            <p className="text-zinc-600 text-sm leading-relaxed mb-4 line-clamp-2 font-medium relative z-10">{mentor.bio}</p>
-                                        )}
-
-                                        {mentor.skills.length > 0 && (
-                                            <div className="flex flex-wrap gap-1.5 mb-4 mt-auto relative z-10">
-                                                {mentor.skills.slice(0, 3).map((skill: any) => (
-                                                    <span key={skill} className="bg-zinc-50 text-zinc-600 text-[11px] font-bold px-3 py-1 rounded-lg border border-zinc-100 uppercase tracking-wide">{skill}</span>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="pt-4 border-t border-dashed border-zinc-100 flex items-center justify-between relative z-10">
-                                            <div className={`text-xs font-bold px-3 py-1.5 rounded-full ${mentor.isAccepting ? "bg-green-50 text-green-600" : "bg-zinc-50 text-zinc-400"}`}>
-                                                {mentor.isAccepting ? "● Accepting" : "● Paused"}
-                                            </div>
-                                            <Button
-                                                className="rounded-xl px-5 font-bold bg-zinc-900 hover:bg-[#D4F268] hover:text-black text-white transition-all text-sm shadow-lg shadow-zinc-900/10"
-                                                onClick={() => setSelectedUserId(mentor.id)}
-                                            >
-                                                View Profile
-                                            </Button>
-                                        </div>
-                                    </motion.div>
+                                        mentor={mentor}
+                                        index={i}
+                                        onViewProfile={setSelectedUserId}
+                                    />
                                 ))}
                             </div>
                         )}
                     </AnimatePresence>
                 ) : (
                     /* VIDEO TAB */
-                    <div>
-                        {filteredVideos.length === 0 ? (
-                            <div className="text-center py-20">
-                                <Play size={48} className="mx-auto text-zinc-200 mb-4" />
-                                <h3 className="text-lg font-bold text-zinc-900">No videos yet</h3>
-                                <p className="text-zinc-500 text-sm mt-1">Mentors haven't posted any content yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredVideos.map((video: any, i: number) => (
-                                    <VideoCard key={video.id} video={video} index={i} />
-                                ))}
-                            </div>
-                        )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredVideos.map((video: any, i: number) => (
+                            <VideoCard key={video.id} video={video} index={i} />
+                        ))}
                     </div>
                 )}
             </div>
 
             <UserProfileModal userId={selectedUserId} isOpen={!!selectedUserId} onClose={() => setSelectedUserId(null)} />
-        </div>
-    );
-}
-
-function VideoCard({ video, index }: { video: MentorSession; index: number }) {
-    const [showEmbed, setShowEmbed] = useState(false);
-    const ytId = extractYouTubeId(video.videoUrl || "");
-    const isPremiering = video.premiereAt && new Date(video.premiereAt) > new Date();
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.04 }}
-            className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden flex flex-col"
-        >
-            {/* Thumbnail / Embed */}
-            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem] group">
-                {showEmbed && ytId ? (
-                    <>
-                        {/* Top overlay to block "Watch later", "Share", and Title links */}
-                        <div className="absolute top-0 left-0 right-0 h-16 bg-transparent z-10 hidden group-hover:block" onClick={(e) => e.stopPropagation()} />
-
-                        {/* Bottom right overlay to block the "YouTube" logo link */}
-                        <div className="absolute bottom-0 right-0 w-24 h-12 bg-transparent z-10" onClick={(e) => e.stopPropagation()} />
-
-                        <iframe
-                            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
-                            className="absolute inset-0 w-full h-full border-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            sandbox="allow-scripts allow-same-origin allow-presentation"
-                        />
-                    </>
-                ) : (
-                    <>
-                        {video.thumbnailUrl ? (
-                            <img src={video.thumbnailUrl} alt={video.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900" />
-                        )}
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            {isPremiering ? (
-                                <div className="bg-[#D4F268] text-black px-4 py-2 rounded-full font-black text-sm">
-                                    Premieres {new Date(video.premiereAt!).toLocaleDateString()}
-                                </div>
-                            ) : ytId ? (
-                                <button onClick={() => setShowEmbed(true)} className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
-                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
-                                </button>
-                            ) : (
-                                <a href={video.videoUrl} target="_blank" rel="noopener noreferrer"
-                                    className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
-                                    <Play size={24} className="text-zinc-900 fill-zinc-900 ml-1" />
-                                </a>
-                            )}
-                        </div>
-                        {isPremiering && (
-                            <div className="absolute top-3 left-3 bg-[#D4F268] text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide">
-                                Upcoming
-                            </div>
-                        )}
-                    </>
-                )}
-            </div>
-
-            {/* Info */}
-            <div className="p-5 flex-1 flex flex-col">
-                <h3 className="font-black text-zinc-900 text-base leading-tight mb-1 line-clamp-2">{video.title}</h3>
-                {video.topic && <p className="text-zinc-500 text-xs font-bold uppercase tracking-wide mb-2">{video.topic}</p>}
-                {video.description && <p className="text-zinc-500 text-sm line-clamp-2 mb-4 flex-1 font-medium">{video.description}</p>}
-
-                <div className="flex items-center gap-2 mt-auto pt-3 border-t border-zinc-50">
-                    <Avatar src={video.mentorAvatar} fallback={video.mentorName.slice(0, 2).toUpperCase()} className="w-7 h-7 rounded-full border border-zinc-200" />
-                    <span className="text-xs font-bold text-zinc-700">{video.mentorName}</span>
-                    <span className="text-zinc-300 ml-auto text-[10px] font-medium">{new Date(video.createdAt).toLocaleDateString()}</span>
-                </div>
-            </div>
         </motion.div>
     );
-}
-
-function extractYouTubeId(url: string): string | null {
-    const regex = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    return url.match(regex)?.[1] ?? null;
 }

@@ -12,6 +12,8 @@ import useSWR from "swr";
 import { fetchUserTasks } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
 
+import { useLoading } from "@/components/LoadingProvider";
+
 // Lazy-load with ssr:false — these components read from localStorage SWR cache,
 // so they MUST be client-only to avoid hydration mismatches.
 const HeroCourseCard = dynamic(() => import("@/components/dashboard/HeroCourseCard"), { ssr: false });
@@ -25,16 +27,17 @@ const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
-        transition: { staggerChildren: 0.1 }
+        transition: { staggerChildren: 0.1, delayChildren: 0.2 }
     }
 };
 
 const itemVariants: Variants = {
-    hidden: { y: 20, opacity: 0 },
+    hidden: { y: 40, opacity: 0, scale: 0.95 },
     visible: {
         y: 0,
         opacity: 1,
-        transition: { duration: 0.5, ease: "easeOut" }
+        scale: 1,
+        transition: { type: "spring", stiffness: 300, damping: 24 }
     }
 };
 
@@ -44,6 +47,7 @@ export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState("grid");
     const [questRefreshKey, setQuestRefreshKey] = useState(0);
     const { user } = useUser();
+    const { isLoading } = useLoading();
 
     // Fetch User Tasks with SWR
     const { data: tasksData, isLoading: isLoadingTasks, mutate } = useSWR<any[]>(
@@ -167,7 +171,7 @@ export default function DashboardPage() {
             <motion.div
                 variants={containerVariants}
                 initial="hidden"
-                animate="visible"
+                animate={isLoading ? "hidden" : "visible"}
                 className="max-w-[1400px] mx-auto"
             >
                 {/* Header */}

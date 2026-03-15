@@ -6,18 +6,10 @@ import { PeerProfile } from "@/components/peer/PeerCard";
 import { ChatWindow } from "@/components/peer/ChatWindow";
 import {
     Search,
-    MoreVertical,
     UserCircle2,
-    Hash,
     Users,
-    Settings,
-    LogOut,
-    Bell,
-    Plus,
-    MessageSquare,
     Loader2,
     X,
-    PenSquare,
     MessageSquarePlus
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -26,6 +18,7 @@ import { createClient } from "@/utils/supabase/client";
 import { getUserConversations, getOrCreateDirectConversation, getFriendsList } from "@/actions/chat-actions";
 import useSWR from "swr";
 import { useUser } from "@/context/UserContext";
+import { useLoading } from "@/components/LoadingProvider";
 
 // ============================================================
 // NewChatPicker — Centered Modal
@@ -223,6 +216,7 @@ function NewChatPicker({
 // ⚠️ Next.js App Router: useSearchParams() MUST be inside a <Suspense> boundary.
 // So the actual page logic lives in ChatPageContent, and the default export wraps it.
 function ChatPageContent() {
+    const { isLoading: isGlobalLoading } = useLoading();
     const searchParams = useSearchParams();
     const router = useRouter();
     const initialUserId = searchParams.get("userId");
@@ -382,7 +376,12 @@ function ChatPageContent() {
     };
 
     return (
-        <div className="flex flex-1 min-w-0 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
+            className="flex flex-1 min-w-0 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative"
+        >
             {/* Sidebar List */}
             <div className={`w-full md:w-[380px] flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
                 <motion.div
@@ -620,7 +619,7 @@ function ChatPageContent() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     );
 }
 

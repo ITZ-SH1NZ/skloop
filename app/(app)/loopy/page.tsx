@@ -8,6 +8,7 @@ import Image from "next/image";
 import { LoopyHeader } from "@/components/loopy/LoopyHeader";
 import { LoopyMascot } from "@/components/loopy/LoopyMascot";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useLoading } from "@/components/LoadingProvider";
 
 // API Route handles Python integration
 // API Route handles Python integration (Vercel Function)
@@ -21,6 +22,7 @@ interface Message {
 }
 
 export default function LoopyPage() {
+    const { isLoading: isGlobalLoading } = useLoading();
     const isMobile = !useMediaQuery("(min-width: 768px)");
     const [mode, setMode] = useState<Mode>("select");
     const [messages, setMessages] = useState<Message[]>([]);
@@ -91,7 +93,12 @@ export default function LoopyPage() {
     };
 
     return (
-        <div className="flex flex-col bg-[#FDFCF8] font-sans relative overflow-hidden h-[100dvh] selection:bg-[#D4F268] selection:text-black">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
+            className="flex flex-col bg-[#FDFCF8] font-sans relative overflow-hidden h-[100dvh] selection:bg-[#D4F268] selection:text-black"
+        >
 
             {/* Background Texture & Blobs */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 pointer-events-none" />
@@ -279,6 +286,6 @@ export default function LoopyPage() {
                     )}
                 </AnimatePresence>
             </main>
-        </div>
+        </motion.div>
     );
 }

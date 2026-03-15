@@ -1,16 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Play, Clock, Star, Video, CheckCircle2, Loader2, ChevronLeft } from "lucide-react";
+import { useState, useEffect, useMemo, memo } from "react";
+import { Video, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import { getMySessionsAsMentee, submitReview, markSessionCompletedByMentee, type MentorSession } from "@/actions/mentorship-actions";
+import { submitReview, markSessionCompletedByMentee } from "@/actions/mentorship-actions";
+import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { fetchMySessionsAsMentee } from "@/lib/swr-fetchers";
-import { SessionVideoCard } from "@/components/mentorship/SessionVideoCard";
+import { useLoading } from "@/components/LoadingProvider";
+
+// Dynamically import heavy components
+const SessionVideoCard = dynamic(() => import("@/components/mentorship/SessionVideoCard").then(m => m.SessionVideoCard), {
+    ssr: false,
+    loading: () => <div className="h-64 bg-white animate-pulse rounded-[2rem] border border-zinc-100" />
+});
+
+const PendingSessionCard = memo(({ session }: { session: any }) => {
+    return (
+        <div className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[2rem] ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-100"}`} />
+            <div className="flex flex-col md:flex-row gap-6 pl-4">
+                <div className="flex items-center gap-4 shrink-0">
+                    <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-14 h-14 rounded-2xl border-4 border-white shadow-md" />
+                    <div>
+                        <div className="font-bold text-zinc-900 text-sm">{session.mentorName}</div>
+                        <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${session.status === "accepted" ? "text-amber-600" : "text-zinc-400"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${session.status === "accepted" ? "bg-amber-500 animate-pulse" : "bg-zinc-300"}`} />
+                            {session.status === "accepted" ? "In Progress" : "Pending"}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-1 border-l border-dashed border-zinc-100 pl-0 md:pl-6">
+                    <h3 className="text-xl font-black text-zinc-900 mb-2">{session.title}</h3>
+                    {session.message && <p className="text-zinc-500 text-sm leading-relaxed font-medium">{session.message}</p>}
+                    <div className="text-xs font-medium text-zinc-400 mt-3">Sent {new Date(session.createdAt).toLocaleDateString()}</div>
+                </div>
+            </div>
+        </div>
+    );
+});
+PendingSessionCard.displayName = "PendingSessionCard";
 
 export default function MySessionsPage() {
+    const { isLoading: isGlobalLoading } = useLoading();
     const [activeTab, setActiveTab] = useState<"pending" | "library">("pending");
 
     const { data: sessions = [], isLoading, mutate } = useSWR(
@@ -26,10 +60,11 @@ export default function MySessionsPage() {
     const [comment, setComment] = useState("");
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
+    const { pending, library } = useMemo(() => ({
+        pending: sessions.filter((s: any) => s.status === "pending" || s.status === "accepted"),
+        library: sessions.filter((s: any) => s.status === "published" || s.status === "completed")
+    }), [sessions]);
 
-
-    const pending = sessions.filter((s: any) => s.status === "pending" || s.status === "accepted");
-    const library = sessions.filter((s: any) => s.status === "published" || s.status === "completed");
     const displayed = activeTab === "pending" ? pending : library;
 
     const handleSubmitReview = async (sessionId: string) => {
@@ -40,12 +75,18 @@ export default function MySessionsPage() {
             setReviewingId(null);
             setRating(0);
             setComment("");
+            mutate();
         } catch { }
         setIsSubmittingReview(false);
     };
 
     return (
-        <div className="bg-[#FAFAFA] min-h-full">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
+            className="bg-[#FAFAFA] min-h-full"
+        >
             {/* Header */}
             <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -107,26 +148,7 @@ export default function MySessionsPage() {
                         ) : activeTab === "pending" ? (
                             <div className="space-y-4">
                                 {displayed.map((session: any) => (
-                                    <div key={session.id} className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
-                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[2rem] ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-100"}`} />
-                                        <div className="flex flex-col md:flex-row gap-6 pl-4">
-                                            <div className="flex items-center gap-4 shrink-0">
-                                                <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-14 h-14 rounded-2xl border-4 border-white shadow-md" />
-                                                <div>
-                                                    <div className="font-bold text-zinc-900 text-sm">{session.mentorName}</div>
-                                                    <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${session.status === "accepted" ? "text-amber-600" : "text-zinc-400"}`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${session.status === "accepted" ? "bg-amber-500 animate-pulse" : "bg-zinc-300"}`} />
-                                                        {session.status === "accepted" ? "In Progress" : "Pending"}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 border-l border-dashed border-zinc-100 pl-0 md:pl-6">
-                                                <h3 className="text-xl font-black text-zinc-900 mb-2">{session.title}</h3>
-                                                {session.message && <p className="text-zinc-500 text-sm leading-relaxed font-medium">{session.message}</p>}
-                                                <div className="text-xs font-medium text-zinc-400 mt-3">Sent {new Date(session.createdAt).toLocaleDateString()}</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <PendingSessionCard key={session.id} session={session} />
                                 ))}
                             </div>
                         ) : (
@@ -190,6 +212,6 @@ export default function MySessionsPage() {
                     </>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     );
 }

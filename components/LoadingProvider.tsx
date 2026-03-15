@@ -1,10 +1,18 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import GamifiedLoader from "./GamifiedLoader";
 import { AnimatePresence } from "framer-motion";
 
-const LoadingContext = createContext({ isLoading: true });
+interface LoadingContextType {
+    isLoading: boolean;
+    registerPreloadTasks: (tasks: Promise<any>[]) => void;
+}
+
+const LoadingContext = createContext<LoadingContextType>({ 
+    isLoading: true,
+    registerPreloadTasks: () => {}
+});
 
 export const useLoading = () => useContext(LoadingContext);
 
@@ -13,6 +21,7 @@ let globalInitialLoadDone = false;
 
 export function LoadingProvider({ children }: { children: React.ReactNode }) {
     const [isInitialLoad, setIsInitialLoad] = useState(!globalInitialLoadDone);
+    const preloadTasksRef = useRef<Promise<any>[]>([]);
 
     useEffect(() => {
         if (!isInitialLoad) {
@@ -20,11 +29,19 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isInitialLoad]);
 
+    const registerPreloadTasks = useCallback((tasks: Promise<any>[]) => {
+        preloadTasksRef.current = [...preloadTasksRef.current, ...tasks];
+    }, []);
+
     return (
-        <LoadingContext.Provider value={{ isLoading: isInitialLoad }}>
+        <LoadingContext.Provider value={{ isLoading: isInitialLoad, registerPreloadTasks }}>
             <AnimatePresence mode="wait">
                 {isInitialLoad && (
-                    <GamifiedLoader key="loader" onComplete={() => setIsInitialLoad(false)} />
+                    <GamifiedLoader 
+                        key="loader" 
+                        onComplete={() => setIsInitialLoad(false)} 
+                        preloadTasksRef={preloadTasksRef}
+                    />
                 )}
             </AnimatePresence>
             {children}

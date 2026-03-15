@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/shell/AppShell";
 import { UserProvider } from "@/context/UserContext";
 import { SWRProvider } from "@/components/providers/SWRProvider";
+import { AppPreloader } from "@/components/providers/AppPreloader";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -30,6 +31,7 @@ export default async function AppLayout({
     return (
         <UserProvider initialUser={user} initialProfile={profile}>
             <SWRProvider>
+                <AppPreloader />
                 <AppShell>
                     {children}
                 </AppShell>

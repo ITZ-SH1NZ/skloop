@@ -16,7 +16,7 @@ interface StarData {
     delay: number;
 }
 
-export default function GamifiedLoader({ onComplete }: { onComplete: () => void }) {
+export default function GamifiedLoader({ onComplete, preloadTasksRef }: { onComplete: () => void, preloadTasksRef?: React.MutableRefObject<Promise<any>[]> }) {
     const [step, setStep] = useState(0);
     const [stars, setStars] = useState<StarData[]>([]);
     const [progress, setProgress] = useState(0);
@@ -38,13 +38,35 @@ export default function GamifiedLoader({ onComplete }: { onComplete: () => void 
         }));
         setStars(generatedStars);
 
+        let t1: NodeJS.Timeout, t2: NodeJS.Timeout, t3: NodeJS.Timeout, t4: NodeJS.Timeout, t5: NodeJS.Timeout, t6: NodeJS.Timeout;
+
         // Animation Sequence (Matching steps + progress bar)
-        const t1 = setTimeout(() => { setStep(1); setProgress(20); }, 600);  // Base + Fins drop in
-        const t2 = setTimeout(() => { setStep(2); setProgress(40); }, 1200); // Body drops in
-        const t3 = setTimeout(() => { setStep(3); setProgress(60); }, 1800); // Nose drops in
-        const t4 = setTimeout(() => { setStep(4); setProgress(80); }, 2600); // IGNITION (Shake)
-        const t5 = setTimeout(() => { setStep(5); setProgress(100); }, 3400); // BLAST OFF
-        const t6 = setTimeout(() => onComplete(), 4100);
+        t1 = setTimeout(() => { setStep(1); setProgress(20); }, 600);  // Base + Fins drop in
+        t2 = setTimeout(() => { setStep(2); setProgress(40); }, 1200); // Body drops in
+        t3 = setTimeout(() => { setStep(3); setProgress(60); }, 1800); // Nose drops in
+        t4 = setTimeout(() => { 
+            setStep(4); 
+            setProgress(80); 
+            
+            // Wait for preloaded tasks (if any) or proceed after a short delay
+            const proceedToBlastoff = () => {
+                t5 = setTimeout(() => { setStep(5); setProgress(100); }, 800); // BLAST OFF
+                t6 = setTimeout(() => onComplete(), 1500);
+            };
+
+            if (preloadTasksRef && preloadTasksRef.current && preloadTasksRef.current.length > 0) {
+                // Wait for all registered preloads, with a fallback timeout of 6 seconds to prevent infinite hang
+                Promise.race([
+                    Promise.allSettled(preloadTasksRef.current),
+                    new Promise(resolve => setTimeout(resolve, 6000))
+                ]).then(() => {
+                    proceedToBlastoff();
+                });
+            } else {
+                proceedToBlastoff();
+            }
+
+        }, 2600); // IGNITION (Shake)
 
         return () => {
             document.documentElement.style.overflow = "";
@@ -52,7 +74,7 @@ export default function GamifiedLoader({ onComplete }: { onComplete: () => void 
             clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
             clearTimeout(t4); clearTimeout(t5); clearTimeout(t6);
         };
-    }, [onComplete]);
+    }, [onComplete, preloadTasksRef]);
 
     // Update text based on step to explicitly show changes
     let tipText = "Initiating launch sequence...";
