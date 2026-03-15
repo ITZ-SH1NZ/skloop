@@ -143,6 +143,49 @@ export async function sendMessage(
         throw new Error(error.message);
     }
 
+    // --- TRIGGER NOTIFICATIONS ---
+    try {
+        // 1. Get all other participants in the conversation
+        const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId)
+            .neq('user_id', senderId);
+
+        if (participants && participants.length > 0) {
+            // 2. Get sender profile for the notification title/content
+            const { data: senderProfile } = await supabase
+                .from('profiles')
+                .select('full_name, username')
+                .eq('id', senderId)
+                .single();
+
+            const senderName = senderProfile?.full_name || senderProfile?.username || "Someone";
+            
+            // 3. Create notifications for each participant
+            // We do this in a loop or Promise.all. For high volume, a DB trigger is better, 
+            // but this is easier for debugging and custom logic right now.
+            const { createNotification } = await import("./notification-actions");
+            
+            await Promise.all(participants.map(p => 
+                createNotification({
+                    user_id: p.user_id,
+                    actor_id: senderId,
+                    type: 'message',
+                    title: `New message from ${senderName}`,
+                    content: type === 'text' ? content : `Sent a ${type}`,
+                    metadata: {
+                        conversation_id: conversationId,
+                        message_id: data.id
+                    }
+                })
+            ));
+        }
+    } catch (notifError) {
+        // Non-blocking error for notifications
+        console.error("Failed to send notifications:", notifError);
+    }
+
     return data;
 }
 

@@ -11,6 +11,7 @@ import {
 import { PeerProfile } from "./PeerCard";
 import { CircleInfoPanel } from "./CircleInfoPanel";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUser } from "@/context/UserContext";
 import { LoopyMascot, LoopyMood } from "../loopy/LoopyMascot";
 import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
@@ -23,6 +24,7 @@ import {
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
     type MessageAttachment
 } from "@/actions/chat-actions";
+import { markNotificationsAsRead } from "@/actions/notification-actions";
 import { soundManager } from "@/lib/sound";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
@@ -376,11 +378,12 @@ const SchedulePicker = ({ onSelect, onCancel }: { onSelect: (isoDate: string) =>
 interface ChatWindowProps {
     peer: PeerProfile | null;
     currentUserId: string | null;
+    currentUserName?: string | null;
     onBack?: () => void;
     onPeerUpdate?: (updatedPeer: Partial<PeerProfile> & { id: string }) => void;
 }
 
-export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWindowProps) {
+export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPeerUpdate }: ChatWindowProps) {
     const supabase = useMemo(() => createClient(), []);
     const [messages, setMessages] = useState<MessageRow[]>([]);
     const [inputValue, setInputValue] = useState("");
@@ -405,10 +408,9 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
     const audioChunksRef = useRef<Blob[]>([]);
     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-    const [isPeerOnline, setIsPeerOnline] = useState(false);
+    const { onlineUserIds } = useUser();
     const [lastSeenText, setLastSeenText] = useState<string | null>(null);
     const [localPeer, setLocalPeer] = useState<PeerProfile | null>(peer);
-    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
     const [showMediaGallery, setShowMediaGallery] = useState(false);
     const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
     const [isAtBottom, setIsAtBottom] = useState(true);
@@ -493,6 +495,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
 
             // Mark as read when loading history
             await markMessagesAsRead(peer.id, peer.peerId || peer.id);
+            await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
 
             // Check for overdue scheduled messages
             const overdue = await getOverdueScheduledMessages(peer.id, currentUserId);
@@ -514,7 +517,22 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                 if (payload.eventType === 'INSERT') {
                     const newMessage = payload.new as any;
                     setMessages(prev => {
+                        // 1. Check if the message is already in the list
                         if (prev.some(m => m.id === newMessage.id)) return prev;
+
+                        // 2. Deduplication logic: If it's from me, check for an existing temp message
+                        if (newMessage.sender_id === currentUserId) {
+                            const tempMatch = prev.find(m => 
+                                m.id.startsWith('temp-') && 
+                                m.text === newMessage.content &&
+                                m.type === newMessage.type
+                            );
+                            if (tempMatch) {
+                                // Match found! Swap the ID of the existing message instead of appending.
+                                return prev.map(m => m.id === tempMatch.id ? { ...m, id: newMessage.id } : m);
+                            }
+                        }
+
                         const mapped: MessageRow = {
                             id: newMessage.id,
                             senderId: newMessage.sender_id,
@@ -530,7 +548,10 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                         };
                         return [...prev, mapped];
                     });
-                    if (newMessage.sender_id !== currentUserId) await markMessagesAsRead(peer.id, peer.peerId || peer.id);
+                    if (newMessage.sender_id !== currentUserId) {
+                        await markMessagesAsRead(peer.id, peer.peerId || peer.id);
+                        await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
+                    }
                     // Ensure auto-bottom on new messages (including polls)
                     if (isAtBottom || newMessage.sender_id === currentUserId) {
                         setTimeout(() => scrollToBottom("smooth"), 100);
@@ -621,14 +642,17 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         return () => observer.disconnect();
     }, []);
 
+    const isPeerOnline = useMemo(() => {
+        if (!peer || isGroup) return false;
+        return onlineUserIds.has(peer.peerId || peer.id);
+    }, [onlineUserIds, peer, isGroup]);
+
     useEffect(() => {
-        if (!peer || isGroup) {
-            setIsPeerOnline(false);
-            setLastSeenText(null);
+        if (!peer || isGroup || isPeerOnline) {
+            if (isPeerOnline) setLastSeenText(null);
             return;
         }
 
-        // 1. Initial State from profile
         const fetchInitialStatus = async () => {
             const { data: profile } = await supabase
                 .from('profiles')
@@ -641,7 +665,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                 const diff = (new Date().getTime() - lastSeen.getTime()) / 1000;
 
                 if (diff < 120) {
-                    setIsPeerOnline(true);
+                    // isPeerOnline will be true via useMemo if they are currently online
                 } else {
                     const formatLastSeen = (date: Date) => {
                         const now = new Date();
@@ -654,29 +678,13 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                         return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
                     };
                     setLastSeenText(`Last seen ${formatLastSeen(lastSeen)}`);
-                    setIsPeerOnline(false);
                 }
             }
         };
         fetchInitialStatus();
 
-        // 2. Realtime Presence Subscription
-        const channel = supabase.channel('presence:chat', {
-            config: { presence: { key: currentUserId || 'anon' } }
-        });
-
-        channel
-            .on('presence', { event: 'sync' }, () => {
-                const state = channel.presenceState();
-                const targetId = peer.peerId || peer.id;
-                const isOnline = !!state[targetId];
-                setIsPeerOnline(isOnline);
-                if (isOnline) setLastSeenText(null);
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, [peer?.id, peer?.peerId, isGroup, currentUserId, supabase]);
+        fetchInitialStatus();
+    }, [peer?.id, peer?.peerId, isGroup, isPeerOnline, supabase]);
 
     // 3. Typing Indicators (Realtime Broadcast)
     useEffect(() => {
@@ -728,7 +736,11 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         typingChannelRef.current.send({
             type: 'broadcast',
             event: 'typing',
-            payload: { userId: currentUserId, isTyping: true }
+            payload: { 
+                userId: currentUserId, 
+                userName: currentUserName || 'Someone',
+                isTyping: true 
+            }
         });
 
         // Set a timeout to stop typing indicator after inactivity
@@ -1441,12 +1453,13 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                                     {msg.reactions.map(react => (
                                                                         <motion.button
                                                                             key={react.emoji}
-                                                                            initial={{ scale: 0 }}
-                                                                            animate={{ scale: 1 }}
-                                                                            whileHover={{ scale: 1.1 }}
-                                                                            whileTap={{ scale: 0.9 }}
+                                                                            initial={{ scale: 0, y: 10 }}
+                                                                            animate={{ scale: 1, y: 0 }}
+                                                                            whileHover={{ scale: 1.2, rotate: [0, -5, 5, 0] }}
+                                                                            whileTap={{ scale: 0.8 }}
+                                                                            transition={{ type: "spring", stiffness: 400, damping: 10 }}
                                                                             onClick={() => toggleReaction(msg.id, react.emoji)}
-                                                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border transition-all ${currentUserId && react.userIds.includes(currentUserId) ? 'bg-lime-50 border-lime-200 text-lime-700' : 'bg-white border-zinc-100 text-zinc-500 hover:border-zinc-200'}`}
+                                                                            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-bold border shadow-sm transition-all ${currentUserId && react.userIds.includes(currentUserId) ? 'bg-lime-400 border-lime-500 text-black' : 'bg-white border-zinc-100 text-zinc-500 hover:border-zinc-200'}`}
                                                                         >
                                                                             <span>{react.emoji}</span>
                                                                             {react.count > 1 && <span>{react.count}</span>}

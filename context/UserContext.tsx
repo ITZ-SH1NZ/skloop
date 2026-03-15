@@ -1,9 +1,8 @@
-"use client";
-
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { processDailyLogin, fetchUserProfile } from "@/actions/user-actions";
+import { processDailyLogin, fetchUserProfile, updateLastSeen } from "@/actions/user-actions";
+import { usePresence } from "@/hooks/usePresence";
 
 interface UserProfile {
     id: string;
@@ -34,6 +33,7 @@ interface UserContextType {
     user: User | null;
     profile: UserProfile | null;
     isLoading: boolean;
+    onlineUserIds: Set<string>;
     refreshProfile: () => Promise<void>;
 }
 
@@ -58,12 +58,13 @@ export function UserProvider({
     const [isLoading, setIsLoading] = useState(!initialUser);
     const processedRef = React.useRef<string | null>(null);
     const supabase = createClient();
+    const onlineUserIds = usePresence(user?.id);
 
     const fetchProfile = useCallback(async (userId: string) => {
         const data = await fetchUserProfile(userId);
         if (data) {
             const newProfile = data as UserProfile;
-            setProfile(prev => {
+            setProfile((prev: UserProfile | null) => {
                 if (JSON.stringify(prev) === JSON.stringify(newProfile)) return prev;
                 return newProfile;
             });
@@ -102,7 +103,7 @@ export function UserProvider({
                 setIsLoading(false);
             }
 
-            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
                 if (!mounted) return;
 
                 const newUser = session?.user || null;
@@ -178,6 +179,20 @@ export function UserProvider({
         return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     }, [user, fetchProfile, supabase]);
 
+    // Heartbeat: update last_seen every 60s
+    useEffect(() => {
+        if (!user) return;
+
+        // Update once on mount
+        updateLastSeen(user.id);
+
+        const interval = setInterval(() => {
+            updateLastSeen(user.id);
+        }, 60000); // 60 seconds
+
+        return () => clearInterval(interval);
+    }, [user]);
+
     // Supabase Realtime Subscription for Profile updates
     useEffect(() => {
         if (!user) return;
@@ -192,14 +207,14 @@ export function UserProvider({
                     table: "profiles",
                     filter: `id=eq.${user.id}`
                 },
-                (payload) => {
+                (payload: any) => {
                     if (payload.new && Object.keys(payload.new).length > 0) {
                         // Use the level directly from DB — do NOT recalculate from XP.
                         // The increment_profile_stats RPC and processDailyLogin already
                         // write the correct level to the DB.
                         const newProfile = payload.new as UserProfile;
 
-                        setProfile(prev => {
+                        setProfile((prev: UserProfile | null) => {
                             if (JSON.stringify(prev) === JSON.stringify(newProfile)) return prev;
                             return newProfile;
                         });
@@ -220,7 +235,7 @@ export function UserProvider({
     };
 
     return (
-        <UserContext.Provider value={{ user, profile, isLoading, refreshProfile }}>
+        <UserContext.Provider value={{ user, profile, isLoading, onlineUserIds, refreshProfile }}>
             {children}
         </UserContext.Provider>
     );

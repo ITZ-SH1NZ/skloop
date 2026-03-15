@@ -189,3 +189,14 @@ export async function signOutAction() {
     revalidatePath('/', 'layout');
     return { success: true };
 }
+/**
+ * Updates the last_seen timestamp for a user.
+ * Used for online/offline status indicators.
+ */
+export async function updateLastSeen(userId: string) {
+    const supabase = await createClient();
+    await supabase
+        .from("profiles")
+        .update({ last_seen: new Date().toISOString() })
+        .eq("id", userId);
+}

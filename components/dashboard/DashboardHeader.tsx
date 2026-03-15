@@ -14,9 +14,10 @@ import { signOutAction } from "@/actions/user-actions";
 interface Notification {
     id: string;
     title: string;
-    message: string | null;
+    content: string | null;
     type: string;
-    read: boolean;
+    is_read: boolean;
+    metadata: any;
     created_at: string;
 }
 
@@ -37,37 +38,69 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
 
         const { data } = await supabase
             .from('notifications')
-            .select('id, title, message, type, read, created_at')
+            .select('id, title, content, type, is_read, metadata, created_at')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(20);
 
         if (data) {
             setNotifications(data);
-            setUnreadCount(data.filter(n => !n.read).length);
+            setUnreadCount(data.filter(n => !n.is_read).length);
         }
     }, [supabase]);
 
     useEffect(() => {
         fetchNotifications();
-    }, [fetchNotifications]);
+
+        // --- REALTIME NOTIFICATIONS ---
+        const channel = supabase
+            .channel(`user_notifications_${initialUser?.id || 'current'}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications'
+                },
+                (payload) => {
+                    const newNotif = payload.new as Notification;
+                    setNotifications(prev => [newNotif, ...prev].slice(0, 20));
+                    setUnreadCount(prev => prev + 1);
+                    
+                    // Optional: Show toast for new notification
+                    toast(newNotif.title, "success");
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchNotifications, supabase, toast, initialUser?.id]);
 
     const handleMarkAllRead = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         await supabase
             .from('notifications')
-            .update({ read: true })
+            .update({ is_read: true })
             .eq('user_id', user.id)
-            .eq('read', false);
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            .eq('is_read', false);
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
         setUnreadCount(0);
     };
 
     const handleMarkRead = async (id: string) => {
-        await supabase.from('notifications').update({ read: true }).eq('id', id);
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        const notif = notifications.find(n => n.id === id);
+        await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
+
+        // Redirect if it's a message notification
+        if (notif?.type === 'message' && notif.metadata?.conversation_id) {
+            router.push(`/peer/chat?circleId=${notif.metadata.conversation_id}`);
+            setNotificationsOpen(false);
+        }
     };
 
     // Instant logout via Server Action
@@ -281,20 +314,20 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                                         <motion.div
                                             key={n.id}
                                             layout
-                                            onClick={() => !n.read && handleMarkRead(n.id)}
-                                            className={`p-4 rounded-2xl transition-colors cursor-pointer ${!n.read ? 'bg-blue-50/60 hover:bg-blue-100/60' : 'hover:bg-slate-50'}`}
+                                            onClick={() => handleMarkRead(n.id)}
+                                            className={`p-4 rounded-2xl transition-colors cursor-pointer ${!n.is_read ? 'bg-blue-50/60 hover:bg-blue-100/60' : 'hover:bg-slate-50'}`}
                                         >
                                             <div className="flex gap-3 items-start">
                                                 <span className="text-xl flex-shrink-0 mt-0.5">{typeIcon(n.type)}</span>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <p className={`text-sm font-bold text-slate-800 leading-tight ${!n.read ? '' : 'font-medium text-slate-600'}`}>
+                                                        <p className={`text-sm font-bold text-slate-800 leading-tight ${!n.is_read ? '' : 'font-medium text-slate-600'}`}>
                                                             {n.title}
                                                         </p>
-                                                        {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                                                        {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                                                     </div>
-                                                    {n.message && (
-                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{n.message}</p>
+                                                    {n.content && (
+                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{n.content}</p>
                                                     )}
                                                     <p className="text-[10px] text-slate-400 font-medium mt-1.5">{formatTimeAgo(n.created_at)}</p>
                                                 </div>

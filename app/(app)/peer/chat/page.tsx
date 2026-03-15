@@ -225,12 +225,12 @@ function ChatPageContent() {
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(initialCircleId || null);
     const [searchTerm, setSearchTerm] = useState("");
     
-    const { user } = useUser();
+    const { user, profile, onlineUserIds } = useUser();
     const currentUserId = user?.id || null;
 
     // --- REALTIME SIDEBAR STATE ---
-    const [typingState, setTypingState] = useState<Record<string, Set<string>>>({}); 
-    // ^ conversationId -> Set of userIds typing
+    const [typingState, setTypingState] = useState<Record<string, Record<string, string>>>({}); 
+    // ^ conversationId -> { userId: userName } mapping
 
     // Fetch conversations using SWR for caching
     const { data: convosData, isLoading: isConvosLoading, mutate } = useSWR(
@@ -254,56 +254,8 @@ function ChatPageContent() {
     const isLoading = isConvosLoading || (currentUserId && !convosData);
 
     // ── Presence Tracking ──────────────────────────────────
-    const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        if (!currentUserId) return;
-        const supabase = createClient();
-        
-        const channel = supabase.channel('presence:chat', {
-            config: { presence: { key: currentUserId } },
-        });
 
-        const handleSync = () => {
-            const state = channel.presenceState();
-            const ids = new Set<string>();
-            Object.keys(state).forEach(id => ids.add(id));
-            setOnlineUserIds(ids);
-        };
-
-        channel
-            .on('presence', { event: 'sync' }, handleSync)
-            .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-                setOnlineUserIds(prev => new Set(prev).add(key));
-            })
-            .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-                setOnlineUserIds(prev => {
-                    const next = new Set(prev);
-                    next.delete(key);
-                    return next;
-                });
-            })
-            .subscribe(async (status) => {
-                if (status === 'SUBSCRIBED') {
-                    await channel.track({ online_at: new Date().toISOString() });
-                }
-            });
-
-        // Update last_seen heartbeat
-        const updateLastSeen = async () => {
-            await supabase
-                .from('profiles')
-                .update({ last_seen: new Date().toISOString() })
-                .eq('id', currentUserId);
-        };
-        updateLastSeen();
-        const heartbeatInterval = setInterval(updateLastSeen, 60_000);
-
-        return () => {
-            channel.unsubscribe();
-            clearInterval(heartbeatInterval);
-        };
-    }, [currentUserId]);
 
     useEffect(() => {
         if (!currentUserId || !convosData) return;
@@ -334,17 +286,24 @@ function ChatPageContent() {
         const typingChannels = allConvoIds.map(id => {
             const chan = supabase.channel(`chat:typing:${id}`);
             chan.on('broadcast', { event: 'typing' }, ({ payload }) => {
-                const { userId, isTyping } = payload;
+                const { userId, userName, isTyping } = payload;
                 if (userId === currentUserId) return;
 
                 setTypingState(prev => {
                     const next = { ...prev };
-                    const users = new Set(next[id] || []);
-                    if (isTyping) users.add(userId);
-                    else users.delete(userId);
+                    const usersMap = { ...(next[id] || {}) };
                     
-                    if (users.size === 0) delete next[id];
-                    else next[id] = users;
+                    if (isTyping) {
+                        usersMap[userId] = userName || 'Someone';
+                    } else {
+                        delete usersMap[userId];
+                    }
+                    
+                    if (Object.keys(usersMap).length === 0) {
+                        delete next[id];
+                    } else {
+                        next[id] = usersMap;
+                    }
                     
                     return next;
                 });
@@ -357,6 +316,17 @@ function ChatPageContent() {
             typingChannels.forEach(c => supabase.removeChannel(c));
         };
     }, [currentUserId, convosData, mutate]);
+
+    const getTypingSummary = (conversationId: string) => {
+        const users = typingState[conversationId];
+        if (!users) return null;
+
+        const names = Object.values(users);
+        if (names.length === 0) return null;
+        if (names.length === 1) return `${names[0]} is typing...`;
+        if (names.length === 2) return `${names[0]} & ${names[1]} are typing...`;
+        return `${names[0]} and ${names.length - 1} others are typing...`;
+    };
 
     useEffect(() => {
         const handleInitialRoute = async () => {
@@ -551,8 +521,8 @@ function ChatPageContent() {
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex justify-between items-center gap-2">
-                                                                    {typingState[chat.id]?.size > 0 ? (
-                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse">Typing...</span>
+                                                                    {getTypingSummary(chat.id) ? (
+                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
                                                                     ) : (
                                                                         <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
                                                                             {chat.lastMessage || 'No messages yet'}
@@ -612,8 +582,8 @@ function ChatPageContent() {
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex justify-between items-center gap-2">
-                                                                    {typingState[chat.id]?.size > 0 ? (
-                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse">Typing...</span>
+                                                                    {getTypingSummary(chat.id) ? (
+                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
                                                                     ) : (
                                                                         <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
                                                                             {chat.lastMessage || 'No messages yet'}
@@ -662,6 +632,7 @@ function ChatPageContent() {
                         <ChatWindow
                             peer={selectedPeer}
                             currentUserId={currentUserId}
+                            currentUserName={profile?.full_name || profile?.username}
                             onBack={() => setSelectedPeerId(null)}
                             onPeerUpdate={handlePeerUpdate}
                         />
