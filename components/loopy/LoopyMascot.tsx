@@ -1,7 +1,7 @@
 "use client";
 
+import { useState, useEffect, useMemo, memo } from "react";
 import { motion } from "framer-motion";
-import { memo } from "react";
 
 export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating" | "screaming" | "huddled" | "awakened";
 
@@ -75,6 +75,8 @@ export const LoopyMascot = memo(({
     const rotation = direction === "left" ? -15 : direction === "right" ? 15 : 0;
     const eyeXOffset = direction === "left" ? -5 : direction === "right" ? 5 : 0;
 
+    const idPrefix = useMemo(() => `loopy-${Math.random().toString(36).substr(2, 9)}`, []);
+
     return (
         <motion.div 
             style={{ width: size, height: size }}
@@ -97,13 +99,13 @@ export const LoopyMascot = memo(({
         >
             <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                    <radialGradient id="loopyDynamicGrad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+                    <radialGradient id={`${idPrefix}-grad`} cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
                         <motion.stop offset="0%" animate={{ stopColor: config.colorTop }} />
                         <motion.stop offset="60%" animate={{ stopColor: config.colorMid }} />
                         <motion.stop offset="100%" animate={{ stopColor: config.colorBottom }} />
                     </radialGradient>
                     
-                    <filter id="loopyShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <filter id={`${idPrefix}-shadow`} x="-20%" y="-20%" width="140%" height="140%">
                         <feDropShadow dx="0" dy="4" stdDeviation="2" floodOpacity="0.3" />
                     </filter>
                 </defs>
@@ -133,7 +135,7 @@ export const LoopyMascot = memo(({
                                 "M50 20 C70 20 85 35 85 60 C85 80 70 85 50 85 C30 85 15 80 15 60 C15 35 30 20 50 20Z", 
                                 "M50 22 C72 22 87 37 87 62 C87 82 72 87 50 87 C28 87 13 82 13 62 C13 37 28 22 50 22Z"
                               ],
-                        fill: "url(#loopyDynamicGrad)",
+                        fill: `url(#${idPrefix}-grad)`,
                         stroke: config.colorBottom
                     }}
                     transition={{ 
@@ -141,27 +143,27 @@ export const LoopyMascot = memo(({
                         stroke: { duration: 0.5 }
                     }}
                     strokeWidth="2"
-                    filter="url(#loopyShadow)"
+                    filter={`url(#${idPrefix}-shadow)`}
                 />
 
                 {/* Surface Shine */}
                 <path d="M35 35 Q40 30 50 32" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
 
-                {/* Eyes - Wrapped in a sync group to move with body breathing */}
-                <motion.g 
-                    animate={{ 
-                        x: eyeXOffset, 
-                        y: (mood === "annoyed" || mood === "screaming" || mood === "huddled" ? -2 : 0) + 
-                           (mood === "surprised" || mood === "screaming" || mood === "huddled" ? 0 : 0) // No breath offset for static poses
-                    }}
-                >
-                    <motion.g
-                        animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
-                            ? { y: 0 } 
-                            : { y: [0, 2] }
+                {/* The "Liquid" Face Group - Synchronized with body breathing */}
+                <motion.g
+                    animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
+                        ? { y: 1, scaleX: 1, scaleY: 1 } 
+                        : { 
+                            y: [0, 2, 0], 
+                            scaleX: [1, 1.05, 1],
+                            scaleY: [1, 0.98, 1]
                         }
-                        transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
-                    >
+                    }
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    style={{ transformOrigin: "50% 60%" }}
+                >
+                    {/* Eyes */}
+                    <motion.g animate={{ x: eyeXOffset }}>
                         {/* Left Eye */}
                         <motion.circle 
                             cx="38" animate={{ cy: config.eyeY, r: config.eyeR }} 
@@ -194,16 +196,8 @@ export const LoopyMascot = memo(({
                             />
                         </motion.g>
                     </motion.g>
-                </motion.g>
 
-                {/* Mouth - Also synced with breathing */}
-                <motion.g
-                    animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
-                        ? { y: 0 } 
-                        : { y: [0, 2] }
-                    }
-                    transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
-                >
+                    {/* Mouth */}
                     <motion.path 
                         animate={{ d: config.mouthD }} 
                         stroke="#1a2e05" strokeWidth="2.5" strokeLinecap="round" 

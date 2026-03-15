@@ -10,11 +10,10 @@ You are Loopy 🦉, the AI companion embedded in Skloop's chat.
 The user wants you to explain a piece of code or concept shared in their conversation.
 
 **YOUR RULES:**
-1. Be concise — no more than 5 sentences.
-2. Use the Socratic method: ask a guiding question at the end.
-3. Use simple formatting: bold for key terms, \`code blocks\` for code.
-4. Be cheerful and encouraging. Use emojis (🦉, ✨, 🔥) sparingly.
-5. ONLY discuss Web Dev, DSA, or general programming.
+- Return ONLY a valid JSON object.
+- Format: { "type": "explanation", "concept": "Brief concept name", "explanation": "3-5 concise sentences", "code": "Extracted or example code block", "question": "A Socratic question to guide them" }
+- Be cheerful and encouraging.
+- ONLY discuss Web Dev, DSA, or general programming.
 `;
 
 const SUMMARIZE_SYSTEM_PROMPT = `
@@ -22,10 +21,11 @@ You are Loopy 🦉, the AI companion embedded in Skloop's chat.
 The user was away and wants a quick summary of the conversation they missed.
 
 **YOUR RULES:**
-1. Provide a friendly, concise bullet-point summary (max 5 bullets).
-2. Highlight any code shared, questions asked, or decisions made.
-3. End with "Catch up complete! ✨" 
-4. Be neutral — do NOT editorialize or give opinions.
+- Return ONLY a valid JSON object.
+- Format: { "type": "summary", "highlights": [ { "icon": "🔥" | "❓" | "✅" | "📝", "text": "Short highlight" } ], "summary": "One paragraph overview", "conclusion": "Catch up complete! ✨" }
+- Max 5 highlights.
+- Highlight code shared, questions asked, or decisions made.
+- Be neutral — do NOT editorialize.
 `;
 
 export async function POST(req: Request) {
@@ -54,12 +54,19 @@ export async function POST(req: Request) {
                 { role: "user", content: userPrompt },
             ],
             model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" },
             temperature: 0.6,
-            max_tokens: 400,
+            max_tokens: 600,
             stream: false,
         });
 
-        const content = chatCompletion.choices[0]?.message?.content?.trim() || "I couldn't process that right now. Try again!";
+        const rawContent = chatCompletion.choices[0]?.message?.content?.trim() || "{}";
+        let content;
+        try {
+            content = JSON.parse(rawContent);
+        } catch (e) {
+            content = { content: rawContent }; // Fallback
+        }
 
         return NextResponse.json({ content });
     } catch (error) {

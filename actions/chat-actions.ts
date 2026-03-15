@@ -425,6 +425,11 @@ export async function uploadChatFile(formData: FormData): Promise<string | null>
     const file = formData.get('file') as File;
     if (!file) return null;
 
+    // Explicit size check (50MB Supabase Limit)
+    if (file.size > 50 * 1024 * 1024) {
+        throw new Error("File is too large! Maximum size is 50MB.");
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
@@ -435,11 +440,18 @@ export async function uploadChatFile(formData: FormData): Promise<string | null>
 
     const { error: uploadError } = await supabase.storage
         .from('message_attachments')
-        .upload(filePath, file);
+        .upload(filePath, file, { 
+            cacheControl: '3600',
+            upsert: false 
+        });
 
     if (uploadError) {
         console.error("Error uploading file:", uploadError);
-        throw new Error("Failed to upload file");
+        const storageError = uploadError as any;
+        if (storageError.status === 413 || storageError.message?.includes('too large')) {
+            throw new Error("File exceeds storage limits (50MB). Tip: Try a shorter video!");
+        }
+        throw new Error("Failed to upload file to the Source. Check your connection!");
     }
 
     const { data: { publicUrl } } = supabase.storage
@@ -512,6 +524,28 @@ export async function markMessagesAsRead(conversationId: string, peerId: string)
         .neq('status', 'read');
 
     if (error) throw new Error(error.message);
+    return { success: true };
+}
+
+/**
+ * Marks messages as delivered for a specific user in a conversation.
+ */
+export async function markMessagesAsDelivered(conversationId: string, peerId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false };
+
+    const { error } = await supabase
+        .from('messages')
+        .update({ status: 'delivered' })
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', peerId)
+        .eq('status', 'sent');
+
+    if (error) {
+        console.error("Error marking as delivered:", error);
+        return { success: false };
+    }
     return { success: true };
 }
 

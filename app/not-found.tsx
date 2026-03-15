@@ -86,24 +86,23 @@ export default function NotFound() {
                 ))}
             </div>
 
-            {/* 3. Main Content Container - Scaled down for desktop for "tighter" feel */}
-            <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] scale-75 md:scale-[0.85] lg:scale-90 transition-transform">
+            {/* 3. Main Content Container - Tighter scaling for "premium" feel */}
+            <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] scale-75 md:scale-90 lg:scale-[0.85] transition-transform">
                 
-                {/* Unified Physical Group (Island + Loopy) */}
+                {/* 4. Unified Physical Group (Island + Loopy) */}
                 <motion.div 
                     initial={{ y: 50, opacity: 0 }}
                     animate={{ 
-                        y: [0, -25, 0],
+                        y: [0, -20, 0],
                         scaleY: [1, 0.98, 1],
                         scaleX: [1, 1.02, 1],
                         opacity: 1
                     }}
-                    whileHover={{ scale: 1.05, rotate: [-1, 1, -1] }}
+                    whileHover={{ scale: 1.02 }}
                     transition={{ 
                         y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
                         scaleY: { duration: 4, repeat: Infinity, ease: "easeInOut" },
                         scaleX: { duration: 4, repeat: Infinity, ease: "easeInOut" },
-                        rotate: { duration: 0.5, repeat: 0 },
                         opacity: { duration: 0.8 }
                     }}
                     className="relative group cursor-pointer"
@@ -111,74 +110,77 @@ export default function NotFound() {
                     {/* Synchronized Shadow */}
                     <motion.div 
                         animate={{ 
-                            scale: [1, 0.75, 1], 
-                            opacity: [0.1, 0.04, 0.1] 
+                            scale: [1, 0.8, 1], 
+                            opacity: [0.15, 0.08, 0.15] 
                         }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-64 h-12 bg-black/20 rounded-[100%] blur-3xl group-hover:blur-2xl transition-all"
+                        className="absolute -bottom-16 left-1/2 -translate-x-1/2 w-48 md:w-80 h-12 bg-black/30 rounded-[100%] blur-3xl"
                     />
 
-                    {/* Island Core (Grounded & Unified) */}
-                    <div className="w-[280px] h-[100px] md:w-[500px] md:h-[180px] bg-white border-[10px] md:border-[16px] border-black rounded-[4rem] md:rounded-[5rem] flex flex-col items-center justify-end pb-4 shadow-[0_20px_0_0_#000] md:shadow-[0_25px_0_0_#000] relative group-hover:translate-y-2 group-hover:shadow-[0_15px_0_0_#000] transition-all">
-                        {/* Grounding Fix: Signpost post is behind the island body */}
-                        <div className="absolute -left-8 md:-left-12 bottom-4 md:bottom-6 w-32 h-40 pointer-events-none z-0">
-                            <div className="absolute left-1/2 bottom-0 w-3 h-24 bg-[#1a2e05] -translate-x-1/2 rounded-full opacity-20 blur-sm translate-y-2" />
-                            <div className="absolute left-1/2 bottom-0 w-2.5 h-32 bg-stone-800 -translate-x-1/2 rounded-full border-r border-stone-700" />
+                    {/* The Island Assembly */}
+                    <div className="relative flex flex-col items-center">
+                        
+                        {/* Signpost - Grounded BEHIND the island */}
+                        <div className="absolute -left-12 md:-left-20 bottom-8 md:bottom-12 w-40 h-48 pointer-events-none z-0">
+                            <div className="absolute left-1/2 bottom-0 w-3 h-20 bg-black/20 -translate-x-1/2 rounded-full blur-md" />
+                            <div className="absolute left-1/2 bottom-0 w-3 h-40 bg-stone-800 -translate-x-1/2 rounded-full border-r-2 border-stone-700" />
                             <motion.div 
-                                animate={{ rotate: [-5, 5, -5] }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                className="absolute -top-6 -left-8 md:-left-4 w-32 md:w-40 h-16 md:h-20 bg-white border-[6px] border-black rounded-2xl md:rounded-3xl shadow-[8px_8px_0_0_#000] flex items-center justify-center -rotate-6 scale-75 md:scale-90"
+                                animate={{ rotate: [-6, 6, -6] }}
+                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                className="absolute -top-6 -left-6 md:-left-10 w-32 md:w-44 h-16 md:h-24 bg-white border-[6px] md:border-[10px] border-black rounded-2xl md:rounded-3xl shadow-[10px_10px_0_0_#000] flex flex-col items-center justify-center -rotate-6"
                             >
-                                <Compass className="w-6 h-6 md:w-10 md:h-10 text-lime-600 mr-2 md:mr-3 animate-spin-slow" />
-                                <span className="font-black text-sm md:text-xl uppercase tracking-tighter">No Way</span>
+                                <Compass className="w-8 h-8 md:w-14 md:h-14 text-lime-500 mb-1 animate-spin-slow" />
+                                <span className="font-black text-xs md:text-xl uppercase tracking-tighter">No Way</span>
                             </motion.div>
                         </div>
 
-                        {/* Island Core */}
-                        <div className="absolute inset-0 bg-stone-200 border-x-8 border-b-8 border-black rounded-b-[4rem] shadow-[20px_20px_0_0_#000] z-10">
-                            <div className="absolute inset-0 bg-gradient-to-b from-black/5 to-black/20" />
-                            <div className="absolute top-4 left-8 right-8 h-4 bg-black/10 rounded-full" />
+                        {/* Loopy - Floating above island */}
+                        <div className="absolute -top-32 md:-top-48 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                            <motion.div 
+                                animate={{ 
+                                    y: [0, 8, 0],
+                                    rotate: [0, -2, 2, 0] 
+                                }}
+                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                className="drop-shadow-[0_25px_0_rgba(0,0,0,0.1)]"
+                            >
+                                <LoopyMascot mood="surprised" size={isMounted ? (window.innerWidth < 768 ? 140 : 200) : 200} />
+                            </motion.div>
                         </div>
-                        <div className="absolute top-0 left-0 right-0 h-6 bg-lime-400 border-b-4 border-black z-10 overflow-hidden rounded-t-[3rem] md:rounded-t-[4rem]">
-                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle,black_1px,transparent_1px)] bg-[size:10px_10px]" />
-                        </div>
-                        
-                        {/* Bouncy Grass Blades */}
-                        {isMounted && [...Array(10)].map((_, i) => (
-                            <motion.div
-                                key={`grass-${i}`}
-                                animate={{ rotate: [-12, 12, -12] }}
-                                transition={{ duration: 1 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
-                                style={{ left: `${8 + i * 9}%` }}
-                                className="absolute top-2 w-2 h-7 bg-lime-700 rounded-full origin-bottom border-x-2 border-black/30 z-20"
-                            />
-                        ))}
-                        
 
-                        {/* Floating Bits Sync with Island */}
-                        <div className="absolute top-10 right-20 flex gap-4 z-10 scale-75 md:scale-100">
-                            <motion.div animate={{ y: [0, -10, 0], rotate: 360 }} transition={{ duration: 4, repeat: Infinity }} className="text-lime-500"><Star className="w-8 h-8 fill-lime-400" /></motion.div>
-                            <motion.div animate={{ y: [-10, 0, -10], scale: [1, 1.3, 1] }} transition={{ duration: 3, repeat: Infinity }} className="text-zinc-200 opacity-50"><Sparkles className="w-10 h-10" /></motion.div>
-                        </div>
-                    </div>
+                        {/* Island Body (Stone/Soil Layer) */}
+                        <div className="relative w-[260px] h-[100px] md:w-[500px] md:h-[200px] bg-white border-[10px] md:border-[16px] border-black rounded-[4rem] md:rounded-[5rem] shadow-[20px_20px_0_0_#000] md:shadow-[30px_30px_0_0_#000] overflow-hidden group-hover:translate-y-2 group-hover:shadow-[10px_10px_0_0_#000] transition-all duration-300">
+                            {/* Inner Soil Pattern */}
+                            <div className="absolute inset-0 bg-stone-100" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/5" />
+                            <div className="absolute top-0 left-0 right-0 h-1/2 bg-stone-50/50" />
+                            
+                            {/* The Grass Cap (Lime Layer) */}
+                            <div className="absolute top-0 left-0 right-0 h-10 md:h-16 bg-lime-400 border-b-[8px] md:border-b-[12px] border-black z-20 flex items-center justify-around px-8">
+                                {[...Array(8)].map((_, i) => (
+                                    <motion.div
+                                        key={`grass-${i}`}
+                                        animate={{ rotate: [-10, 10, -10] }}
+                                        transition={{ duration: 1.5 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
+                                        className="w-2.5 h-10 bg-lime-700/30 rounded-full"
+                                    />
+                                ))}
+                            </div>
 
-                    {/* Loopy - Unified Position & Scale */}
-                    <div className="absolute -top-32 md:-top-48 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-                        <motion.div 
-                            animate={{ 
-                                y: [0, 5, 0],
-                                rotate: [0, -2, 2, 0] 
-                            }}
-                            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                            className="drop-shadow-[0_20px_0_rgba(0,0,0,0.1)] scale-75 md:scale-100"
-                        >
-                            <LoopyMascot mood="surprised" size={180} />
-                        </motion.div>
+                            {/* Decorative Floating Dots for Texture */}
+                            <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+                        </div>
+
+                        {/* Floating Decorative Assets */}
+                        <div className="absolute -top-10 -right-10 md:-top-20 md:-right-20 flex flex-col gap-6 md:gap-10 pointer-events-none z-20">
+                            <motion.div animate={{ rotate: 360, y: [0, -15, 0] }} transition={{ duration: 6, repeat: Infinity }} className="text-lime-500 opacity-80"><Star className="w-8 h-8 md:w-16 md:h-16 fill-lime-400 border-2 border-black rounded-full p-1" /></motion.div>
+                            <motion.div animate={{ scale: [1, 1.4, 1], y: [10, -10, 10] }} transition={{ duration: 4, repeat: Infinity }} className="text-zinc-300"><Sparkles className="w-6 h-6 md:w-12 md:h-12" /></motion.div>
+                        </div>
                     </div>
                 </motion.div>
 
-                {/* 4. Text Content (The "Bomb" Sticker Header) */}
-                <div className="mt-20 md:mt-28 text-center relative select-none px-4">
+                {/* 5. Text Content (The "Bomb" Sticker Header) */}
+                <div className="mt-24 md:mt-32 text-center relative select-none px-4">
                     <motion.div
                         initial={{ scale: 0.5, opacity: 0, rotate: -5 }}
                         animate={{ scale: 1, opacity: 1, rotate: 0 }}

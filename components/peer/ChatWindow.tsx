@@ -8,7 +8,8 @@ import {
     ArrowLeft, Info, Users as UsersIcon, FileText,
     Mic, Square, Check, Video, Reply, Share2,
     Play, Pause, FastForward, ChevronDown, Copy, Star, Pin, Gift, Trash2,
-    Bot, BarChart2, Calendar, Palette, PinOff, Zap, Sparkles, Clock, AlertCircle, MoreVertical, Link
+    Bot, BarChart2, Calendar, Palette, PinOff, Zap, Sparkles, Clock, AlertCircle, MoreVertical, Link,
+    Quote, HelpCircle, ListChecks, Brain
 } from "lucide-react";
 import { PeerProfile } from "./PeerCard";
 import { CircleInfoPanel } from "./CircleInfoPanel";
@@ -20,7 +21,7 @@ import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
 import {
     getConversationMessages, sendMessage, MessageRow, uploadChatFile,
-    markMessagesAsRead, deleteMessage, toggleReaction,
+    markMessagesAsRead, markMessagesAsDelivered, deleteMessage, toggleReaction,
     pinMessage, unpinMessage, getPinnedMessage,
     createPoll, getPoll, votePoll,
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
@@ -421,7 +422,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     // --- NEW FEATURE STATES ---
     const [pinnedMsg, setPinnedMsg] = useState<{ messageId: string; text: string; senderName: string } | null>(null);
     const [showLoopyPanel, setShowLoopyPanel] = useState(false);
-    const [loopyResponse, setLoopyResponse] = useState<string | null>(null);
+    const [loopyResponse, setLoopyResponse] = useState<any>(null);
     const [isLoopyTyping, setIsLoopyTyping] = useState(false);
     const [chatTheme, setChatTheme] = useState<'default' | 'grasslands' | 'crystal' | 'mystic'>('default');
     const [showThemePicker, setShowThemePicker] = useState(false);
@@ -495,8 +496,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             setMessages(history);
             setPinnedMsg(pinned);
 
-            // Mark as read when loading history
+            // Mark as read and delivered when loading history
             await markMessagesAsRead(peer.id, peer.peerId || peer.id);
+            await markMessagesAsDelivered(peer.id, peer.peerId || peer.id);
             await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
 
             // Check for overdue scheduled messages
@@ -526,12 +528,26 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         if (newMessage.sender_id === currentUserId) {
                             const tempMatch = prev.find(m => 
                                 m.id.startsWith('temp-') && 
-                                m.text === newMessage.content &&
-                                m.type === newMessage.type
+                                m.type === newMessage.type &&
+                                (
+                                    // For text messages
+                                    (m.type === 'text' && m.text === newMessage.content) ||
+                                    // For media messages (check if any attachment matches name or if it's the only temporary media message of this type)
+                                    (m.type !== 'text' && (
+                                        !newMessage.content || // If content is empty (common for media)
+                                        m.text === newMessage.content ||
+                                        (m.attachments && newMessage.attachments && m.attachments.length === newMessage.attachments.length)
+                                    ))
+                                )
                             );
                             if (tempMatch) {
-                                // Match found! Swap the ID of the existing message instead of appending.
-                                return prev.map(m => m.id === tempMatch.id ? { ...m, id: newMessage.id } : m);
+                                // Match found! Swap the ID and update attachments with real URLs
+                                return prev.map(m => m.id === tempMatch.id ? { 
+                                    ...m, 
+                                    id: newMessage.id,
+                                    attachments: newMessage.attachments || m.attachments,
+                                    text: newMessage.content || m.text
+                                } : m);
                             }
                         }
 
@@ -553,6 +569,10 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                     if (newMessage.sender_id !== currentUserId) {
                         await markMessagesAsRead(peer.id, peer.peerId || peer.id);
                         await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
+                    }
+                    // Mark as delivered if from peer
+                    if (newMessage.sender_id !== currentUserId) {
+                        await markMessagesAsDelivered(peer.id, peer.peerId || peer.id);
                     }
                     // Ensure auto-bottom on new messages (including polls)
                     if (isAtBottom || newMessage.sender_id === currentUserId) {
@@ -958,20 +978,39 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
         try {
             const uploadPromises = pendingFiles.map(async (pf) => {
-                const formData = new FormData();
-                formData.append('file', pf.file);
-                const publicUrl = await uploadChatFile(formData);
-                return publicUrl ? { url: publicUrl, type: pf.type, name: pf.file.name } : null;
+                try {
+                    const formData = new FormData();
+                    formData.append('file', pf.file);
+                    const publicUrl = await uploadChatFile(formData);
+                    return publicUrl ? { url: publicUrl, type: pf.type, name: pf.file.name } : null;
+                } catch (uploadErr) {
+                    console.error("Upload failed for file:", pf.file.name, uploadErr);
+                    return null;
+                }
             });
 
             const uploaded = (await Promise.all(uploadPromises)).filter((a): a is { url: string; type: 'image' | 'video' | 'audio' | 'file'; name: string } => a !== null);
 
+            if (pendingFiles.length > 0 && uploaded.length === 0) {
+                // All uploads failed - downgrade to error state
+                setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: "⚠️ Upload failed. Please try a smaller file!", type: 'text' } : m));
+                setPendingFiles([]);
+                return;
+            }
+
             const finalUrl = customUrl || text;
             const savedMsg = await sendMessage(peer.id, currentUserId, finalUrl, type as any, undefined, uploaded, replyTo?.id);
 
-            // Link local ID to server ID - FIX: extract .id from the savedMsg object
-            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: savedMsg.id } : m));
-            sentMessageIds.current.add(savedMsg.id);
+            // Link local ID to server ID
+            if (savedMsg) {
+                setMessages(prev => prev.map(m => m.id === tempId ? { 
+                    ...m, 
+                    id: savedMsg.id,
+                    attachments: savedMsg.attachments || m.attachments, // Use server URLs
+                    status: savedMsg.status || 'sent'
+                } : m));
+                sentMessageIds.current.add(savedMsg.id);
+            }
 
             setPendingFiles([]);
             setShowAttachments(false);
@@ -980,8 +1019,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             soundManager.playClick(0.4);
         } catch (err) {
             console.error("Send failed:", err);
-            // Remove optimistic on failure
-            setMessages(prev => prev.filter(m => m.id !== tempId));
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: "❌ Failed to send. Check your connection.", type: 'text' } : m));
         }
     };
 
@@ -996,13 +1034,127 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         }
     }, []);
 
+    const compressImage = async (file: File): Promise<File> => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1280;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = (height / width) * maxDim;
+                            width = maxDim;
+                        } else {
+                            width = (width / height) * maxDim;
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        if (blob) resolve(new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: 'image/jpeg' }));
+                        else resolve(file);
+                    }, 'image/jpeg', 0.8);
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const compressVideo = async (file: File): Promise<File> => {
+        // Simple size check - if less than 10MB, don't bother compressing too much
+        if (file.size < 10 * 1024 * 1024) return file;
+        
+        console.log(`[Video] Input size: ${(file.size / 1024 / 1024).toFixed(2)}MB. Attempting 20MB target optimization...`);
+        
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.muted = true;
+            video.playsInline = true;
+
+            video.onloadedmetadata = () => {
+                const targetWidth = video.videoWidth > 1280 ? 1280 : video.videoWidth;
+                const targetHeight = (targetWidth / video.videoWidth) * video.videoHeight;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const ctx = canvas.getContext('2d');
+                
+                if (!ctx) {
+                    resolve(file);
+                    return;
+                }
+
+                const stream = canvas.captureStream(30);
+                // Add audio track from original video
+                const audioCtx = new AudioContext();
+                const source = audioCtx.createMediaElementSource(video);
+                const dest = audioCtx.createMediaStreamDestination();
+                source.connect(dest);
+                source.connect(audioCtx.destination);
+                
+                dest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+
+                const recorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp8,opus',
+                    videoBitsPerSecond: 2500000 // ~2.5 Mbps to aim for ~20MB for 1 min
+                });
+
+                const chunks: Blob[] = [];
+                recorder.ondataavailable = (e) => chunks.push(e.data);
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webm", { type: 'video/webm' });
+                    console.log(`[Video] Output size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+                    resolve(compressedFile.size < file.size ? compressedFile : file);
+                    URL.revokeObjectURL(video.src);
+                };
+
+                video.play();
+                recorder.start();
+
+                const draw = () => {
+                    if (video.paused || video.ended) {
+                        recorder.stop();
+                        return;
+                    }
+                    ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                    requestAnimationFrame(draw);
+                };
+                draw();
+            };
+
+            video.onerror = () => resolve(file);
+        });
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
-        if (files.length > 0) {
-            const newPending = files.map(file => ({ file, previewUrl: URL.createObjectURL(file), type: (file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'file') as 'image' | 'video' | 'audio' | 'file' }));
-            setPendingFiles(prev => [...prev, ...newPending].slice(0, 10));
-            setShowAttachments(false);
-        }
+        if (files.length === 0) return;
+
+        const compressedFiles = await Promise.all(files.map(async (file) => {
+            if (file.type.startsWith('image/')) return await compressImage(file);
+            if (file.type.startsWith('video/')) return await compressVideo(file);
+            return file;
+        }));
+
+        const newPending = compressedFiles.map(file => ({
+            file,
+            previewUrl: URL.createObjectURL(file),
+            type: (file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'file') as 'image' | 'video' | 'audio' | 'file'
+        }));
+
+        setPendingFiles(prev => [...prev, ...newPending].slice(0, 10));
+        setShowAttachments(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -1080,10 +1232,13 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             const publicUrl = await uploadChatFile(formData);
             if (publicUrl) {
                 const saved = await sendMessage(peer.id, currentUserId, "", "audio", undefined, [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }]);
-                setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, attachments: [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }] } : m));
+                if (saved) {
+                    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, attachments: [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }] } : m));
+                    sentMessageIds.current.add(saved.id);
+                }
             }
         } catch (err) {
-            console.error(err);
+            console.error("Voice send failed:", err);
             setMessages(prev => prev.filter(m => m.id !== tempId));
         }
     };
@@ -1471,7 +1626,17 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                             )}
                                                             <div className={`flex items-center gap-1.5 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                                                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                {isMe && <div className="flex text-zinc-300">{msg.status === 'read' ? <><Check size={10} className="text-[#84cc16]" /><Check size={10} className="text-[#84cc16] -ml-1" /></> : msg.status === 'delivered' ? <><Check size={10} className="text-zinc-400" /><Check size={10} className="text-zinc-400 -ml-1" /></> : <Check size={10} />}</div>}
+                                                                {isMe && (
+                                                                    <div className="flex text-zinc-300">
+                                                                        {msg.status === 'read' ? (
+                                                                            <><Check size={10} className="text-[#3b82f6]" /><Check size={10} className="text-[#3b82f6] -ml-1" /></>
+                                                                        ) : msg.status === 'delivered' ? (
+                                                                            <><Check size={10} className="text-zinc-400" /><Check size={10} className="text-zinc-400 -ml-1" /></>
+                                                                        ) : (
+                                                                            <Check size={10} />
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </motion.div>
@@ -1496,9 +1661,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 20 }}
-                                    className="absolute bottom-full right-4 mb-4 z-50 shadow-2xl rounded-xl overflow-hidden border border-zinc-200"
+                                    className="absolute bottom-full right-4 mb-4 z-50 shadow-2xl rounded-xl overflow-hidden border border-zinc-200 max-h-[80vh] flex flex-col"
                                 >
-                                    <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" skinTonePosition="none" />
+                                    <div className="overflow-auto">
+                                        <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" skinTonePosition="none" />
+                                    </div>
                                 </motion.div>
                             )}
 
@@ -1508,7 +1675,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                    className="absolute bottom-full left-4 mb-4 z-50 bg-white/80 backdrop-blur-2xl rounded-xl shadow-2xl border border-zinc-200/50 p-2 w-52 overflow-hidden"
+                                    className="absolute bottom-full left-4 mb-4 z-50 bg-white/90 backdrop-blur-2xl rounded-xl shadow-2xl border border-zinc-200/50 p-2 w-52 overflow-hidden"
                                 >
                                     <button key="att-photo" type="button" onClick={() => {
                                         if (fileInputRef.current) {
@@ -1516,15 +1683,24 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                             fileInputRef.current.click();
                                         }
                                         setShowAttachments(false);
-                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors"><ImageIcon size={18} className="text-blue-500" /> Photos</button>
+                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <ImageIcon size={18} className="text-blue-500 group-hover/att:scale-110 transition-transform" /> 
+                                        Photos
+                                    </button>
                                     <button key="att-video" type="button" onClick={() => {
                                         if (fileInputRef.current) {
                                             fileInputRef.current.accept = "video/*";
                                             fileInputRef.current.click();
                                         }
                                         setShowAttachments(false);
-                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors"><Video size={18} className="text-[#D4F268] fill-zinc-900" /> Videos</button>
-                                    <button key="att-gif" type="button" onClick={() => { setShowGifPicker(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors"><Gift size={18} className="text-purple-600" /> GIFs & Stickers</button>
+                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <Video size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" /> 
+                                        Videos
+                                    </button>
+                                    <button key="att-gif" type="button" onClick={() => { setShowGifPicker(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <Gift size={18} className="text-purple-600 group-hover/att:scale-110 transition-transform" /> 
+                                        GIFs & Stickers
+                                    </button>
                                 </motion.div>
                             )}
 
@@ -1786,205 +1962,203 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         animate={{ y: 0 }}
                         exit={{ y: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="absolute inset-x-0 bottom-0 z-[60] bg-white rounded-t-3xl shadow-[0_-20px_50px_rgba(0,0,0,0.1)] border-t border-zinc-100 overflow-hidden"
+                        className="absolute inset-x-0 bottom-0 z-[60] bg-white rounded-t-3xl shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-zinc-100 overflow-hidden max-h-[90vh] flex flex-col"
                     >
-                        <div className="p-6 md:p-8 flex flex-col items-center">
-                            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mb-8 cursor-pointer" onClick={() => setShowLoopyPanel(false)} />
-                            <div className="mb-4 relative">
-                                <LoopyMascot size={100} mood={isLoopyTyping ? "thinking" : loopyResponse ? "happy" : "surprised"} />
+                        {/* Fixed Header */}
+                        <div className="px-6 md:px-8 pt-6 pb-2 shrink-0 flex flex-col items-center border-b border-zinc-100/50">
+                            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mb-6 cursor-pointer hover:bg-zinc-300 transition-colors" onClick={() => setShowLoopyPanel(false)} />
+                            
+                            <div className="flex w-full items-start gap-4 md:gap-6 mb-4">
+                                <div className="relative flex-shrink-0">
+                                    <div className="md:hidden">
+                                        <LoopyMascot size={60} mood={isLoopyTyping ? "thinking" : loopyResponse ? "happy" : "surprised"} />
+                                    </div>
+                                    <div className="hidden md:block">
+                                        <LoopyMascot size={80} mood={isLoopyTyping ? "thinking" : loopyResponse ? "happy" : "surprised"} />
+                                    </div>
+                                    <motion.div 
+                                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                                        transition={{ repeat: Infinity, duration: 2 }}
+                                        className="absolute -top-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-[#84cc16] rounded-full border-2 border-white shadow-sm"
+                                    />
+                                </div>
+                                <div className="flex-1 pt-1 md:pt-2">
+                                    <h2 className="text-xl md:text-2xl font-black text-zinc-900 leading-tight">Loopy AI</h2>
+                                    <p className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Contextual Mastery Assistant</p>
+                                </div>
                             </div>
-                            <h2 className="text-xl font-black text-zinc-900 mb-1">Loopy Chat Companion</h2>
-                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] mb-8 text-center px-10">Contextual Mastery Engine</p>
+                        </div>
 
-                            <div className="w-full max-w-md bg-zinc-50 rounded-2xl border border-zinc-100 p-4 min-h-[120px] mb-6 relative">
+                        {/* Scrollable Content Container */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 md:px-8 py-6 w-full max-w-2xl mx-auto">
+
+                            <div className="w-full min-h-[160px] mb-8 relative">
                                 {isLoopyTyping ? (
-                                    <div className="flex flex-col gap-2 italic text-zinc-400 text-sm p-4">
-                                        <div className="flex gap-1">
-                                            <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-[#84cc16] rounded-full" />
-                                            <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-[#84cc16] rounded-full" />
-                                            <motion.div animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-[#84cc16] rounded-full" />
+                                    <div className="flex flex-col items-center justify-center gap-4 py-8">
+                                        <div className="flex gap-2">
+                                            {[0, 1, 2].map((i) => (
+                                                <motion.div 
+                                                    key={i}
+                                                    animate={{ y: [0, -8, 0], opacity: [0.3, 1, 0.3] }} 
+                                                    transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }} 
+                                                    className="w-2.5 h-2.5 bg-[#84cc16] rounded-full shadow-[0_0_10px_rgba(132,204,22,0.3)]" 
+                                                />
+                                            ))}
                                         </div>
-                                        <span>Loopy is thinking...</span>
+                                        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Mastering Context...</span>
                                     </div>
                                 ) : loopyResponse ? (
                                     <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="text-sm font-semibold text-zinc-800 leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar pr-2"
+                                        initial={{ opacity: 0, scale: 0.98 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="w-full space-y-5"
                                     >
-                                        <div className="space-y-4 prose-sm prose-zinc">
-                                            {loopyResponse.split('\n\n').map((para, i) => (
-                                                <p key={i} className={para.startsWith('```') ? 'bg-zinc-900 text-zinc-100 p-3 rounded-xl font-mono text-[11px] overflow-x-auto shadow-inner' : ''}>
-                                                    {para.startsWith('```') ? para.replace(/```/g, '') : para}
+                                        {(typeof loopyResponse === 'string' || !loopyResponse.type) ? (
+                                            <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-100 shadow-sm">
+                                                <p className="text-sm font-semibold text-zinc-800 leading-relaxed italic">
+                                                    "{typeof loopyResponse === 'string' ? loopyResponse : 'Wait, I lost my train of thought! 🦉'}"
                                                 </p>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        ) : loopyResponse.type === 'summary' ? (
+                                            <div className="space-y-6">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                                                    {loopyResponse.highlights?.map((h: any, i: number) => (
+                                                        <motion.div 
+                                                            initial={{ opacity: 0, y: 10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            transition={{ delay: i * 0.1 }}
+                                                            key={i} 
+                                                            className="flex items-center gap-2.5 md:gap-3.5 p-3 md:p-4 bg-white rounded-2xl border border-zinc-100 shadow-sm hover:border-lime-200 transition-all group"
+                                                        >
+                                                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-lime-50 flex items-center justify-center text-lg md:text-xl group-hover:scale-110 transition-transform">{h.icon}</div>
+                                                            <span className="text-[10px] md:text-[11px] font-black text-zinc-800 leading-tight uppercase tracking-tight">{h.text}</span>
+                                                        </motion.div>
+                                                    ))}
+                                                </div>
+                                                <div className="p-6 bg-zinc-950 rounded-3xl border border-zinc-900 shadow-2xl relative overflow-hidden group">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#84cc16]/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-[#84cc16]/10 transition-colors" />
+                                                    <p className="relative text-[15px] font-medium text-white/90 leading-relaxed italic">
+                                                        "{loopyResponse.summary}"
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center justify-center gap-4">
+                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-zinc-200 to-transparent" />
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.3em] mb-1">Conclusion</span>
+                                                        <span className="font-black text-[#84cc16] text-[13px] uppercase tracking-tighter">
+                                                            {loopyResponse.conclusion}
+                                                        </span>
+                                                    </div>
+                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-zinc-200 to-transparent" />
+                                                </div>
+                                            </div>
+                                        ) : loopyResponse.type === 'explanation' ? (
+                                            <div className="space-y-6">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#84cc16] text-black rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-lime-500/20">
+                                                        <Sparkles size={12} /> {loopyResponse.concept}
+                                                    </div>
+                                                    <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Scientific Breakdown</div>
+                                                </div>
+                                                
+                                                <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-100 relative group">
+                                                    <Quote size={24} className="absolute -top-3 -left-2 text-lime-400 opacity-30 group-hover:opacity-100 transition-opacity" />
+                                                    <p className="text-[15px] font-semibold text-zinc-800 leading-relaxed">
+                                                        {loopyResponse.explanation}
+                                                    </p>
+                                                </div>
+
+                                                {loopyResponse.code && (
+                                                    <div className="relative group">
+                                                        <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(loopyResponse.code);
+                                                                    soundManager.playClick(0.5);
+                                                                }}
+                                                                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white/50 hover:text-white transition-all backdrop-blur-md"
+                                                                title="Copy Code"
+                                                            >
+                                                                <Copy size={14} />
+                                                            </button>
+                                                        </div>
+                                                        <div className="bg-zinc-950 rounded-3xl p-6 border border-zinc-800 shadow-2xl overflow-hidden">
+                                                            <div className="flex gap-1.5 mb-4">
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                                                            </div>
+                                                            <div className="overflow-x-auto max-h-[250px] custom-scrollbar">
+                                                                <code className="text-[11px] font-mono text-lime-300/80 whitespace-pre">
+                                                                    {loopyResponse.code}
+                                                                </code>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                                <motion.div 
+                                                    whileHover={{ scale: 1.02 }}
+                                                    className="p-4 md:p-5 bg-lime-400/10 rounded-3xl border-2 border-lime-400/20 flex gap-4 md:gap-5 items-center group/quest shadow-sm"
+                                                >
+                                                    <div className="w-12 h-12 md:w-14 md:h-14 bg-black rounded-2xl flex items-center justify-center text-lime-400 shadow-xl group-hover/quest:rotate-12 transition-transform flex-shrink-0">
+                                                        <HelpCircle size={24} className="md:size-28" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-[8px] md:text-[9px] font-black text-[#84cc16] uppercase tracking-widest mb-1 md:mb-1.5">Socratic Inquiry</p>
+                                                        <p className="text-xs md:text-sm font-black text-zinc-900 leading-tight">
+                                                            {loopyResponse.question}
+                                                        </p>
+                                                    </div>
+                                                </motion.div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-6 bg-zinc-50 rounded-2xl border border-zinc-100 text-sm font-semibold text-zinc-500 text-center">
+                                                {typeof loopyResponse === 'string' ? loopyResponse : "Got a bit confused by the source's wisdom. Check back soon!"}
+                                            </div>
+                                        )}
                                     </motion.div>
                                 ) : (
-                                    <div className="grid grid-cols-2 gap-3 mt-2">
-                                        <Button variant="outline" className="h-auto flex-col p-4 border-2 border-zinc-200 hover:border-[#84cc16] hover:bg-lime-50 gap-2 rounded-xl" onClick={() => handleLoopyAction('explain')}>
-                                            <Bot size={24} className="text-[#84cc16]" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Explain Code</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Button 
+                                            variant="outline" 
+                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group" 
+                                            onClick={() => handleLoopyAction('explain')}
+                                        >
+                                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                                <Brain size={28} className="text-[#3b82f6]" />
+                                            </div>
+                                            <div className="text-left sm:text-center">
+                                                <span className="block text-xs font-black uppercase tracking-widest text-zinc-900">Explain Mastery</span>
+                                                <span className="block text-[10px] text-zinc-400 font-bold mt-1">Deep dives into patterns</span>
+                                            </div>
                                         </Button>
-                                        <Button variant="outline" className="h-auto flex-col p-4 border-2 border-zinc-200 hover:border-[#84cc16] hover:bg-lime-50 gap-2 rounded-xl" onClick={() => handleLoopyAction('summarize')}>
-                                            <Sparkles size={24} className="text-[#84cc16]" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Summarize Missed</span>
+                                        <Button 
+                                            variant="outline" 
+                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group" 
+                                            onClick={() => handleLoopyAction('summarize')}
+                                        >
+                                            <div className="w-12 h-12 bg-lime-50 rounded-2xl flex items-center justify-center group-hover:bg-lime-100 transition-colors">
+                                                <ListChecks size={28} className="text-[#84cc16]" />
+                                            </div>
+                                            <div className="text-left sm:text-center">
+                                                <span className="block text-xs font-black uppercase tracking-widest text-zinc-900">Summarize Log</span>
+                                                <span className="block text-[10px] text-zinc-400 font-bold mt-1">Atomic key highlights</span>
+                                            </div>
                                         </Button>
                                     </div>
                                 )}
                             </div>
+                        </div>
 
-                            <Button className="w-full max-w-md bg-zinc-900 hover:bg-black text-white rounded-xl py-6 font-black uppercase tracking-widest text-xs" onClick={() => { setShowLoopyPanel(false); setLoopyResponse(null); }}>
-                                Got it, Loopy!
+                        {/* Fixed Footer Action */}
+                        <div className="px-6 pb-8 pt-4 bg-white flex justify-center shrink-0 border-t border-zinc-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-20">
+                            <Button 
+                                className="w-full max-w-sm bg-zinc-900 hover:bg-black text-white rounded-3xl py-6 md:py-7 font-black uppercase tracking-[0.2em] text-[10px] md:text-[11px] shadow-2xl shadow-zinc-950/20 active:scale-95 transition-all shrink-0" 
+                                onClick={() => { setShowLoopyPanel(false); setLoopyResponse(null); }}
+                            >
+                                Wisdom Received
                             </Button>
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Theme Picker */}
-            <AnimatePresence>
-                {showThemePicker && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                        onClick={() => setShowThemePicker(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            className="bg-white rounded-3xl shadow-2xl p-6 w-full max-sm:max-w-[320px] max-w-sm border border-zinc-200"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-black text-zinc-900">Chat Wallpapers</h3>
-                                <Button variant="ghost" size="icon" onClick={() => setShowThemePicker(false)}><X size={20} /></Button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { id: 'default', name: 'Default', class: 'bg-zinc-50' },
-                                    { id: 'grasslands', name: 'Grasslands', class: 'bg-gradient-to-br from-lime-100 via-lime-50 to-emerald-50' },
-                                    { id: 'mystic', name: 'Mystic Forest', class: 'bg-gradient-to-br from-purple-100 via-indigo-50 to-blue-50' },
-                                    { id: 'crystal', name: 'Crystal Caves', class: 'bg-gradient-to-br from-cyan-100 via-sky-50 to-blue-50' }
-                                ].map(t => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => { setChatTheme(t.id as any); setShowThemePicker(false); soundManager.playClick(0.6); }}
-                                        className={`group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 transition-all ${chatTheme === t.id ? 'border-lime-500 ring-2 ring-lime-100' : 'border-zinc-100 hover:border-zinc-300'}`}
-                                    >
-                                        <div className={`absolute inset-0 ${t.class}`} />
-                                        <div className="absolute inset-x-0 bottom-0 p-3 bg-white/80 backdrop-blur-md">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-900">{t.name}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Poll Creator */}
-            <AnimatePresence>
-                {showPollCreator && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-[70] bg-black/40 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-4"
-                        onClick={() => setShowPollCreator(false)}
-                    >
-                        <motion.div
-                            initial={{ y: "100%" }}
-                            animate={{ y: 0 }}
-                            className="bg-white rounded-t-3xl md:rounded-3xl shadow-2xl p-6 w-full max-w-md border-t md:border border-zinc-200"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-black text-zinc-900 tracking-tighter">Create a Poll</h3>
-                                <Button variant="ghost" size="icon" onClick={() => setShowPollCreator(false)}><X size={20} /></Button>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">The Question</label>
-                                    <input
-                                        type="text"
-                                        value={pollQuestion}
-                                        onChange={e => setPollQuestion(e.target.value)}
-                                        placeholder="What's on your mind?"
-                                        className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-[#84cc16] outline-none transition-colors"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Options</label>
-                                    {pollOptions.map((opt, i) => (
-                                        <div key={i} className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={opt}
-                                                onChange={e => {
-                                                    const next = [...pollOptions];
-                                                    next[i] = e.target.value;
-                                                    setPollOptions(next);
-                                                }}
-                                                placeholder={`Option ${i + 1}`}
-                                                className="flex-1 bg-zinc-50 border-2 border-zinc-100 rounded-xl px-4 py-2 text-sm font-bold focus:border-[#84cc16] outline-none transition-colors"
-                                            />
-                                            {pollOptions.length > 2 && (
-                                                <Button variant="ghost" size="icon" onClick={() => setPollOptions(pollOptions.filter((_, idx) => idx !== i))}>
-                                                    <X size={16} />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {pollOptions.length < 5 && (
-                                        <Button variant="ghost" className="w-full border-2 border-dashed border-zinc-200 text-zinc-400 rounded-xl py-2 text-[10px] font-black uppercase tracking-widest hover:border-[#84cc16] hover:text-[#84cc16]" onClick={() => setPollOptions([...pollOptions, ""])}>
-                                            + Add Option
-                                        </Button>
-                                    )}
-                                </div>
-                                <Button
-                                    className="w-full bg-[#84cc16] hover:bg-lime-600 text-white font-black uppercase tracking-widest text-xs py-6 rounded-xl shadow-lg shadow-lime-500/20 mt-4 disabled:opacity-50"
-                                    onClick={handleCreatePollAction}
-                                    disabled={!pollQuestion || pollOptions.filter(o => o.trim()).length < 2}
-                                >
-                                    Launch Poll ✨
-                                </Button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Message Scheduling Modal */}
-            <AnimatePresence>
-                {showSchedulePicker && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-[80] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
-                        onClick={() => setShowSchedulePicker(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-sm border border-zinc-200"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="bg-[#84cc16] p-6 text-black">
-                                <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
-                                    <Calendar size={24} /> Schedule Message
-                                </h3>
-                                <p className="text-xs font-bold opacity-80 mt-1 uppercase tracking-widest text-[#1A1A1A]">Select Date & Time</p>
-                            </div>
-                            <SchedulePicker
-                                onSelect={(iso) => { handleScheduleAction(iso); setShowSchedulePicker(false); }}
-                                onCancel={() => setShowSchedulePicker(false)}
-                            />
-                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
