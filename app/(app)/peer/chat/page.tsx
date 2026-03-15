@@ -228,6 +228,10 @@ function ChatPageContent() {
     const { user } = useUser();
     const currentUserId = user?.id || null;
 
+    // --- REALTIME SIDEBAR STATE ---
+    const [typingState, setTypingState] = useState<Record<string, Set<string>>>({}); 
+    // ^ conversationId -> Set of userIds typing
+
     // Fetch conversations using SWR for caching
     const { data: convosData, isLoading: isConvosLoading, mutate } = useSWR(
         currentUserId ? ['conversations', currentUserId] : null,
@@ -300,6 +304,59 @@ function ChatPageContent() {
             clearInterval(heartbeatInterval);
         };
     }, [currentUserId]);
+
+    useEffect(() => {
+        if (!currentUserId || !convosData) return;
+        const supabase = createClient();
+
+        const allConvoIds = [...convosData.dms, ...convosData.groups].map(c => c.id);
+        if (allConvoIds.length === 0) return;
+
+        // 1. Listen for new messages across ALL my conversations to update sidebar previews
+        const messageChannel = supabase
+            .channel('sidebar:messages')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+            }, (payload) => {
+                const newMessage = payload.new as any;
+                if (allConvoIds.includes(newMessage.conversation_id)) {
+                    // Trigger SWR mutation to refresh conversation list with new last message
+                    mutate();
+                }
+            })
+            .subscribe();
+
+        // 2. Listen for typing indicators globally
+        // We use a single wildcard channel or separate ones? Supabase broadcast works better on specific channels.
+        // To avoid too many channels, we'll join the ones for active conversations.
+        const typingChannels = allConvoIds.map(id => {
+            const chan = supabase.channel(`chat:typing:${id}`);
+            chan.on('broadcast', { event: 'typing' }, ({ payload }) => {
+                const { userId, isTyping } = payload;
+                if (userId === currentUserId) return;
+
+                setTypingState(prev => {
+                    const next = { ...prev };
+                    const users = new Set(next[id] || []);
+                    if (isTyping) users.add(userId);
+                    else users.delete(userId);
+                    
+                    if (users.size === 0) delete next[id];
+                    else next[id] = users;
+                    
+                    return next;
+                });
+            }).subscribe();
+            return chan;
+        });
+
+        return () => {
+            supabase.removeChannel(messageChannel);
+            typingChannels.forEach(c => supabase.removeChannel(c));
+        };
+    }, [currentUserId, convosData, mutate]);
 
     useEffect(() => {
         const handleInitialRoute = async () => {
@@ -494,9 +551,13 @@ function ChatPageContent() {
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex justify-between items-center gap-2">
-                                                                    <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
-                                                                        {chat.lastMessage || 'No messages yet'}
-                                                                    </span>
+                                                                    {typingState[chat.id]?.size > 0 ? (
+                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse">Typing...</span>
+                                                                    ) : (
+                                                                        <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                            {chat.lastMessage || 'No messages yet'}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </motion.button>
@@ -551,9 +612,13 @@ function ChatPageContent() {
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex justify-between items-center gap-2">
-                                                                    <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
-                                                                        {chat.lastMessage || 'No messages yet'}
-                                                                    </span>
+                                                                    {typingState[chat.id]?.size > 0 ? (
+                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse">Typing...</span>
+                                                                    ) : (
+                                                                        <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                            {chat.lastMessage || 'No messages yet'}
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </motion.button>
