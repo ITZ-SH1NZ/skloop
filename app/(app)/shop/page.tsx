@@ -161,19 +161,11 @@ export default function ShopPage() {
 
     const handlePurchase = async (item: ShopItem) => {
         if (coins < item.price) { 
-            toast({
-                title: "Not enough coins",
-                description: `Need ${(item.price - coins).toLocaleString()} more coins.`,
-                variant: "destructive"
-            });
+            toast("Not enough coins. Need " + (item.price - coins).toLocaleString() + " more.", "error");
             return; 
         }
         if (item.category !== "consumable" && inventory.includes(item.id)) { 
-            toast({
-                title: "Already owned",
-                description: "You already have this item in your collection.",
-                variant: "default"
-            });
+            toast("You already have this item in your collection.", "info");
             return; 
         }
         setProcessingId(item.id);
@@ -203,17 +195,9 @@ export default function ShopPage() {
             }, false);
             mutate();
 
-            toast({
-                title: "Item Unlocked!",
-                description: `${item.name} acquired. Check your collection!`,
-                variant: "default"
-            });
+            toast(`${item.name} acquired. Check your collection!`, "success");
         } catch {
-            toast({
-                title: "Purchase failed",
-                description: "Something went wrong. Please try again.",
-                variant: "destructive"
-            });
+            toast("Something went wrong. Please try again.", "error");
         } finally {
             setProcessingId(null);
         }
