@@ -10,6 +10,7 @@ export interface ShopItem {
     category: ShopItemCategory;
     rarity: "common" | "rare" | "epic" | "legendary";
     icon: any; // Lucide icon component
+    icon_name?: string; // Column from Supabase
     imageUrl?: string;
     gradient: string; // Tailwind gradient for card bg
     accentColor: string; // for border/glow

@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { ShopItem } from "./shop-items";
 
 export const fetchUserTasks = async ([key, userId]: [string, string]) => {
     const { getUserTasks } = await import("@/actions/task-actions");
@@ -445,7 +446,7 @@ export interface ShopData {
     coins: number;
     inventory: string[];
     streakShields: number;
-    items: any[];
+    items: ShopItem[];
 }
 
 export const fetchShopData = async ([key, userId]: [string, string]): Promise<ShopData | null> => {

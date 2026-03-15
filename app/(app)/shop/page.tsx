@@ -49,7 +49,7 @@ const ShopItemCard = memo(({
     const [isHovered, setIsHovered] = useState(false);
     const canAfford = coins >= item.price;
     const rarity = RARITY_CONFIG[item.rarity as keyof typeof RARITY_CONFIG];
-    const Icon = getIcon(item.icon_name);
+    const Icon = item.icon || getIcon(item.icon_name || null);
 
     return (
         <motion.div
