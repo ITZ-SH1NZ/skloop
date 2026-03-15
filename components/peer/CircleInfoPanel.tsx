@@ -14,6 +14,7 @@ interface CircleInfoPanelProps {
     peer: PeerProfile;
     isOpen: boolean;
     onClose: () => void;
+    supabase: any;
     onUpdate?: (updatedData: { name: string, description: string, avatarUrl: string, privacy: string }) => void;
 }
 
@@ -26,7 +27,7 @@ interface Member {
     joinedAt: string;
 }
 
-export function CircleInfoPanel({ peer, isOpen, onClose, onUpdate }: CircleInfoPanelProps) {
+export function CircleInfoPanel({ peer, isOpen, onClose, supabase, onUpdate }: CircleInfoPanelProps) {
     const [activeTab, setActiveTab] = useState<"members" | "resources">("members");
     const [memberSearch, setMemberSearch] = useState("");
     const [members, setMembers] = useState<Member[]>([]);
@@ -40,7 +41,6 @@ export function CircleInfoPanel({ peer, isOpen, onClose, onUpdate }: CircleInfoP
         const fetchMembers = async () => {
             setIsLoadingMembers(true);
             try {
-                const supabase = createClient();
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) setCurrentUserId(user.id);
 

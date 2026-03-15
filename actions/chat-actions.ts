@@ -120,7 +120,7 @@ export async function sendMessage(
     caption?: string,
     attachments: MessageAttachment[] = [],
     replyToId?: string
-) {
+): Promise<any> {
     const supabase = await createClient();
 
     const { data, error } = await supabase

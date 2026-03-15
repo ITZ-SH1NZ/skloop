@@ -89,7 +89,7 @@ const LinkPreview = ({ url, isMe }: { url: string; isMe?: boolean }) => {
 /**
  * Animated Poll Message Renderer.
  */
-const PollMessage = ({ pollId, currentUserId }: { pollId: string; currentUserId: string | null }) => {
+const PollMessage = ({ pollId, currentUserId, supabase }: { pollId: string; currentUserId: string | null, supabase: any }) => {
     const [poll, setPoll] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [myVote, setMyVote] = useState<number | null>(null);
@@ -121,7 +121,6 @@ const PollMessage = ({ pollId, currentUserId }: { pollId: string; currentUserId:
     };
 
     useEffect(() => {
-        const supabase = createClient();
         const channel = supabase
             .channel(`poll:${pollId}`)
             .on('postgres_changes', {
@@ -135,7 +134,7 @@ const PollMessage = ({ pollId, currentUserId }: { pollId: string; currentUserId:
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [pollId]);
+    }, [pollId, supabase]);
 
     if (loading || !poll) return <div className="p-3 text-xs text-zinc-400 animate-pulse">Loading poll...</div>;
 
@@ -382,6 +381,7 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWindowProps) {
+    const supabase = useMemo(() => createClient(), []);
     const [messages, setMessages] = useState<MessageRow[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [showAttachments, setShowAttachments] = useState(false);
@@ -502,7 +502,6 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         };
         loadMessages();
 
-        const supabase = createClient();
         const channel = supabase
             .channel(`chat:messages:${peer.id}`)
             .on('postgres_changes', {
@@ -605,8 +604,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             })
             .subscribe();
 
-        return () => { channel.unsubscribe(); };
-    }, [peer?.id, currentUserId]);
+        return () => { supabase.removeChannel(channel); };
+    }, [peer?.id, currentUserId, supabase]);
 
     useEffect(() => {
         if (!scrollContentRef.current) return;
@@ -627,8 +626,6 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             setLastSeenText(null);
             return;
         }
-
-        const supabase = createClient();
 
         // 1. Initial State from profile
         const fetchInitialStatus = async () => {
@@ -677,14 +674,13 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             })
             .subscribe();
 
-        return () => { channel.unsubscribe(); };
-    }, [peer?.id, peer?.peerId, isGroup, currentUserId]);
+        return () => { supabase.removeChannel(channel); };
+    }, [peer?.id, peer?.peerId, isGroup, currentUserId, supabase]);
 
     // 3. Typing Indicators (Realtime Broadcast)
     useEffect(() => {
         if (!peer || !currentUserId) return;
 
-        const supabase = createClient();
         const typingChannel = supabase.channel(`chat:typing:${peer.id}`);
 
         typingChannel
@@ -701,8 +697,8 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             })
             .subscribe();
 
-        return () => { typingChannel.unsubscribe(); };
-    }, [peer?.id, currentUserId]);
+        return () => { supabase.removeChannel(typingChannel); };
+    }, [peer?.id, currentUserId, supabase]);
 
     // Broadcast typing status
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -710,7 +706,6 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
         if (!peer || !currentUserId || !inputValue) {
             // If input is empty, immediately stop typing indicator
             if (currentUserId && peer) {
-                const supabase = createClient();
                 supabase.channel(`chat:typing:${peer.id}`).send({
                     type: 'broadcast',
                     event: 'typing',
@@ -720,7 +715,6 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             return;
         }
 
-        const supabase = createClient();
         const typingChannel = supabase.channel(`chat:typing:${peer.id}`);
 
         // Broadcast that we are typing
@@ -747,7 +741,6 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
 
     useEffect(() => {
         const fetchRecentPeers = async () => {
-            const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
             const { data: participants } = await supabase.from('conversation_participants').select('conversation_id, conversations (id, type, name, avatar_url)').eq('user_id', user.id);
@@ -951,11 +944,11 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
             const uploaded = (await Promise.all(uploadPromises)).filter((a): a is { url: string; type: 'image' | 'video' | 'audio' | 'file'; name: string } => a !== null);
 
             const finalUrl = customUrl || text;
-            const msgId = await sendMessage(peer.id, currentUserId, finalUrl, type as any, undefined, uploaded, replyTo?.id);
+            const savedMsg = await sendMessage(peer.id, currentUserId, finalUrl, type as any, undefined, uploaded, replyTo?.id);
 
-            // Link local ID to server ID
-            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: msgId } : m));
-            sentMessageIds.current.add(msgId);
+            // Link local ID to server ID - FIX: extract .id from the savedMsg object
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: savedMsg.id } : m));
+            sentMessageIds.current.add(savedMsg.id);
 
             setPendingFiles([]);
             setShowAttachments(false);
@@ -1400,7 +1393,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                                                                                 <X size={12} className="opacity-40" /> Message deleted
                                                                             </p>
                                                                         ) : msg.type === 'poll' && msg.pollId ? (
-                                                                            <PollMessage pollId={msg.pollId} currentUserId={currentUserId} />
+                                                                            <PollMessage pollId={msg.pollId} currentUserId={currentUserId} supabase={supabase} />
                                                                         ) : (
                                                                             <>
                                                                                 {msg.text && msg.type === 'text' && (
@@ -1662,6 +1655,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             peer={localPeer}
                             isOpen={showInfoPanel}
                             onClose={() => setShowInfoPanel(false)}
+                            supabase={supabase}
                             onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)}
                         />
                     </div>
@@ -1674,6 +1668,7 @@ export function ChatWindow({ peer, currentUserId, onBack, onPeerUpdate }: ChatWi
                             peer={localPeer}
                             isOpen={showInfoPanel}
                             onClose={() => setShowInfoPanel(false)}
+                            supabase={supabase}
                             onUpdate={(newDetails) => setLocalPeer(prev => prev ? { ...prev, ...newDetails } : null)}
                         />
                     </div>
