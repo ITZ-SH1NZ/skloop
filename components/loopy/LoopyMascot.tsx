@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, memo } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useMemo, memo, useId } from "react";
+import { motion, useAnimation } from "framer-motion";
 
 export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating" | "screaming" | "huddled" | "awakened";
 
@@ -10,13 +10,15 @@ export const LoopyMascot = memo(({
     mood = "happy", 
     hasCrown = false, 
     hasCape = false,
-    direction = "center" 
+    direction = "center",
+    isStatic = false
 }: { 
     size?: number, 
     mood?: LoopyMood,
     hasCrown?: boolean,
     hasCape?: boolean,
-    direction?: "left" | "right" | "center"
+    direction?: "left" | "right" | "center",
+    isStatic?: boolean
 }) => {
     // Mood-based configurations
     const moodConfigs: Record<LoopyMood, any> = {
@@ -75,23 +77,40 @@ export const LoopyMascot = memo(({
     const rotation = direction === "left" ? -15 : direction === "right" ? 15 : 0;
     const eyeXOffset = direction === "left" ? -5 : direction === "right" ? 5 : 0;
 
-    const idPrefix = useMemo(() => `loopy-${Math.random().toString(36).substr(2, 9)}`, []);
+    const idPrefix = useId().replace(/:/g, "");
+
+    // Blinking logic
+    const blinkControls = useAnimation();
+    
+    useEffect(() => {
+        if (!isStatic) return;
+
+        const blinkLoop = async () => {
+            while (true) {
+                await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 5000));
+                await blinkControls.start({ scaleY: 0, transition: { duration: 0.1 } });
+                await blinkControls.start({ scaleY: 1, transition: { duration: 0.1 } });
+            }
+        };
+
+        blinkLoop();
+    }, [isStatic, blinkControls]);
 
     return (
         <motion.div 
             style={{ width: size, height: size }}
             className="relative"
             animate={{ 
-                x: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? [0, -config.shake, config.shake, -config.shake, config.shake, 0] : 0,
-                y: mood === "thinking" ? [0, -4, 0] : mood === "celebrating" ? [0, -20, 0] : mood === "huddled" ? [0, 5, 0] : 0,
+                x: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? [0, -config.shake, config.shake, -config.shake, config.shake, 0] : 0,
+                y: (!isStatic && mood === "thinking") ? [0, -4, 0] : (!isStatic && mood === "celebrating") ? [0, -20, 0] : (!isStatic && mood === "huddled") ? [0, 5, 0] : 0,
                 rotate: rotation,
-                scale: mood === "celebrating" ? [1, 1.1, 0.9, 1] : mood === "huddled" ? 0.8 : 1
+                scale: (!isStatic && mood === "celebrating") ? [1, 1.1, 0.9, 1] : mood === "huddled" ? 0.8 : 1
             }}
             transition={{ 
-                x: { duration: 0.1, repeat: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? Infinity : 0 },
+                x: { duration: 0.1, repeat: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? Infinity : 0 },
                 y: { 
                     duration: mood === "celebrating" ? 0.6 : 2, 
-                    repeat: Infinity, 
+                    repeat: !isStatic ? Infinity : 0, 
                     ease: "easeInOut" 
                 },
                 rotate: { type: "spring", stiffness: 200, damping: 15 }
@@ -127,10 +146,12 @@ export const LoopyMascot = memo(({
                 {/* Body with breathing loop */}
                 <motion.path 
                     animate={{ 
-                        d: mood === "surprised" || mood === "screaming"
+                        d: (mood === "surprised" || mood === "screaming")
                             ? "M50 15 C75 15 90 35 90 60 C90 85 75 90 50 90 C25 90 10 85 10 60 C10 35 25 15 50 15Z" 
                             : mood === "huddled"
                             ? "M50 40 C70 40 80 50 80 75 C80 90 70 95 50 95 C30 95 20 90 20 75 C20 50 30 40 50 40Z"
+                            : isStatic 
+                            ? "M50 20 C70 20 85 35 85 60 C85 80 70 85 50 85 C30 85 15 80 15 60 C15 35 30 20 50 20Z"
                             : [
                                 "M50 20 C70 20 85 35 85 60 C85 80 70 85 50 85 C30 85 15 80 15 60 C15 35 30 20 50 20Z", 
                                 "M50 22 C72 22 87 37 87 62 C87 82 72 87 50 87 C28 87 13 82 13 62 C13 37 28 22 50 22Z"
@@ -139,7 +160,7 @@ export const LoopyMascot = memo(({
                         stroke: config.colorBottom
                     }}
                     transition={{ 
-                        d: { duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" },
+                        d: { duration: 3, repeat: !isStatic ? Infinity : 0, repeatType: "mirror", ease: "easeInOut" },
                         stroke: { duration: 0.5 }
                     }}
                     strokeWidth="2"
@@ -151,7 +172,9 @@ export const LoopyMascot = memo(({
 
                 {/* The "Liquid" Face Group - Synchronized with body breathing */}
                 <motion.g
-                    animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
+                    animate={isStatic
+                        ? { y: 1 }
+                        : (mood === "surprised" || mood === "screaming" || mood === "huddled") 
                         ? { y: 1, scaleX: 1, scaleY: 1 } 
                         : { 
                             y: [0, 2, 0], 
@@ -159,33 +182,36 @@ export const LoopyMascot = memo(({
                             scaleY: [1, 0.98, 1]
                         }
                     }
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    transition={{ duration: 3, repeat: !isStatic ? Infinity : 0, ease: "easeInOut" }}
                     style={{ transformOrigin: "50% 60%" }}
                 >
                     {/* Eyes */}
                     <motion.g animate={{ x: eyeXOffset }}>
-                        {/* Left Eye */}
-                        <motion.circle 
-                            cx="38" animate={{ cy: config.eyeY, r: config.eyeR }} 
-                            fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        />
-                        <motion.circle 
-                            cx="39" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
-                            fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        />
-                        
-                        {/* Right Eye */}
-                        <motion.circle 
-                            cx="62" animate={{ cy: config.eyeY, r: config.eyeR }} 
-                            fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        />
-                        <motion.circle 
-                            cx="61" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
-                            fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        />
+                        {/* Eyes with Blinking */}
+                        <motion.g animate={isStatic ? blinkControls : {}} style={{ transformOrigin: `50% ${config.eyeY}px` }}>
+                            {/* Left Eye */}
+                            <motion.circle 
+                                cx="38" animate={{ cy: config.eyeY, r: config.eyeR }} 
+                                fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            />
+                            <motion.circle 
+                                cx="39" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
+                                fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            />
+                            
+                            {/* Right Eye */}
+                            <motion.circle 
+                                cx="62" animate={{ cy: config.eyeY, r: config.eyeR }} 
+                                fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            />
+                            <motion.circle 
+                                cx="61" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
+                                fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            />
+                        </motion.g>
 
                         {/* Lids */}
-                        <motion.g animate={{ opacity: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? 1 : 0 }} transition={{ duration: 0.3 }}>
+                        <motion.g animate={{ opacity: (mood === "annoyed" || mood === "screaming" || mood === "huddled") ? 1 : 0 }} transition={{ duration: 0.3 }}>
                             <path 
                                 d={mood === "huddled" ? "M30 62 L46 64" : "M30 48 L46 52"} 
                                 stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
@@ -224,11 +250,11 @@ export const LoopyMascot = memo(({
                 className="absolute inset-0 rounded-full blur-2xl -z-10"
                 animate={{ 
                     background: config.glow,
-                    scale: [1, 1.2, 1] 
+                    scale: isStatic ? 1 : [1, 1.2, 1] 
                 }}
                 transition={{ 
                     background: { duration: 0.5 },
-                    scale: { duration: 3, repeat: Infinity }
+                    scale: { duration: 3, repeat: !isStatic ? Infinity : 0 }
                 }}
             />
         </motion.div>

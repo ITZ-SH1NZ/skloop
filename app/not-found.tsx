@@ -138,13 +138,13 @@ export default function NotFound() {
                         <div className="absolute -top-32 md:-top-48 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                             <motion.div 
                                 animate={{ 
-                                    y: [0, 8, 0],
-                                    rotate: [0, -2, 2, 0] 
+                                    x: [-4, 4, -4],
+                                    rotate: [-3, 3, -3] 
                                 }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                                 className="drop-shadow-[0_25px_0_rgba(0,0,0,0.1)]"
                             >
-                                <LoopyMascot mood="surprised" size={isMounted ? (window.innerWidth < 768 ? 140 : 200) : 200} />
+                                <LoopyMascot mood="surprised" size={isMounted ? (window.innerWidth < 768 ? 140 : 200) : 200} isStatic={true} />
                             </motion.div>
                         </div>
 
