@@ -83,10 +83,15 @@ export async function getConversationMessages(conversationId: string): Promise<M
 
     return messages.map((m: any) => {
         const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
-        const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
-        const isGif = isUrl && m.content.includes('giphy.com');
+        const contentTrimmed = typeof m.content === 'string' ? m.content.trim() : "";
+        const isUrl = contentTrimmed.startsWith('https://') || contentTrimmed.startsWith('http://');
+        const isGif = isUrl && (contentTrimmed.includes('giphy.com') || contentTrimmed.includes('tenor.com'));
 
-        const msgType = m.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
+        // If it's a GIF or a direct image URL, override 'text' type for better rendering
+        let msgType = m.type;
+        if (msgType === 'text' || !msgType) {
+            msgType = isGif ? 'gif' : isUrl ? 'image' : 'text';
+        }
 
         return {
             id: m.id,

@@ -663,7 +663,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         const contentTrimmed = typeof newMessage.content === 'string' ? newMessage.content.trim() : "";
                         const isUrl = contentTrimmed.startsWith('https://') || contentTrimmed.startsWith('http://');
                         const isGif = isUrl && (contentTrimmed.includes('giphy.com') || contentTrimmed.includes('tenor.com'));
-                        const msgType = newMessage.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
+                        
+                        // If it's a GIF or a direct image URL, override 'text' type for better rendering
+                        let msgType = newMessage.type;
+                        if (msgType === 'text' || !msgType) {
+                            msgType = isGif ? 'gif' : isUrl ? 'image' : 'text';
+                        }
 
                         const mapped: MessageRow = {
                             id: newMessage.id,
@@ -2275,6 +2280,202 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     {isSendingSnippet ? <Clock size={18} className="animate-spin" /> : <Send size={18} />}
                                     {isSendingSnippet ? 'Generating...' : 'Share Snippet'}
                                 </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Poll Creator Modal */}
+            <AnimatePresence>
+                {showPollCreator && (
+                    <motion.div
+                        key="poll-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setShowPollCreator(false)}
+                    >
+                        <motion.div
+                            key="poll-modal-card"
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/20">
+                                        <BarChart2 size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-zinc-900 uppercase tracking-tight">Create Poll</h3>
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none">Instant feedback</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowPollCreator(false)} className="p-2 hover:bg-zinc-50 rounded-full transition-colors text-zinc-400 hover:text-zinc-600"><X size={24} /></button>
+                            </div>
+
+                            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Question</label>
+                                    <input 
+                                        type="text" 
+                                        value={pollQuestion}
+                                        onChange={(e) => setPollQuestion(e.target.value)}
+                                        placeholder="What are we deciding?"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1 block">Options</label>
+                                    {pollOptions.map((opt, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={opt}
+                                                onChange={(e) => {
+                                                    const newOpts = [...pollOptions];
+                                                    newOpts[i] = e.target.value;
+                                                    setPollOptions(newOpts);
+                                                }}
+                                                placeholder={`Option ${i + 1}`}
+                                                className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 text-sm font-bold text-zinc-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                                            />
+                                            {pollOptions.length > 2 && (
+                                                <button 
+                                                    onClick={() => setPollOptions(prev => prev.filter((_, idx) => idx !== i))}
+                                                    className="p-2 text-zinc-300 hover:text-red-500 transition-colors"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {pollOptions.length < 5 && (
+                                        <button 
+                                            onClick={() => setPollOptions(prev => [...prev, ""])}
+                                            className="w-full py-3 border-2 border-dashed border-zinc-100 rounded-xl text-xs font-black uppercase tracking-widest text-zinc-400 hover:border-sky-200 hover:text-sky-500 hover:bg-sky-50 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Plus size={14} /> Add Option
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-6 bg-zinc-50 border-t border-zinc-100">
+                                <Button 
+                                    onClick={handleCreatePollAction}
+                                    disabled={!pollQuestion.trim() || pollOptions.some(o => !o.trim())}
+                                    className="w-full bg-zinc-900 hover:bg-black text-white py-6 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-zinc-900/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Send size={18} />
+                                    Launch Poll
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Theme Picker Modal */}
+            <AnimatePresence>
+                {showThemePicker && (
+                    <motion.div
+                        key="theme-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setShowThemePicker(false)}
+                    >
+                        <motion.div
+                            key="theme-modal-card"
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-purple-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/20">
+                                        <Palette size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-zinc-900 uppercase tracking-tight">Chat Themes</h3>
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none">Customize your biome</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowThemePicker(false)} className="p-2 hover:bg-zinc-50 rounded-full transition-colors text-zinc-400 hover:text-zinc-600"><X size={24} /></button>
+                            </div>
+
+                            <div className="p-6 grid grid-cols-2 gap-4">
+                                {[
+                                    { id: 'default', label: 'Classic', color: 'bg-zinc-50' },
+                                    { id: 'grasslands', label: 'Grasslands', color: 'bg-gradient-to-br from-lime-100 to-emerald-100' },
+                                    { id: 'mystic', label: 'Mystic Forest', color: 'bg-gradient-to-br from-purple-100 to-indigo-100' },
+                                    { id: 'crystal', label: 'Crystal Caves', color: 'bg-gradient-to-br from-cyan-100 to-blue-100' },
+                                ].map((theme) => (
+                                    <button
+                                        key={theme.id}
+                                        onClick={() => {
+                                            setChatTheme(theme.id as any);
+                                            setShowThemePicker(false);
+                                            soundManager.playClick(0.6);
+                                        }}
+                                        className={`group flex flex-col gap-3 p-4 rounded-2xl border-2 transition-all hover:scale-[1.02] active:scale-95 ${chatTheme === theme.id ? 'border-lime-400 bg-lime-50' : 'border-zinc-100 hover:border-zinc-200 bg-white'}`}
+                                    >
+                                        <div className={`aspect-square w-full rounded-xl ${theme.color} border border-black/5 shadow-inner group-hover:shadow-md transition-shadow`} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-center text-zinc-700">{theme.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Schedule Picker Modal */}
+            <AnimatePresence>
+                {showSchedulePicker && (
+                    <motion.div
+                        key="schedule-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setShowSchedulePicker(false)}
+                    >
+                        <motion.div
+                            key="schedule-modal-card"
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                        <Clock size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-zinc-900 uppercase tracking-tight">Schedule Message</h3>
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none">Time your mastery</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowSchedulePicker(false)} className="p-2 hover:bg-zinc-50 rounded-full transition-colors text-zinc-400 hover:text-zinc-600"><X size={24} /></button>
+                            </div>
+                            
+                            <div className="overflow-hidden">
+                                <SchedulePicker 
+                                    onSelect={(iso) => handleScheduleAction(iso)}
+                                    onCancel={() => setShowSchedulePicker(false)}
+                                />
                             </div>
                         </motion.div>
                     </motion.div>
