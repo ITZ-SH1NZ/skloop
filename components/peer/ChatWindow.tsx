@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
