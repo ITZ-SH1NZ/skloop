@@ -4,12 +4,12 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import {
-    Send, Plus, Image as ImageIcon, Smile, X, Search,
+    Send, Plus, Image as ImageIcon, Image, Smile, X, Search,
     ArrowLeft, Info, Users as UsersIcon, FileText,
     Mic, Square, Check, Video, Reply, Share2,
     Play, Pause, FastForward, ChevronDown, Copy, Star, Pin, Gift, Trash2,
     Bot, BarChart2, Calendar, Palette, PinOff, Zap, Sparkles, Clock, AlertCircle, MoreVertical, Link,
-    Quote, HelpCircle, ListChecks, Brain
+    Quote, HelpCircle, ListChecks, Brain, Code, Folder
 } from "lucide-react";
 import { PeerProfile } from "./PeerCard";
 import { CircleInfoPanel } from "./CircleInfoPanel";
@@ -25,6 +25,7 @@ import {
     pinMessage, unpinMessage, getPinnedMessage,
     createPoll, getPoll, votePoll,
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
+    getConversationMedia, sendCodeSnippet, getCodeSnippet,
     type MessageAttachment
 } from "@/actions/chat-actions";
 import { markNotificationsAsRead } from "@/actions/notification-actions";
@@ -183,6 +184,100 @@ const PollMessage = ({ pollId, currentUserId, supabase }: { pollId: string; curr
         </div>
     );
 };
+/**
+ * Rich Code Snippet Renderer
+ */
+const SnippetRenderer = ({ message }: { message: MessageRow }) => {
+    const [snippet, setSnippet] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        // If we already have the data (from joined query), use it immediately
+        if (message.snippetData) {
+            setSnippet(message.snippetData);
+            setLoading(false);
+            return;
+        }
+
+        if (message.snippetId) {
+            const fetchSnippet = (isRetry = false) => {
+                setLoading(true);
+                getCodeSnippet(message.snippetId!).then(data => {
+                    if (data) {
+                        setSnippet(data);
+                        setLoading(false);
+                    } else if (!isRetry) {
+                        // Retry once after 1.5s if not found (handles database lag)
+                        setTimeout(() => fetchSnippet(true), 1500);
+                    } else {
+                        setLoading(false);
+                    }
+                }).catch(err => {
+                    console.error("Snippet fetch failed:", err);
+                    setLoading(false);
+                });
+            };
+
+            fetchSnippet();
+        } else {
+            setLoading(false);
+        }
+    }, [message.snippetId, message.snippetData]);
+
+    const handleCopy = () => {
+        if (!snippet) return;
+        navigator.clipboard.writeText(snippet.code);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        soundManager.playClick(0.5);
+    };
+
+    if (loading) return (
+        <div className="p-4 bg-zinc-900/50 rounded-xl border border-zinc-800/50 my-2 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-zinc-800 animate-pulse" />
+            <div className="flex-1 space-y-2">
+                <div className="h-2 w-24 bg-zinc-800 animate-pulse rounded" />
+                <div className="h-2 w-32 bg-zinc-800 animate-pulse rounded" />
+            </div>
+        </div>
+    );
+    
+    if (!snippet) return (
+        <div className="p-4 bg-red-500/10 rounded-xl border border-red-500/20 my-2 flex items-center gap-3 text-red-400">
+            <AlertCircle size={18} />
+            <span className="text-xs font-bold uppercase tracking-widest italic">Snippet not found</span>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col w-full max-w-[calc(100vw-60px)] sm:max-w-[550px] bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800 shadow-2xl my-2">
+            <div className="px-4 py-2.5 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-lime-400/10 flex items-center justify-center text-lime-400">
+                        <Code size={16} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#84cc16] leading-none mb-0.5">{snippet.language}</p>
+                        <p className="text-xs font-bold text-zinc-100 truncate max-w-[150px]">{snippet.title}</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleCopy}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                >
+                    {copied ? <Check size={16} className="text-lime-400" /> : <Copy size={16} />}
+                </button>
+            </div>
+            <div className="p-4 overflow-x-auto custom-scrollbar max-w-full">
+                <code className="text-[11px] font-mono text-zinc-300 whitespace-pre">
+                    {snippet.code}
+                </code>
+            </div>
+        </div>
+    );
+};
+
 /**
  * Premium Voice Note Player with Waveform and Speed Control
  */
@@ -415,6 +510,16 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [lastSeenText, setLastSeenText] = useState<string | null>(null);
     const [localPeer, setLocalPeer] = useState<PeerProfile | null>(peer);
     const [showMediaGallery, setShowMediaGallery] = useState(false);
+    const [galleryMedia, setGalleryMedia] = useState<any[]>([]);
+    const [isGalleryLoading, setIsGalleryLoading] = useState(false);
+    const [galleryTab, setGalleryTab] = useState<'media' | 'code'>('media');
+
+    // Code Snippet State
+    const [showCodeModal, setShowCodeModal] = useState(false);
+    const [snippetTitle, setSnippetTitle] = useState("");
+    const [snippetCode, setSnippetCode] = useState("");
+    const [snippetLang, setSnippetLang] = useState("javascript");
+    const [isSendingSnippet, setIsSendingSnippet] = useState(false);
     const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [lastReadId, setLastReadId] = useState<string | null>(null);
@@ -546,23 +651,34 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     ...m, 
                                     id: newMessage.id,
                                     attachments: newMessage.attachments || m.attachments,
-                                    text: newMessage.content || m.text
+                                    text: newMessage.content || m.text,
+                                    snippetId: newMessage.snippet_id
                                 } : m);
                             }
                         }
+
+                        // Deduplicate: If message already exists (e.g. sender already updated it), don't add again
+                        if (prev.find(m => m.id === newMessage.id)) return prev;
+
+                        const contentTrimmed = typeof newMessage.content === 'string' ? newMessage.content.trim() : "";
+                        const isUrl = contentTrimmed.startsWith('https://') || contentTrimmed.startsWith('http://');
+                        const isGif = isUrl && (contentTrimmed.includes('giphy.com') || contentTrimmed.includes('tenor.com'));
+                        const msgType = newMessage.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
 
                         const mapped: MessageRow = {
                             id: newMessage.id,
                             senderId: newMessage.sender_id,
                             senderName: newMessage.sender_id === currentUserId ? 'You' : (peer.name || 'User'),
                             text: newMessage.content,
-                            type: newMessage.type,
+                            type: msgType as any,
+                            mediaUrl: isUrl ? newMessage.content : undefined,
                             timestamp: new Date(newMessage.created_at),
                             status: newMessage.status,
                             replyToId: newMessage.reply_to_id,
                             attachments: newMessage.attachments || [],
                             isDeleted: newMessage.is_deleted,
-                            pollId: newMessage.poll_id
+                            pollId: newMessage.poll_id,
+                            snippetId: newMessage.snippet_id
                         };
                         return [...prev, mapped];
                     });
@@ -586,7 +702,10 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         text: updated.is_deleted ? "Message deleted" : updated.content,
                         status: updated.status,
                         isEdited: updated.is_edited,
-                        pollId: updated.poll_id
+                        pollId: updated.poll_id,
+                        snippetId: updated.snippet_id,
+                        // Preserve snippetData if it already exists and isn't in payload
+                        snippetData: updated.code_snippets ? (Array.isArray(updated.code_snippets) ? updated.code_snippets[0] : updated.code_snippets) : m.snippetData
                     } : m));
                 } else if (payload.eventType === 'DELETE') {
                     setMessages(prev => prev.filter(m => m.id !== payload.old.id));
@@ -969,6 +1088,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         };
 
         if (customUrl) optimisticMsg.text = customUrl; // For GIFs
+        
+        // Ensure mediaUrl is set for optimistic rendering of GIFs and images
+        if (customUrl && (type === 'gif' || type === 'image' || type === 'sticker')) {
+            optimisticMsg.mediaUrl = customUrl;
+        }
 
         setMessages(prev => [...prev, optimisticMsg]);
         setInputValue("");
@@ -1038,7 +1162,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                const img = new Image();
+                const img = new window.Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     let width = img.width;
@@ -1135,6 +1259,71 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
             video.onerror = () => resolve(file);
         });
+    };
+
+    const handleOpenGallery = async () => {
+        if (!peer) return;
+        setShowMediaGallery(true);
+        setIsGalleryLoading(true);
+        try {
+            const media = await getConversationMedia(peer.id);
+            console.log("[Gallery] Fetched media items:", media.length, media);
+            setGalleryMedia(media);
+        } catch (err) {
+            console.error("Failed to fetch gallery media", err);
+        } finally {
+            setIsGalleryLoading(false);
+        }
+    };
+
+    const handleSendSnippet = async () => {
+        if (!peer || !currentUserId || !snippetCode.trim()) return;
+        setIsSendingSnippet(true);
+        soundManager.playClick(0.6);
+
+        const tempId = `temp-snippet-${Date.now()}`;
+        const optimisticMsg: MessageRow = {
+            id: tempId,
+            senderId: currentUserId,
+            senderName: 'You',
+            text: `Shared a code snippet: ${snippetTitle || 'Untitled'}`,
+            type: 'code',
+            timestamp: new Date(),
+            status: 'sent'
+        };
+
+        setMessages(prev => [...prev, optimisticMsg]);
+        setShowCodeModal(false);
+        if (isNearBottomRef.current) setTimeout(() => scrollToBottom("smooth"), 50);
+
+        try {
+            const { message: savedMsg } = await sendCodeSnippet(
+                peer.id,
+                currentUserId,
+                snippetTitle || 'Untitled',
+                snippetCode,
+                snippetLang
+            );
+
+            if (savedMsg) {
+                setMessages(prev => prev.map(m => m.id === tempId ? { 
+                    ...m, 
+                    id: savedMsg.id,
+                    snippetId: (savedMsg as any).snippet_id,
+                    status: 'sent'
+                } : m));
+            }
+            
+            // Clear inputs
+            setSnippetTitle("");
+            setSnippetCode("");
+            setSnippetLang("javascript");
+        } catch (err) {
+            console.error("Snippet failed", err);
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: "❌ Failed to send snippet.", type: 'text' } : m));
+        } finally {
+            setIsSendingSnippet(false);
+        }
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1340,6 +1529,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         <div className="grid gap-1">
                                             {[
                                                 { icon: Sparkles, label: 'Summarize', color: 'text-lime-600', bg: 'bg-lime-50', action: () => handleLoopyAction('summarize') },
+                                                { icon: Image, label: 'Media & Docs', color: 'text-blue-600', bg: 'bg-blue-50', action: () => handleOpenGallery() },
                                                 { icon: BarChart2, label: 'Create Poll', color: 'text-sky-600', bg: 'bg-sky-50', action: () => setShowPollCreator(true) },
                                                 { icon: Palette, label: 'Chat Themes', color: 'text-purple-600', bg: 'bg-purple-50', action: () => setShowThemePicker(true) },
                                                 ...(isGroup ? [{ icon: Info, label: 'Circle Info', color: 'text-zinc-600', bg: 'bg-zinc-100', action: () => setShowInfoPanel(true) }] : [])
@@ -1572,6 +1762,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                             </p>
                                                                         ) : msg.type === 'poll' && msg.pollId ? (
                                                                             <PollMessage pollId={msg.pollId} currentUserId={currentUserId} supabase={supabase} />
+                                                                        ) : msg.type === 'code' ? (
+                                                                            <SnippetRenderer message={msg} />
                                                                         ) : (
                                                                             <>
                                                                                 {msg.text && msg.type === 'text' && (
@@ -1687,15 +1879,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         <ImageIcon size={18} className="text-blue-500 group-hover/att:scale-110 transition-transform" /> 
                                         Photos
                                     </button>
-                                    <button key="att-video" type="button" onClick={() => {
-                                        if (fileInputRef.current) {
-                                            fileInputRef.current.accept = "video/*";
-                                            fileInputRef.current.click();
-                                        }
-                                        setShowAttachments(false);
-                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
-                                        <Video size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" /> 
-                                        Videos
+                                    <button key="att-code" type="button" onClick={() => { setShowCodeModal(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <Code size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" /> 
+                                        Code Snippet
                                     </button>
                                     <button key="att-gif" type="button" onClick={() => { setShowGifPicker(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
                                         <Gift size={18} className="text-purple-600 group-hover/att:scale-110 transition-transform" /> 
@@ -1907,47 +2093,190 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-2xl flex flex-col p-6"
+                        className="fixed inset-0 z-[120] bg-white/98 backdrop-blur-2xl flex flex-col"
                     >
-                        <div className="flex justify-between items-center mb-8">
+                        {/* Header */}
+                        <div className="flex justify-between items-center p-6 border-b border-zinc-100">
                             <div>
-                                <h2 className="text-2xl font-black text-zinc-900 tracking-tighter">Media Gallery</h2>
-                                <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Shared in this conversation</p>
+                                <h2 className="text-2xl font-black text-zinc-900 tracking-tighter uppercase">Media Archive</h2>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] leading-none mt-1">Found in this conversation</p>
                             </div>
-                            <Button size="icon" variant="ghost" className="rounded-full bg-zinc-100" onClick={() => setShowMediaGallery(false)}><X size={20} /></Button>
+                            <Button size="icon" variant="ghost" className="rounded-full bg-zinc-100/50 hover:bg-zinc-100 transition-colors" onClick={() => setShowMediaGallery(false)}><X size={20} /></Button>
                         </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar">
-                            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                                {messages.filter(m => !m.isDeleted && (m.mediaUrl || (m.attachments && m.attachments.length > 0))).flatMap(m => {
-                                    const allMedia = [];
-                                    if (m.mediaUrl) allMedia.push({ url: m.mediaUrl, type: 'image' });
-                                    if (m.attachments) {
-                                        m.attachments.forEach(att => {
-                                            if (att.type === 'image' || att.type === 'video') allMedia.push(att);
-                                        });
-                                    }
-                                    return allMedia;
-                                }).map((media, i) => (
-                                    <motion.button
-                                        key={`${media.url}-${i}`}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: i * 0.02 }}
-                                        onClick={() => { setLightboxUrl(media.url); setShowMediaGallery(false); }}
-                                        className="aspect-square rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 hover:scale-[1.02] transition-transform relative group/media"
-                                    >
-                                        {media.type === 'image' ? (
-                                            <img src={media.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-zinc-200">
-                                                <Video size={24} className="text-zinc-500" />
+
+                        {/* Tabs */}
+                        <div className="flex gap-8 px-8 py-4 border-b border-zinc-50 bg-white/50 sticky top-0">
+                            <button 
+                                onClick={() => setGalleryTab('media')}
+                                className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${galleryTab === 'media' ? 'border-[#84cc16] text-[#84cc16]' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+                            >
+                                Photos & Audio
+                            </button>
+                            <button 
+                                onClick={() => setGalleryTab('code')}
+                                className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${galleryTab === 'code' ? 'border-[#84cc16] text-[#84cc16]' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+                            >
+                                Code Snippets
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                            {isGalleryLoading ? (
+                                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                    {[...Array(12)].map((_, i) => (
+                                        <div key={`skeleton-${i}`} className="aspect-square rounded-2xl bg-zinc-100 animate-pulse" />
+                                    ))}
+                                </div>
+                            ) : galleryMedia.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-zinc-400 opacity-60">
+                                    <Folder size={48} strokeWidth={1} className="mb-4" />
+                                    <p className="text-sm font-bold uppercase tracking-widest">Nothing shared here yet</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                    {galleryMedia.filter(m => {
+                                        if (galleryTab === 'media') return m.type === 'image' || m.type === 'audio' || m.type === 'sticker' || m.type === 'gif';
+                                        return m.type === 'code';
+                                    }).map((media, i) => (
+                                        <motion.button
+                                            key={`${media.messageId}-${i}`}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: i * 0.05 }}
+                                            onClick={() => {
+                                                if (media.type === 'image' || media.type === 'gif' || media.type === 'sticker') setLightboxUrl(media.url);
+                                                else scrollToMessage(media.messageId);
+                                                setShowMediaGallery(false);
+                                            }}
+                                            className={`aspect-square rounded-2xl overflow-hidden border transition-all active:scale-[0.97] group relative shadow-sm ${media.type === 'image' || media.type === 'gif' || media.type === 'sticker' ? 'bg-zinc-100 border-transparent' : 'bg-zinc-50 border-zinc-100 p-4 flex flex-col items-center justify-center gap-2 hover:border-lime-200'}`}
+                                        >
+                                            {media.type === 'image' || media.type === 'gif' || media.type === 'sticker' ? (
+                                                <img src={media.url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                                            ) : media.type === 'audio' ? (
+                                                <>
+                                                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-zinc-400 group-hover:text-blue-500 transition-colors">
+                                                        <Mic size={24} />
+                                                    </div>
+                                                    <p className="text-[9px] font-black uppercase text-zinc-500 line-clamp-1 w-full text-center px-2">Voice Note</p>
+                                                </>
+                                            ) : media.type === 'code' ? (
+                                                <>
+                                                    <div className="w-12 h-12 rounded-xl bg-zinc-950 shadow-sm flex items-center justify-center text-lime-400 group-hover:bg-[#84cc16] group-hover:text-black transition-colors">
+                                                        <Code size={24} />
+                                                    </div>
+                                                    <div className="text-center w-full px-2">
+                                                        <p className="text-[9px] font-black uppercase text-zinc-900 truncate">{media.title}</p>
+                                                        <p className="text-[7px] font-bold uppercase text-zinc-400 tracking-widest">{media.language}</p>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-zinc-400 group-hover:text-amber-500 transition-colors">
+                                                        <FileText size={24} />
+                                                    </div>
+                                                    <p className="text-[9px] font-black uppercase text-zinc-500 line-clamp-1 w-full text-center px-2">{media.name}</p>
+                                                </>
+                                            )}
+                                            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <p className="text-[8px] font-bold text-white uppercase text-right">{new Date(media.timestamp).toLocaleDateString()}</p>
                                             </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-black/0 group-hover/media:bg-black/10 transition-colors" />
-                                    </motion.button>
-                                ))}
-                            </div>
+                                        </motion.button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Code Snippet Modal */}
+            <AnimatePresence>
+                {showCodeModal && (
+                    <motion.div
+                        key="code-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => setShowCodeModal(false)}
+                    >
+                        <motion.div
+                            key="code-modal-card"
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[#84cc16] text-black flex items-center justify-center">
+                                        <Code size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-zinc-900 uppercase tracking-tight">Create Snippet</h3>
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none">Share technical mastery</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowCodeModal(false)} className="p-2 hover:bg-zinc-50 rounded-full transition-colors text-zinc-400 hover:text-zinc-600"><X size={24} /></button>
+                            </div>
+
+                            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Snippet Title</label>
+                                    <input 
+                                        type="text" 
+                                        value={snippetTitle}
+                                        onChange={(e) => setSnippetTitle(e.target.value)}
+                                        placeholder="e.g. Auth Middleware for Next.js"
+                                        className="w-full bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/20 focus:border-[#84cc16]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Language</label>
+                                        <select 
+                                            value={snippetLang}
+                                            onChange={(e) => setSnippetLang(e.target.value)}
+                                            className="w-full bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/20 appearance-none"
+                                        >
+                                            <option value="javascript">JavaScript</option>
+                                            <option value="typescript">TypeScript</option>
+                                            <option value="python">Python</option>
+                                            <option value="html">HTML</option>
+                                            <option value="css">CSS</option>
+                                            <option value="sql">SQL</option>
+                                            <option value="rust">Rust</option>
+                                            <option value="go">Go</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Source Code</label>
+                                    <textarea 
+                                        rows={10}
+                                        value={snippetCode}
+                                        onChange={(e) => setSnippetCode(e.target.value)}
+                                        placeholder="Paste or write your code here..."
+                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 font-mono text-sm text-lime-400 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/20 custom-scrollbar"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="p-6 bg-zinc-50 border-t border-zinc-100">
+                                <Button 
+                                    onClick={handleSendSnippet}
+                                    disabled={!snippetCode.trim() || isSendingSnippet}
+                                    className="w-full bg-zinc-900 hover:bg-black text-white py-6 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-zinc-900/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isSendingSnippet ? <Clock size={18} className="animate-spin" /> : <Send size={18} />}
+                                    {isSendingSnippet ? 'Generating...' : 'Share Snippet'}
+                                </Button>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

@@ -17,7 +17,7 @@ export interface MessageRow {
     caption?: string;
     mediaUrl?: string; // Legacy support
     attachments?: MessageAttachment[];
-    type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file" | "poll";
+    type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file" | "poll" | "code";
     status?: 'sent' | 'delivered' | 'read';
     replyToId?: string;
     isEdited?: boolean;
@@ -26,6 +26,8 @@ export interface MessageRow {
     reactions?: { emoji: string; count: number; userIds: string[] }[];
     timestamp: Date;
     pollId?: string; // Link to polls table for type === 'poll'
+    snippetId?: string; // Link to code_snippets table for type === 'code'
+    snippetData?: { title: string; language: string; code: string }; // Prefetched snippet data
 }
 
 /**
@@ -49,6 +51,7 @@ export async function getConversationMessages(conversationId: string): Promise<M
             edited_at,
             is_deleted,
             poll_id,
+            snippet_id,
             created_at,
             profiles (
                 id,
@@ -59,10 +62,15 @@ export async function getConversationMessages(conversationId: string): Promise<M
             message_reactions (
                 emoji,
                 user_id
+            ),
+            code_snippets:code_snippets!messages_snippet_id_fkey (
+                title,
+                language,
+                code
             )
         `)
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(100);
 
     if (error) {
@@ -70,7 +78,10 @@ export async function getConversationMessages(conversationId: string): Promise<M
         return [];
     }
 
-    return (dbMessages ?? []).map((m: any) => {
+    // Reverse to chronological order for the UI
+    const messages = (dbMessages ?? []).reverse();
+
+    return messages.map((m: any) => {
         const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
         const isUrl = typeof m.content === 'string' && m.content.startsWith('https://');
         const isGif = isUrl && m.content.includes('giphy.com');
@@ -93,6 +104,8 @@ export async function getConversationMessages(conversationId: string): Promise<M
             editedAt: m.edited_at ? new Date(m.edited_at) : undefined,
             isDeleted: m.is_deleted || false,
             pollId: m.poll_id || undefined,
+            snippetId: m.snippet_id || undefined,
+            snippetData: m.code_snippets ? (Array.isArray(m.code_snippets) ? m.code_snippets[0] : m.code_snippets) : undefined,
             reactions: m.message_reactions ? (m.message_reactions as any[]).reduce((acc: any[], r) => {
                 const existing = acc.find(a => a.emoji === r.emoji);
                 if (existing) {
@@ -812,5 +825,180 @@ export async function getPendingScheduledMessages(conversationId: string) {
         .order('send_at', { ascending: true });
 
     return data || [];
+}
+
+/**
+ * Fetches all media (images, videos, files) from a conversation.
+ */
+export async function getConversationMedia(conversationId: string) {
+    console.log(`[Action] getConversationMedia: Fetching for convo ${conversationId}`);
+    const supabase = await createClient();
+
+    // Fetch messages with a broader query to see what's happening
+    const { data, error } = await supabase
+        .from('messages')
+        .select(`
+            id, 
+            attachments, 
+            created_at, 
+            type, 
+            content,
+            caption,
+            snippet_id
+        `)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("[Action] getConversationMedia Error:", error.message);
+        return [];
+    }
+
+    console.log(`[Action] getConversationMedia: Found ${data?.length || 0} total messages`);
+
+    if (!data || data.length === 0) return [];
+
+    // Optional: Fetch snippet metadata separately to avoid join issues
+    const snippetIds = data.filter(m => m.snippet_id).map(m => m.snippet_id);
+    let snippetMap: Record<string, any> = {};
+    if (snippetIds.length > 0) {
+        const { data: snippets } = await supabase
+            .from('code_snippets')
+            .select('id, title, language')
+            .in('id', snippetIds);
+        
+        snippets?.forEach(s => {
+            snippetMap[s.id] = s;
+        });
+    }
+
+    const allMedia = data.flatMap((msg: any) => {
+        const results = [];
+        
+        const isUrl = typeof msg.content === 'string' && msg.content.startsWith('https://');
+        const isGif = isUrl && msg.content.includes('giphy.com');
+        const effectiveType = msg.type || (isGif ? 'gif' : isUrl ? 'image' : 'text');
+
+        // 1. Handle code snippets
+        if (effectiveType === 'code' || msg.snippet_id) {
+            const snip = snippetMap[msg.snippet_id];
+            results.push({
+                messageId: msg.id,
+                timestamp: msg.created_at,
+                type: 'code',
+                title: snip?.title || 'Untitled Snippet',
+                language: snip?.language || 'text',
+                snippetId: msg.snippet_id
+            });
+        }
+
+        // 2. Handle modern attachments array
+        const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+        attachments.forEach((att: any) => {
+            if (att.type === 'video') return;
+
+            results.push({
+                messageId: msg.id,
+                timestamp: msg.created_at,
+                type: att.type,
+                url: att.url,
+                name: att.name || (att.type === 'audio' ? 'Voice Note' : 'Media'),
+                content: msg.caption || msg.content
+            });
+        });
+
+        // 3. Handle legacy media
+        if (attachments.length === 0) {
+            const mediaTypes = ['image', 'audio', 'sticker', 'gif'];
+            if (mediaTypes.includes(effectiveType)) {
+                 results.push({
+                    messageId: msg.id,
+                    timestamp: msg.created_at,
+                    type: effectiveType,
+                    url: msg.content,
+                    name: effectiveType === 'audio' ? 'Voice Note' : 'Media',
+                    content: msg.caption
+                });
+            }
+        }
+
+        return results;
+    });
+
+    console.log(`[Action] getConversationMedia: Returning ${allMedia.length} media items`);
+    return allMedia;
+}
+
+/**
+ * Creates a code snippet and sends it as a message.
+ */
+export async function sendCodeSnippet(
+    conversationId: string,
+    senderId: string,
+    title: string,
+    code: string,
+    language: string
+) {
+    const supabase = await createClient();
+    const snippetId = crypto.randomUUID();
+
+    // 1. Create the code snippet entry first
+    const { data: snippetData, error: snippetError } = await supabase
+        .from('code_snippets')
+        .insert({
+            id: snippetId,
+            conversation_id: conversationId,
+            created_by: senderId,
+            title,
+            language,
+            code
+        })
+        .select()
+        .single();
+
+    if (snippetError) throw new Error(snippetError.message);
+
+    // 2. Create the message WITH the snippet_id already linked
+    const { data: msgData, error: msgError } = await supabase
+        .from('messages')
+        .insert({
+            conversation_id: conversationId,
+            sender_id: senderId,
+            content: `Shared a code snippet: ${title}`,
+            type: 'code',
+            snippet_id: snippetId,
+            status: 'sent'
+        })
+        .select()
+        .single();
+
+    if (msgError) {
+        // Cleanup snippet if message fails
+        await supabase.from('code_snippets').delete().eq('id', snippetId);
+        throw new Error(msgError.message);
+    }
+
+    // 3. Back-link the message_id in the snippet (optional but good for consistency)
+    await supabase.from('code_snippets').update({ message_id: msgData.id }).eq('id', snippetId);
+
+    return { 
+        message: { ...msgData, snippet_id: snippetId }, 
+        snippet: snippetData 
+    };
+}
+
+/**
+ * Fetches code snippet details.
+ */
+export async function getCodeSnippet(snippetId: string) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('code_snippets')
+        .select('*')
+        .eq('id', snippetId)
+        .single();
+
+    if (error) return null;
+    return data;
 }
 
