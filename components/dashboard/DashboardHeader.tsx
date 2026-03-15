@@ -52,31 +52,10 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
     useEffect(() => {
         fetchNotifications();
 
-        // --- REALTIME NOTIFICATIONS ---
-        const channel = supabase
-            .channel(`user_notifications_${initialUser?.id || 'current'}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'notifications'
-                },
-                (payload) => {
-                    const newNotif = payload.new as Notification;
-                    setNotifications(prev => [newNotif, ...prev].slice(0, 20));
-                    setUnreadCount(prev => prev + 1);
-                    
-                    // Optional: Show toast for new notification
-                    toast(newNotif.title, "success");
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [fetchNotifications, supabase, toast, initialUser?.id]);
+        // The real-time listening is now handled globally by NotificationListener.
+        // We just need to ensure the local unread count stays updated.
+        // In a more advanced version, we'd use SWR mutation or a shared state.
+    }, [fetchNotifications]);
 
     const handleMarkAllRead = async () => {
         const { data: { user } } = await supabase.auth.getUser();

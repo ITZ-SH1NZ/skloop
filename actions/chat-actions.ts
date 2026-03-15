@@ -153,6 +153,7 @@ export async function sendMessage(
             .neq('user_id', senderId);
 
         if (participants && participants.length > 0) {
+            console.log(`[Chat Action] Triggering notifications for ${participants.length} participants.`);
             // 2. Get sender profile for the notification title/content
             const { data: senderProfile } = await supabase
                 .from('profiles')
@@ -163,11 +164,9 @@ export async function sendMessage(
             const senderName = senderProfile?.full_name || senderProfile?.username || "Someone";
             
             // 3. Create notifications for each participant
-            // We do this in a loop or Promise.all. For high volume, a DB trigger is better, 
-            // but this is easier for debugging and custom logic right now.
             const { createNotification } = await import("./notification-actions");
             
-            await Promise.all(participants.map(p => 
+            const results = await Promise.all(participants.map(p => 
                 createNotification({
                     user_id: p.user_id,
                     actor_id: senderId,
@@ -180,6 +179,9 @@ export async function sendMessage(
                     }
                 })
             ));
+            console.log(`[Chat Action] Notifications creation results:`, results.map(r => r ? "Success" : "Failed"));
+        } else {
+            console.log("[Chat Action] No participants found for notification (other than sender).");
         }
     } catch (notifError) {
         // Non-blocking error for notifications

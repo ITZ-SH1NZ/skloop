@@ -9,6 +9,8 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { useLoading } from "@/components/LoadingProvider";
 
+import { NotificationListener } from "../notifications/NotificationListener";
+
 // Pages that need fixed full-height layout (no scroll) rather than Lenis scroll
 const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages"];
 
@@ -25,6 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
             className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-stretch"
         >
+            <NotificationListener />
             {/* Mobile Header (Hidden on Desktop) */}
             <header className="md:hidden fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] bg-surface/80 backdrop-blur-md z-30 flex items-center px-4 border-b border-border/50 justify-between pt-[env(safe-area-inset-top)]">
                 <div className="flex items-center gap-3">
