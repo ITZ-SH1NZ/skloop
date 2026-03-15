@@ -393,7 +393,7 @@ const LoopyMascot = ({ size = 80, mood = "happy" }: { size?: number, mood?: "hap
 };
 
 // Sub-component for Loopy, the character guide
-function LoopyCompanion({ activeNode, index, totalNodes }: { activeNode: PathNode, index: number, totalNodes: number }) {
+function LoopyCompanion({ activeNode, index, totalNodes, isMobile }: { activeNode: PathNode, index: number, totalNodes: number, isMobile: boolean }) {
     const [clickCount, setClickCount] = useState(0);
     const [mood, setMood] = useState<"happy" | "surprised" | "annoyed">("happy");
     const [phraseIndex, setPhraseIndex] = useState(0);
@@ -488,16 +488,16 @@ function LoopyCompanion({ activeNode, index, totalNodes }: { activeNode: PathNod
             style={{
                 left: `${activeNode.position.x}%`,
                 top: `${activeNode.position.y}px`,
-                marginLeft: isLabelLeftOfNode ? '60px' : '-140px',
-                marginTop: '-40px'
+                marginLeft: isMobile ? (isLabelLeftOfNode ? '35px' : '-115px') : (isLabelLeftOfNode ? '60px' : '-140px'),
+                marginTop: isMobile ? '-30px' : '-40px'
             }}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.8, scaleY: 0.6, scaleX: 1.3 }}
             onClick={handleInteraction}
         >
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-12 h-4 bg-black/10 blur-md rounded-full -z-10" />
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-10 md:w-12 h-3 md:h-4 bg-black/10 blur-md rounded-full -z-10" />
             
-            <LoopyMascot size={80} mood={mood} />
+            <LoopyMascot size={isMobile ? 65 : 80} mood={mood} />
             
             {/* Thought Bubble */}
             <motion.div 
@@ -615,12 +615,12 @@ export default function GamifiedPath() {
                     status = "active";
                 }
 
-                const amplitude = 30;
+                const amplitude = isMobile ? 22 : 30;
                 const frequency = Math.PI / 2;
                 const xOffset = Math.sin(idx * frequency) * amplitude;
 
                 const x = topic.position_x || (50 + xOffset);
-                const y = idx * 220 + 150;
+                const y = idx * (isMobile ? 180 : 220) + 150;
 
                 nodes.push({
                     ...topic,
@@ -777,17 +777,17 @@ export default function GamifiedPath() {
                 <div className="relative z-30">
                     <button
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className="bg-zinc-900 text-white pl-4 pr-6 py-3 rounded-2xl flex items-center gap-3 shadow-lg shadow-zinc-900/10 hover:bg-zinc-800 transition-all active:scale-95"
+                        className="bg-zinc-900 text-white pl-3 md:pl-4 pr-4 md:pr-6 py-2.5 md:py-3 rounded-2xl flex items-center gap-2 md:gap-3 shadow-lg shadow-zinc-900/10 hover:bg-zinc-800 transition-all active:scale-95 w-full md:w-auto overflow-hidden text-ellipsis whitespace-nowrap"
                     >
-                        <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                            {tracks.find(t => t.id === currentTrackId)?.slug === "web-development" ? <Zap size={16} className="text-yellow-400" /> : <Trophy size={16} className="text-lime-400" />}
+                        <div className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-zinc-800 flex items-center justify-center border border-zinc-700 shrink-0">
+                            {tracks.find(t => t.id === currentTrackId)?.slug === "web-development" ? <Zap size={14} className="text-yellow-400" /> : <Trophy size={14} className="text-lime-400" />}
                         </div>
-                        <div className="text-left">
-                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Current Track</div>
-                            <div className="font-bold leading-tight">{tracks.find(t => t.id === currentTrackId)?.title || "Select Track"}</div>
+                        <div className="text-left flex-1 min-w-0">
+                            <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Current Track</div>
+                            <div className="font-bold leading-tight text-xs md:text-base truncate">{tracks.find(t => t.id === currentTrackId)?.title || "Select Track"}</div>
                         </div>
-                        <motion.div animate={{ rotate: isFilterOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                        <motion.div animate={{ rotate: isFilterOpen ? 180 : 0 }} transition={{ duration: 0.2 }} className="shrink-0">
+                            <svg width="10" height="10" md-width="12" md-height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                         </motion.div>
                     </button>
 
@@ -824,23 +824,23 @@ export default function GamifiedPath() {
                     </AnimatePresence>
                 </div>
 
-                <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto">
-                    <div className="bg-white px-5 py-2.5 rounded-xl border border-zinc-200 shadow-sm flex items-center gap-3 flex-shrink-0">
-                        <div className="p-1.5 bg-lime-100 rounded-lg">
-                            <Trophy size={16} className="text-lime-600" />
+                <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto scrollbar-hide">
+                    <div className="bg-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl border border-zinc-200 shadow-sm flex items-center gap-2 md:gap-3 flex-shrink-0">
+                        <div className="p-1 md:p-1.5 bg-lime-100 rounded-lg">
+                            <Trophy size={isMobile ? 14 : 16} className="text-lime-600" />
                         </div>
                         <div>
-                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total XP</div>
-                            <div className="text-lg font-black text-zinc-900">{profile?.xp?.toLocaleString() || 0}</div>
+                            <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Total XP</div>
+                            <div className="text-sm md:text-lg font-black text-zinc-900">{profile?.xp?.toLocaleString() || 0}</div>
                         </div>
                     </div>
-                    <div className="bg-white px-5 py-2.5 rounded-xl border border-zinc-200 shadow-sm flex items-center gap-3 flex-shrink-0">
-                        <div className="p-1.5 bg-amber-100 rounded-lg">
-                            <Zap size={16} className="text-amber-600" />
+                    <div className="bg-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl border border-zinc-200 shadow-sm flex items-center gap-2 md:gap-3 flex-shrink-0">
+                        <div className="p-1 md:p-1.5 bg-amber-100 rounded-lg">
+                            <Zap size={isMobile ? 14 : 16} className="text-amber-600" />
                         </div>
                         <div>
-                            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Streak</div>
-                            <div className="text-lg font-black text-zinc-900">{profile?.streak || 0} {profile?.streak === 1 ? 'Day' : 'Days'}</div>
+                            <div className="text-[8px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Streak</div>
+                            <div className="text-sm md:text-lg font-black text-zinc-900">{profile?.streak || 0} {profile?.streak === 1 ? 'Day' : 'Days'}</div>
                         </div>
                     </div>
                 </div>
@@ -878,6 +878,7 @@ export default function GamifiedPath() {
                             activeNode={pathData[activeNodeIndex]} 
                             index={activeNodeIndex}
                             totalNodes={pathData.length}
+                            isMobile={isMobile}
                         />
                     )}
 
@@ -1044,14 +1045,14 @@ export default function GamifiedPath() {
                                     }}
                                     disabled={node.status === "locked"}
                                     className={`
-                                    w-14 h-14 md:w-20 md:h-20 rounded-[2rem] flex items-center justify-center
+                                    w-12 h-12 md:w-20 md:h-20 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center
                                     relative group z-10
                                     ${node.status === "locked" ? "cursor-not-allowed opacity-80" : "cursor-pointer"}
                                 `}
                                 >
                                     <motion.div 
                                         layoutId={`node-bg-${node.id}`}
-                                        className="absolute inset-0 rounded-[2rem] z-0 shadow-lg"
+                                        className="absolute inset-0 rounded-[1.5rem] md:rounded-[2rem] z-0 shadow-lg"
                                         style={{ 
                                             background: node.status === 'completed' ? '#84cc16' : 
                                                         node.status === 'active' ? '#ffffff' : '#e4e4e7' 
@@ -1070,12 +1071,12 @@ export default function GamifiedPath() {
                                     )}
 
                                     <div className="relative w-full h-full z-10">
-                                        <div className={`absolute inset-0 top-2 rounded-[2rem] transition-colors duration-300
+                                        <div className={`absolute inset-0 top-1.5 md:top-2 rounded-[1.5rem] md:rounded-[2rem] transition-colors duration-300
                                         ${node.status === "completed" ? "bg-lime-600" :
                                                 node.status === "active" ? "bg-lime-500" : "bg-zinc-300"}
                                     `} />
 
-                                        <div className={`absolute inset-0 rounded-[2rem] border-b-[6px] flex items-center justify-center transition-all duration-300 active:translate-y-1.5 active:border-b-0
+                                        <div className={`absolute inset-0 rounded-[1.5rem] md:rounded-[2rem] border-b-[4px] md:border-b-[6px] flex items-center justify-center transition-all duration-300 active:translate-y-1 md:active:translate-y-1.5 active:border-b-0
                                         ${node.status === "completed" ? "bg-gradient-to-b from-lime-400 to-lime-500 border-lime-600 text-white shadow-inner" :
                                                 node.status === "active" ? "bg-gradient-to-b from-white to-lime-50 border-lime-500 text-lime-600 shadow-[inset_0_-4px_12px_rgba(132,204,22,0.15)]" : "bg-gradient-to-b from-zinc-50 to-zinc-100 border-zinc-300 text-zinc-400"}
                                     `}>
@@ -1083,7 +1084,11 @@ export default function GamifiedPath() {
                                                 animate={node.status === "active" ? { scale: [1, 1.2, 1] } : {}}
                                                 transition={{ duration: 1.5, repeat: Infinity }}
                                             >
-                                                {getIcon(node.status)}
+                                                {isMobile ? (
+                                                    <div className="scale-75">
+                                                        {getIcon(node.status)}
+                                                    </div>
+                                                ) : getIcon(node.status)}
                                             </motion.div>
                                         </div>
                                     </div>
@@ -1115,13 +1120,13 @@ export default function GamifiedPath() {
 
                                 <motion.div
                                     className={`absolute top-1/2 -translate-y-1/2 pointer-events-none z-20 flex flex-col justify-center
-                                    ${isLabelLeftOfNode ? "right-full mr-3 md:mr-8" : "left-full ml-3 md:ml-8"}
+                                    ${isLabelLeftOfNode ? "right-full mr-2 md:mr-8" : "left-full ml-2 md:ml-8"}
                                 `}
                                     animate={node.status === "active" ? { y: [0, -3, 0] } : {}}
                                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                                 >
-                                    <div className={`text-[10px] md:text-sm font-bold px-3 py-2 md:px-4 md:py-2.5 rounded-2xl shadow-xl shadow-zinc-200/50 border backdrop-blur-md transition-colors duration-300 relative max-w-[110px] sm:max-w-none overflow-hidden text-ellipsis
-                                        ${node.status === "active" ? "bg-lime-500 text-white border-lime-400 scale-110" : "bg-white/95 text-zinc-600 border-zinc-200"}
+                                    <div className={`text-[10px] md:text-sm font-bold px-2.5 py-1.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl shadow-xl shadow-zinc-200/50 border backdrop-blur-md transition-colors duration-300 relative max-w-[100px] sm:max-w-none overflow-hidden text-ellipsis
+                                        ${node.status === "active" ? "bg-lime-500 text-white border-lime-400 scale-105 md:scale-110" : "bg-white/95 text-zinc-600 border-zinc-200"}
                                         ${isLabelLeftOfNode ? "origin-right text-right" : "origin-left text-left"}
                                     `}>
                                         <div className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 md:w-3 md:h-3 rotate-45 border backdrop-blur-md
@@ -1133,9 +1138,9 @@ export default function GamifiedPath() {
                                     `}
                                             style={isLabelLeftOfNode ? { clipPath: 'polygon(100% 0, 0 0, 100% 100%)' } : { clipPath: 'polygon(0 0, 0 100%, 100% 100%)' }}
                                         />
-                                        <span className="relative z-10 block line-clamp-2 md:whitespace-nowrap">{node.title}</span>
+                                        <span className="relative z-10 block line-clamp-1 md:whitespace-nowrap">{node.title}</span>
                                         {node.type && (
-                                            <span className={`relative z-10 block text-[8px] md:text-[9px] uppercase tracking-widest mt-0.5 opacity-70 font-black
+                                            <span className={`relative z-10 block text-[7px] md:text-[9px] uppercase tracking-widest mt-0.5 opacity-70 font-black
                                             ${node.status === "active" ? "text-lime-100" : "text-zinc-400"}
                                         `}>
                                                 {node.type} Lesson

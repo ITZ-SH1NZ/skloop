@@ -39,7 +39,7 @@ export default function MarketingFooter() {
 
                     <div className="md:col-span-2 flex flex-col gap-4">
                         <h4 className="text-lime-400 font-black uppercase tracking-widest text-sm mb-2">Resources</h4>
-                        <FooterLink href="/docs">Strategy Guide (Docs)</FooterLink>
+                        <FooterLink href="/manifesto">The Lore</FooterLink>
                         <FooterLink href="/login">Find Mentors</FooterLink>
                         <FooterLink href="/login">Study Circles</FooterLink>
                     </div>

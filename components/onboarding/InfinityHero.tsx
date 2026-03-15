@@ -165,7 +165,7 @@ export const InfinityHero = () => {
 
                     <Link href="/manifesto">
                         <button className="px-8 md:px-12 py-4 md:py-6 bg-transparent text-zinc-900 rounded-[1.5rem] md:rounded-[2rem] font-black text-lg md:text-xl border-4 border-zinc-100 transition-all hover:border-primary hover:bg-white/50 backdrop-blur-sm">
-                            READ MANIFESTO
+                            ACCESS LORE
                         </button>
                     </Link>
                 </div>

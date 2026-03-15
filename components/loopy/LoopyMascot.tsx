@@ -147,48 +147,70 @@ export const LoopyMascot = memo(({
                 {/* Surface Shine */}
                 <path d="M35 35 Q40 30 50 32" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
 
-                {/* Eyes */}
-                <motion.g animate={{ x: eyeXOffset, y: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? -2 : 0 }}>
-                    {/* Left Eye */}
-                    <motion.circle 
-                        cx="38" animate={{ cy: config.eyeY, r: config.eyeR }} 
-                        fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    />
-                    <motion.circle 
-                        cx="39" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
-                        fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    />
-                    
-                    {/* Right Eye */}
-                    <motion.circle 
-                        cx="62" animate={{ cy: config.eyeY, r: config.eyeR }} 
-                        fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    />
-                    <motion.circle 
-                        cx="61" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
-                        fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    />
+                {/* Eyes - Wrapped in a sync group to move with body breathing */}
+                <motion.g 
+                    animate={{ 
+                        x: eyeXOffset, 
+                        y: (mood === "annoyed" || mood === "screaming" || mood === "huddled" ? -2 : 0) + 
+                           (mood === "surprised" || mood === "screaming" || mood === "huddled" ? 0 : 0) // No breath offset for static poses
+                    }}
+                >
+                    <motion.g
+                        animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
+                            ? { y: 0 } 
+                            : { y: [0, 2] }
+                        }
+                        transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+                    >
+                        {/* Left Eye */}
+                        <motion.circle 
+                            cx="38" animate={{ cy: config.eyeY, r: config.eyeR }} 
+                            fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        />
+                        <motion.circle 
+                            cx="39" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
+                            fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        />
+                        
+                        {/* Right Eye */}
+                        <motion.circle 
+                            cx="62" animate={{ cy: config.eyeY, r: config.eyeR }} 
+                            fill="white" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        />
+                        <motion.circle 
+                            cx="61" animate={{ cy: config.eyeY, r: config.eyeR / 2 }} 
+                            fill="#1a2e05" transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        />
 
-                    {/* Lids */}
-                    <motion.g animate={{ opacity: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? 1 : 0 }} transition={{ duration: 0.3 }}>
-                        <path 
-                            d={mood === "huddled" ? "M30 62 L46 64" : "M30 48 L46 52"} 
-                            stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
-                        />
-                        <path 
-                            d={mood === "huddled" ? "M70 62 L54 64" : "M70 48 L54 52"} 
-                            stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
-                        />
+                        {/* Lids */}
+                        <motion.g animate={{ opacity: mood === "annoyed" || mood === "screaming" || mood === "huddled" ? 1 : 0 }} transition={{ duration: 0.3 }}>
+                            <path 
+                                d={mood === "huddled" ? "M30 62 L46 64" : "M30 48 L46 52"} 
+                                stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
+                            />
+                            <path 
+                                d={mood === "huddled" ? "M70 62 L54 64" : "M70 48 L54 52"} 
+                                stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
+                            />
+                        </motion.g>
                     </motion.g>
                 </motion.g>
 
-                {/* Mouth */}
-                <motion.path 
-                    animate={{ d: config.mouthD }} 
-                    stroke="#1a2e05" strokeWidth="2.5" strokeLinecap="round" 
-                    fill={mood === "screaming" ? "#7f1d1d" : "none"}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                />
+                {/* Mouth - Also synced with breathing */}
+                <motion.g
+                    animate={mood === "surprised" || mood === "screaming" || mood === "huddled" 
+                        ? { y: 0 } 
+                        : { y: [0, 2] }
+                    }
+                    transition={{ duration: 3, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+                >
+                    <motion.path 
+                        animate={{ d: config.mouthD }} 
+                        stroke="#1a2e05" strokeWidth="2.5" strokeLinecap="round" 
+                        fill={mood === "screaming" ? "#7f1d1d" : "none"}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    />
+                </motion.g>
 
                 {/* THE CROWN */}
                 {hasCrown && (

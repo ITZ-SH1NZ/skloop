@@ -164,15 +164,18 @@ export default function ManifestoPage() {
                             key={activeTab}
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            className="absolute -top-24 left-1/2 -translate-x-1/2 md:-top-20 md:-right-20 md:left-auto md:translate-x-0 z-20 w-max"
+                            className="absolute top-[160px] left-1/2 -translate-x-1/2 md:-top-20 md:-right-20 md:left-auto md:translate-x-0 z-20 w-max"
                         >
-                            <div className="bg-white border-2 md:border-4 border-black p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-[4px_4px_0_0_#000] md:shadow-[8px_8px_0_0_#000] max-w-[200px] md:max-w-[280px]">
-                                <div className="text-[8px] md:text-xs font-black uppercase tracking-widest mb-2 text-zinc-400">User Emotion</div>
-                                <p className="font-black text-[10px] md:text-lg leading-tight italic">
+                            <div className="bg-white border-2 md:border-4 border-black p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-[4px_4px_0_0_#000] md:shadow-[8px_8px_0_0_#000] max-w-[180px] md:max-w-[280px]">
+                                <div className="text-[8px] md:text-xs font-black uppercase tracking-widest mb-1 md:mb-2 text-zinc-400">Contextual Origin</div>
+                                <p className="font-black text-[11px] md:text-lg leading-tight italic">
                                     "<TypewriterDialogue text={currentMission.dialogue} />"
                                 </p>
                                 {/* Bubble Pointer */}
-                                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 w-3 h-3 md:w-4 md:h-4 bg-white border-r-2 md:border-r-4 border-b-2 md:border-b-4 border-black rotate-45" />
+                                <div className={`
+                                    absolute left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 w-3 h-3 md:w-4 md:h-4 bg-white border-black rotate-45
+                                    -top-1.5 border-l-2 border-t-2 md:-bottom-1.5 md:top-auto md:border-l-0 md:border-t-0 md:border-r-2 md:border-b-2 md:border-r-4 md:border-b-4
+                                `} />
                             </div>
                         </motion.div>
                     </div>
@@ -191,7 +194,7 @@ export default function ManifestoPage() {
                         >
                             <div className="inline-flex items-center gap-2 md:gap-3 bg-black text-white px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] shadow-lg">
                                 <Activity size={12} className="text-lime-400" />
-                                Mission {currentMission.label}
+                                Log {currentMission.label}
                             </div>
 
                             <h1 className="text-4xl md:text-6xl lg:text-[7rem] font-black uppercase tracking-tighter leading-[0.9] md:leading-[0.85] text-black">
@@ -280,7 +283,7 @@ export default function ManifestoPage() {
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[200] bg-black pointer-events-none flex items-center justify-center"
                     >
-                        <div className="text-white font-mono text-4xl font-black uppercase animate-pulse">Loading Mission...</div>
+                        <div className="text-white font-mono text-4xl font-black uppercase animate-pulse">Fetching Origin Logs...</div>
                     </motion.div>
                 )}
             </AnimatePresence>

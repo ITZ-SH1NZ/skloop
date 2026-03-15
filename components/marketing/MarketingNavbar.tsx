@@ -56,7 +56,7 @@ export default function MarketingNavbar() {
                         href="/manifesto"
                         className="px-6 py-2 rounded-full text-sm font-bold text-zinc-600 hover:text-black hover:bg-white hover:shadow-sm transition-all"
                     >
-                        Strategy Guide
+                        The Lore
                     </Link>
                     <Link
                         href="/login"
@@ -125,7 +125,7 @@ export default function MarketingNavbar() {
                                     className="w-full p-4 bg-zinc-800 border-2 border-zinc-700 text-zinc-100 rounded-2xl font-bold text-lg text-center hover:bg-zinc-700 hover:border-zinc-600 active:scale-[0.98] transition-all"
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
-                                    Strategy Guide
+                                    The Lore
                                 </Link>
                                 <Link
                                     href="/login"

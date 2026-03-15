@@ -106,7 +106,7 @@ export default function OnboardingPage() {
 
                                 <Link href="/manifesto" className="w-full sm:w-auto">
                                     <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-white text-zinc-900 border-4 border-zinc-200 text-base md:text-lg font-bold flex items-center justify-center gap-2 shadow-[0_6px_0_0_#e5e5e5] md:shadow-[0_8px_0_0_#e5e5e5] active:shadow-[0_0px_0_0_#e5e5e5] active:translate-y-[6px] hover:-translate-y-1 transition-all">
-                                        Read Manifesto
+                                        Access Lore
                                     </button>
                                 </Link>
                             </motion.div>

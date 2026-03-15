@@ -14,7 +14,7 @@ import Logo from "./Logo";
 const NAV_LINKS = [
     { label: "How It Works", href: "/onboarding#how-it-works" },
     { label: "Community", href: "/onboarding#community" },
-    { label: "Manifesto", href: "/docs" }, // Renamed from Documentation
+    { label: "The Lore", href: "/manifesto" },
     { label: "Contact", href: "/onboarding#contact" }
 ];
 
