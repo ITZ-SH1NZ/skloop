@@ -173,7 +173,18 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         </div>
                         <div className="flex flex-col leading-none">
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden lg:inline">Lvl {userProfile?.level || 1}</span>
-                            <span className="text-xs md:text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()}<span className="text-[10px] ml-0.5 text-slate-400 font-bold hidden sm:inline lg:hidden">XP</span><span className="text-[10px] ml-0.5 text-slate-400 font-bold hidden lg:inline">XP</span></span>
+                            <span className="text-xs md:text-sm font-black text-slate-900 inline-flex items-center gap-0.5">
+                                <motion.span
+                                    key={userProfile?.xp}
+                                    initial={{ y: -10, opacity: 0, scale: 1.2 }}
+                                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                                    transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                                >
+                                    {(userProfile?.xp || 0).toLocaleString()}
+                                </motion.span>
+                                <span className="text-[10px] text-slate-400 font-bold hidden sm:inline lg:hidden">XP</span>
+                                <span className="text-[10px] text-slate-400 font-bold hidden lg:inline">XP</span>
+                            </span>
                         </div>
                     </motion.div>
 
@@ -183,7 +194,15 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         className="flex items-center gap-1.5 bg-[#FAFAFA] border border-slate-200 px-2.5 py-1.5 rounded-full shadow-sm cursor-pointer hover:border-[#D4F268]/50 transition-colors shrink-0"
                     >
                         <CurrencyCoin size="sm" />
-                        <span className="text-xs md:text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
+                        <motion.span 
+                            key={userProfile?.coins}
+                            initial={{ scale: 1.3, color: "#fbbf24" }}
+                            animate={{ scale: 1, color: "#0f172a" }}
+                            transition={{ type: "spring", damping: 10, stiffness: 300 }}
+                            className="text-xs md:text-sm font-black"
+                        >
+                            {(userProfile?.coins || 0).toLocaleString()}
+                        </motion.span>
                     </motion.div>
 
                     {/* Streak Pill */}
@@ -194,7 +213,15 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                     >
                         <div className="flex items-center gap-1">
                             <LottieFlame size={20} className="-mt-0.5" />
-                            <span className="text-sm md:text-base font-bold text-slate-900 leading-none">{userProfile?.streak || 0}</span>
+                            <motion.span 
+                                key={userProfile?.streak}
+                                initial={{ scale: 1.5, rotate: -15 }}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ type: "spring", bounce: 0.6 }}
+                                className="text-sm md:text-base font-bold text-slate-900 leading-none"
+                            >
+                                {userProfile?.streak || 0}
+                            </motion.span>
                         </div>
                         <span className="text-[9px] font-bold text-slate-900/60 uppercase tracking-wider hidden xl:inline">Streak</span>
                     </motion.div>

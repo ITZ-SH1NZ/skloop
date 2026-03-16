@@ -587,8 +587,8 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
-    const dailyKey = `daily:${yyyy}-${mm}-${dd}`;
-    const monthlyKey = `monthly:${yyyy}-${mm}`;
+    const dailyKey = `daily:${now.toISOString().split('T')[0]}`;
+    const monthlyKey = `monthly:${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
     // ISO week number calculation
     const target = new Date(now.valueOf());
@@ -600,11 +600,12 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
     const weekNumber = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
     const weeklyKey = `weekly:${yyyy}-W${String(weekNumber).padStart(2, '0')}`;
 
-    // ✅ 2 queries total instead of 6 — fetch all quests + all completions in parallel
-    const [{ data: allQuests }, { data: allCompletions }, { data: allChests }, resumeSlug] = await Promise.all([
+    // ✅ Fetch all quests, completions, chests, and cycle awards
+    const [{ data: allQuests }, { data: allCompletions }, { data: allChests }, { data: allCycleAwards }, resumeSlug] = await Promise.all([
         supabase.from('quests').select('*').in('type', ['daily', 'weekly', 'monthly']).order('sort_order', { ascending: true }),
         supabase.from('daily_quest_completions').select('quest_id, auto_progress, cycle_key').eq('user_id', userId).in('cycle_key', [dailyKey, weeklyKey, monthlyKey]),
         supabase.from('user_chests').select('id').eq('user_id', userId).eq('status', 'sealed'),
+        supabase.from('user_chests').select('cycle_key').eq('user_id', userId).in('cycle_key', [dailyKey, weeklyKey, monthlyKey]),
         getResumeCourseSlug(userId)
     ]);
 
@@ -637,7 +638,14 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
         });
     }
 
-    return { questsData: grouped, chestCount, lastCourseSlug: resumeSlug };
+    const claimedCycleKeys = new Set((allCycleAwards || []).map(c => c.cycle_key));
+
+    return { 
+        questsData: grouped, 
+        chestCount, 
+        lastCourseSlug: resumeSlug,
+        claimedCycleKeys: Array.from(claimedCycleKeys)
+    };
 };
 
 export const fetchHeroCourse = async ([key, userId]: [string, string]) => {
@@ -718,4 +726,9 @@ export const fetchNextWorkshop = async ([key]: [string]) => {
         .limit(1)
         .maybeSingle();
     return (!error && data) ? data : null;
+};
+
+export const fetchSealedChests = async ([key, userId]: [string, string]) => {
+    const { getSealedChests } = await import("@/actions/quest-actions");
+    return await getSealedChests(userId);
 };

@@ -91,6 +91,15 @@
       background-position: 350% 50%, 350% 50%;
     }
   }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
 }
 
 @utility animate-aurora {
@@ -158,11 +167,29 @@ body {
   text-wrap: balance;
 }
 
-/* Optimization Utilities */
 @utility gpu-accelerate {
   transform: translate3d(0, 0, 0);
   will-change: transform;
   backface-visibility: hidden;
+}
+
+@utility shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
 }
 
 
@@ -184,7 +211,7 @@ body {
 
 @utility btn-float {
   border: none;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.2);
   box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.05);
 
   &:hover {
@@ -193,7 +220,8 @@ body {
   }
 
   &:active {
-    transform: translateY(0);
+    transform: scale(0.96) translateY(1px);
+    transition: all 0.1s;
   }
 }
 

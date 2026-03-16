@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { ShopItem } from "@/lib/shop-items";
+import { HelpCircle } from "lucide-react";
 
 interface TradingCardProps {
     item: ShopItem;
@@ -24,7 +25,10 @@ const RARITY_BORDER: Record<string, string> = {
 
 export function TradingCard({ item }: TradingCardProps) {
     const [isHovered, setIsHovered] = useState(false);
-    const Icon = item.icon;
+    
+    // Safety check: Ensure Icon is a valid component (function or React component object)
+    const RawIcon = item.icon;
+    const Icon = (typeof RawIcon === 'function' || (RawIcon && typeof RawIcon === 'object' && ('$$typeof' in RawIcon || 'render' in RawIcon))) ? RawIcon : HelpCircle;
 
     const x = useMotionValue(0.5);
     const y = useMotionValue(0.5);

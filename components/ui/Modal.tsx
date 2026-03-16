@@ -4,16 +4,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/utils";
 
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
-    title: string;
+    title?: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
+    className?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, className }: ModalProps) {
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose();
@@ -48,19 +50,24 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.95, opacity: 0, y: 20 }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+                            className={cn(
+                                "bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]",
+                                className
+                            )}
                         >
-                            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                                <h3 className="text-xl font-black tracking-tight">{title}</h3>
-                                <button
-                                    onClick={onClose}
-                                    className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
-                                >
-                                    <X size={18} />
-                                </button>
-                            </div>
+                            {title && (
+                                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                                    <h3 className="text-xl font-black tracking-tight">{title}</h3>
+                                    <button
+                                        onClick={onClose}
+                                        className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-black transition-colors"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            )}
 
-                            <div className="p-6 overflow-y-auto custom-scrollbar">
+                            <div className={cn("p-6 overflow-y-auto custom-scrollbar", !title && "p-0")}>
                                 {children}
                             </div>
 

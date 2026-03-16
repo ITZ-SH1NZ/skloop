@@ -26,9 +26,16 @@ interface UserProfile {
     inventory: string[];
     equipped_title: string | null;
     equipped_ring: string | null;
+    equipped_frame: string | null;
     is_mentor: boolean;
     hourly_rate: number;
     joined_at: string | null;
+    active_powers: {
+        xp_multiplier?: number;
+        xp_expires?: string;
+        coins_multiplier?: number;
+        coins_expires?: string;
+    };
 }
 
 interface UserContextType {

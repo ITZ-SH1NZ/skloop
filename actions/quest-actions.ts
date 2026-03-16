@@ -7,10 +7,7 @@ import { revalidatePath } from "next/cache";
 // Generates Strings like 'daily:2026-03-01', 'weekly:2026-W09', 'monthly:2026-03'
 
 function getDailyCycleKey(date = new Date()) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `daily:${yyyy}-${mm}-${dd}`;
+    return `daily:${date.toISOString().split('T')[0]}`;
 }
 
 function getWeeklyCycleKey(date = new Date()) {
@@ -28,8 +25,8 @@ function getWeeklyCycleKey(date = new Date()) {
 }
 
 function getMonthlyCycleKey(date = new Date()) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     return `monthly:${yyyy}-${mm}`;
 }
 
@@ -386,14 +383,69 @@ export async function grantAdminChest(userId: string, chestType: 'common' | 'rar
     return { success: true, chest: data };
 }
 
-/** Opens a chest, picks a random cosmetic reward of that rarity, and gives it to the user. */
+/** 
+ * Handled by the UI when the user clicks 'Claim' on a 3/3 quest cycle.
+ * Verifies eligibility and returns the chest data.
+ */
+export async function saveChestAction(userId: string, type: QuestType) {
+    const supabase = await createClient();
+    const cycleKey = getCycleKey(type);
+
+    // 1. Verify eligibility (3 completions)
+    const { count } = await supabase
+        .from('daily_quest_completions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('cycle_key', cycleKey)
+        .eq('quest_type', type)
+        .eq('auto_progress', -1);
+
+    if (!count || count < 3) {
+        return { success: false, error: 'Complete at least 3 quests to claim this chest!' };
+    }
+
+    const chestType = type === 'daily' ? 'common' : type === 'weekly' ? 'rare' : 'legendary';
+
+    // 2. Insert or get existing chest
+    const { data: existing } = await supabase
+        .from('user_chests')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('cycle_key', cycleKey)
+        .maybeSingle();
+
+    if (existing) {
+        return { success: true, chest: existing };
+    }
+
+    const { data: newChest, error } = await supabase
+        .from('user_chests')
+        .insert({
+            user_id: userId,
+            chest_type: chestType,
+            cycle_key: cycleKey,
+            status: 'sealed'
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error saving chest:', error);
+        return { success: false, error: 'Failed to claim chest.' };
+    }
+
+    revalidatePath('/dashboard');
+    return { success: true, chest: newChest, cycle_key: cycleKey };
+}
+
+/** Opens a chest, rolls for a Quest Exclusive reward, and awards it. */
 export async function openChest(userId: string, chestId: string) {
     const supabase = await createClient();
 
     // 1. Verify chest is sealed
     const { data: chest } = await supabase
         .from('user_chests')
-        .select('chest_type, status')
+        .select('id, chest_type, status, cycle_key')
         .eq('id', chestId)
         .eq('user_id', userId)
         .single();
@@ -402,49 +454,80 @@ export async function openChest(userId: string, chestId: string) {
         return { success: false, error: 'Chest not found or already opened' };
     }
 
-    // 2. Draft random reward matching chest rarity
-    const { data: possibleRewards } = await supabase
-        .from('products')
-        .select('id, name, type, image_url')
+    // 2. Draft reward pool matching chest rarity
+    const { data: pool } = await supabase
+        .from('quest_exclusives')
+        .select('*')
         .eq('rarity', chest.chest_type);
 
-    if (!possibleRewards || possibleRewards.length === 0) {
-        return { success: false, error: 'No rewards pool available for this chest type' };
+    if (!pool || pool.length === 0) {
+        return { success: false, error: 'No rewards available for this rarity tier' };
     }
 
-    // Pick random reward
-    const reward = possibleRewards[Math.floor(Math.random() * possibleRewards.length)];
+    // 3. Roll for reward
+    const reward = pool[Math.floor(Math.random() * pool.length)];
 
-    // 3. Update Chest
+    // 4. Bonus Coins based on rarity
+    let bonusCoins = 0;
+    if (chest.chest_type === 'common') bonusCoins = 50;
+    if (chest.chest_type === 'rare') bonusCoins = 250;
+    if (chest.chest_type === 'legendary') bonusCoins = 1000;
+
+    // 5. Update Profile ATOMICALLY
+    const { error: updateError } = await supabase.rpc('award_chest_rewards', {
+        x_user_id: userId,
+        reward_id: reward.id,
+        coin_amount: bonusCoins
+    });
+
+    if (updateError) {
+        console.error('Error awarding chest rewards via RPC:', updateError);
+        
+        // Manual fallback if RPC is not yet created in Supabase
+        const { data: profile } = await supabase.from('profiles').select('inventory, coins').eq('id', userId).single();
+        const inv = profile?.inventory || [];
+        if (!inv.includes(reward.id)) inv.push(reward.id);
+        
+        await supabase.from('profiles').update({ 
+            inventory: inv,
+            coins: (profile?.coins || 0) + bonusCoins
+        }).eq('id', userId);
+    }
+
+    // 6. Mark Chest as Opened
     await supabase.from('user_chests').update({
         status: 'opened',
-        reward_product_id: reward.id,
+        reward_exclusive_id: reward.id,
         opened_at: new Date().toISOString()
     }).eq('id', chestId);
 
-    // 4. Add to Inventory
-    await supabase.from('user_inventory').upsert({
-        user_id: userId,
-        product_id: reward.id,
-        quantity: 1 // Note: in reality we might increment quantity if duplicates allowed
-    }, { onConflict: 'user_id, product_id' });
-
-    // 5. Bonus Coins based on rarity
-    let bonusCoins = 0;
-    if (chest.chest_type === 'common') bonusCoins = 25;
-    if (chest.chest_type === 'rare') bonusCoins = 100;
-    if (chest.chest_type === 'legendary') bonusCoins = 500;
-
-    if (bonusCoins > 0) {
-        await supabase.rpc('increment_profile_stats', {
-            x_user_id: userId,
-            xp_amount: 0,
-            coins_amount: bonusCoins
-        });
-    }
+    // 7. Record to Timeline
+    await recordTimelineEvent(
+        userId,
+        "Chest Unsealed",
+        `${reward.name} (${reward.rarity})`,
+        `Successfully opened a ${chest.chest_type} chest and earned a ${reward.type.replace('_', ' ')}!`,
+        'gift',
+        reward.rarity === 'legendary' ? 'text-amber-500' : reward.rarity === 'rare' ? 'text-purple-500' : 'text-blue-500'
+    );
 
     revalidatePath('/dashboard');
     revalidatePath('/profile');
 
     return { success: true, reward, bonusCoins };
+}
+
+/** 
+ * One-stop shop for claiming a cycle reward AND opening it immediately.
+ * Used by the High-Fidelity unboxing flow when the user chooses 'Open' instead of 'Save'.
+ */
+export async function claimAndOpenChest(userId: string, type: QuestType) {
+    // 1. Save it first
+    const saveResult = await saveChestAction(userId, type);
+    if (!saveResult.success || !saveResult.chest) {
+        return saveResult;
+    }
+
+    // 2. Open it
+    return await openChest(userId, saveResult.chest.id);
 }

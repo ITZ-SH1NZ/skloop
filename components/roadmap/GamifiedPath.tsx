@@ -210,6 +210,50 @@ const DriftingAsset = memo(function DriftingAsset({ index, scrollY, contentHeigh
     );
 });
 
+// Large drifting mist clouds for atmospheric depth
+const MistVeil = memo(function MistVeil({ scrollY, contentHeight, index }: { scrollY: any, contentHeight: number, index: number }) {
+    const startY = (index * 800) % contentHeight;
+    const speed = 0.1 + (Math.sin(index) * 0.05);
+    const y = useTransform(scrollY, [0, 5000], [startY, startY - 1500 * speed]);
+    const sideX = index % 2 === 0 ? -10 : 80; // Left or Right side
+    
+    return (
+        <motion.div
+            className="absolute pointer-events-none opacity-20 blur-[100px] z-20 will-change-transform"
+            style={{ 
+                left: `${sideX}%`, 
+                top: 0, 
+                y, 
+                width: 600, 
+                height: 400, 
+                background: index % 3 === 0 ? "radial-gradient(circle, #D4F268 0%, transparent 70%)" : 
+                            index % 3 === 1 ? "radial-gradient(circle, #22d3ee 0%, transparent 70%)" :
+                            "radial-gradient(circle, #fbbf24 0%, transparent 70%)",
+                z: 0
+            }}
+        />
+    );
+});
+
+// Glowing crystal clusters to fill empty desktop gaps in the deep biome
+const CrystalSpire = memo(function CrystalSpire({ xPos, yPos, scrollY }: { xPos: number, yPos: number, scrollY: any }) {
+    const yOffset = useTransform(scrollY, [0, 5000], [0, -100]);
+    return (
+        <motion.div
+            className="absolute z-0 pointer-events-none"
+            style={{ left: `${xPos}%`, top: `${yPos}px`, y: yOffset, z: 0 }}
+            animate={{ filter: ["brightness(1) blur(0px)", "brightness(1.5) blur(1px)", "brightness(1) blur(0px)"] }}
+            transition={{ duration: 4 + Math.random() * 2, repeat: Infinity, ease: "easeInOut" }}
+        >
+            <svg width="60" height="100" viewBox="0 0 60 100" fill="none" className="drop-shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+                <path d="M30 10 L50 40 L30 90 L10 40 Z" fill="#22d3ee" opacity="0.6" />
+                <path d="M30 10 L40 40 L30 80 L20 40 Z" fill="#e0f2fe" opacity="0.8" />
+                <path d="M30 25 L45 45 L30 75 L15 45 Z" fill="#ffffff" opacity="0.4" />
+            </svg>
+        </motion.div>
+    );
+});
+
 // Sub-component for managing environmental life like fireflies
 function AmbientLife({ isMobile, scrollY, contentHeight }: { isMobile: boolean, scrollY: any, contentHeight: number }) {
     const fireflyCount = isMobile ? 5 : 15;
@@ -231,11 +275,23 @@ function ForegroundLayer({ scrollY, isMobile, contentHeight }: { scrollY: any, i
     return (
         <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
             {!isMobile && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(132,204,22,0.05)_100%)]" />}
+            
+            {/* Desktop-only Atmospheric Mist */}
+            {!isMobile && [...Array(6)].map((_, i) => (
+                <MistVeil key={`mist-${i}`} index={i} scrollY={scrollY} contentHeight={contentHeight} />
+            ))}
+
             {[...Array(isMobile ? 12 : 40)].map((_, i) => (
                 <DriftingAsset key={i} index={i} scrollY={scrollY} contentHeight={contentHeight} />
             ))}
             {!isMobile && (
                 <>
+                    {/* Deep Biome Desktop Spires */}
+                    <CrystalSpire xPos={10} yPos={contentHeight * 0.8} scrollY={scrollY} />
+                    <CrystalSpire xPos={85} yPos={contentHeight * 0.75} scrollY={scrollY} />
+                    <CrystalSpire xPos={5} yPos={contentHeight * 0.9} scrollY={scrollY} />
+                    <CrystalSpire xPos={90} yPos={contentHeight * 0.85} scrollY={scrollY} />
+
                     <motion.div style={{ y: zipY }} className="absolute -left-20 top-[500px] opacity-20 blur-[8px] scale-[3] rotate-45 will-change-transform">
                         <svg width="100" height="100" viewBox="0 0 100 100" fill="none">
                             <path d="M50 0 Q100 50 50 100 Q0 50 50 0" fill="#1a2e05" />

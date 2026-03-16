@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Camera, MapPin, Link as LinkIcon, Flame, Trophy, Settings } from "lucide-react";
+import { Camera, MapPin, Link as LinkIcon, Flame, Trophy, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface User {
     coins: number;
@@ -69,33 +70,38 @@ export function ProfileHeader({ user, isEditMode, toggleEditMode }: ProfileHeade
 
                 {/* Avatar */}
                 <div className="relative group">
-                    <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        className="h-32 w-32 md:h-40 md:w-40 rounded-[2rem] bg-white p-2 shadow-xl relative z-10"
-                    >
-                        <div className="h-full w-full rounded-[1.5rem] bg-zinc-100 overflow-hidden relative">
-                            {/* Placeholder Avatar */}
-                            <div className="absolute inset-0 flex items-center justify-center text-4xl bg-gradient-to-br from-gray-100 to-gray-300">
-                                👔
-                            </div>
-
-                            {isEditMode && (
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                    <Camera className="text-white" />
-                                </div>
-                            )}
+                    <Avatar 
+                        src={user.avatar_url}
+                        fallback={user.name?.[0] || 'U'}
+                        frameId={user.equipped_frame}
+                        glowId={user.equipped_ring}
+                        className="h-32 w-32 md:h-40 md:w-40"
+                    />
+                    {isEditMode && (
+                        <div className="absolute inset-0 bg-black/40 rounded-[2rem] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                            <Camera className="text-white" />
                         </div>
-
-                        {/* Online Indicator */}
-                        <div className="absolute -top-1 -right-1 h-6 w-6 bg-green-500 border-4 border-white rounded-full" />
-                    </motion.div>
+                    )}
                 </div>
 
                 {/* User Info */}
                 <div className="flex-1 pb-2 text-center md:text-left">
-                    <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">{user.name || "User Name"}</h1>
-                        <span className="hidden md:flex px-3 py-1 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 mb-1">
+                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground transition-all duration-300">
+                            {user.name || "User Name"}
+                        </h1>
+                        {user.equipped_title && (
+                            <span className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-slate-900 to-zinc-800 text-[#D4F268] rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg border border-white/5 relative overflow-hidden group">
+                                <Sparkles size={10} className="fill-[#D4F268] animate-pulse" />
+                                {user.title_name || "The Initialized"}
+                                <motion.div 
+                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 translate-x-[-100%]"
+                                    animate={{ translateX: ['100%', '-100%'] }}
+                                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                />
+                            </span>
+                        )}
+                        <span className="hidden md:flex px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200">
                             LVL {user.level || Math.floor(user.xp / 1000) + 1}
                         </span>
                     </div>

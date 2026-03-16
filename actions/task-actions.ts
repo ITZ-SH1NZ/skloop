@@ -262,11 +262,24 @@ export async function claimDailyQuest(
     
     let result;
     if (questId === 'login') {
-        // Track the daily login AND the weekly/monthly streaks in parallel
         const [dailyResult] = await Promise.all([
             claimQuestProgress(userId, 'login',      'daily',   1, 1),
             claimQuestProgress(userId, 'streak_7',   'weekly',  1, 7),
             claimQuestProgress(userId, 'streak_20m', 'monthly', 1, 20),
+        ]);
+        result = dailyResult;
+    } else if (questId === 'codele') {
+        const [dailyResult] = await Promise.all([
+            claimQuestProgress(userId, 'codele',     'daily',   1, 1),
+            claimQuestProgress(userId, 'codele_3w',  'weekly',  1, 3),
+            claimQuestProgress(userId, 'codele_15m', 'monthly', 1, 15),
+        ]);
+        result = dailyResult;
+    } else if (questId === 'type_race') {
+         const [dailyResult] = await Promise.all([
+            claimQuestProgress(userId, 'type_race',  'daily',   1, 1),
+            claimQuestProgress(userId, 'quiz_3w',    'weekly',  1, 3), // Example: combined targets
+            claimQuestProgress(userId, 'quiz_10m',   'monthly', 1, 10),
         ]);
         result = dailyResult;
     } else {
