@@ -10,7 +10,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import { signOutAction } from "@/actions/user-actions";
-import { AnimatedFlame } from "@/components/ui/AnimatedFlame";
+import { LottieFlame } from "@/components/ui/LottieFlame";
 
 interface Notification {
     id: string;
@@ -193,7 +193,7 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         onClick={() => toast("Streak protected! Keep it up!", "success")}
                     >
                         <div className="flex items-center gap-1">
-                            <AnimatedFlame size={18} className="-mt-1" />
+                            <LottieFlame size={20} className="-mt-0.5" />
                             <span className="text-sm md:text-base font-bold text-slate-900 leading-none">{userProfile?.streak || 0}</span>
                         </div>
                         <span className="text-[9px] font-bold text-slate-900/60 uppercase tracking-wider hidden xl:inline">Streak</span>
