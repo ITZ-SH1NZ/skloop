@@ -10,7 +10,9 @@ import {
     Users,
     Loader2,
     X,
-    MessageSquarePlus
+    MessageSquarePlus,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -224,6 +226,7 @@ function ChatPageContent() {
 
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(initialCircleId || null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     
     const { user, profile, onlineUserIds } = useUser();
     const currentUserId = user?.id || null;
@@ -410,7 +413,18 @@ function ChatPageContent() {
             className="flex flex-1 min-w-0 h-full bg-[#f8f9fa] md:rounded-[2rem] overflow-hidden border border-zinc-200/60 shadow-sm relative"
         >
             {/* Sidebar List */}
-            <div className={`w-full md:w-[380px] flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}>
+            <motion.div 
+                animate={{ width: isSidebarCollapsed ? "80px" : "380px" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className={`flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full relative ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}
+            >
+                {/* Collapse/Expand Toggle Button (Desktop only) */}
+                <button
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="hidden md:flex absolute -right-3 top-24 z-20 w-6 h-6 bg-white border border-zinc-200 rounded-full items-center justify-center text-zinc-400 hover:text-black hover:border-black transition-all shadow-sm active:scale-95"
+                >
+                    {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                </button>
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -418,9 +432,9 @@ function ChatPageContent() {
                     className="flex flex-col h-full overflow-hidden"
                 >
                     {/* Header */}
-                    <div className="pt-6 pb-4 px-5 shrink-0 bg-white">
-                        <div className="flex items-center justify-between xl:justify-start xl:gap-4 mb-5">
-                            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Chats</h2>
+                    <div className="pt-6 pb-4 px-5 shrink-0 bg-white overflow-hidden">
+                        <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between xl:justify-start xl:gap-4'} mb-5`}>
+                            {!isSidebarCollapsed && <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Chats</h2>}
                             <div className="xl:ml-auto">
                                 <NewChatPicker
                                     onSelect={async (friend) => {
@@ -459,16 +473,18 @@ function ChatPageContent() {
                                 />
                             </div>
                         </div>
-                        <div className="relative group">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-lime-500 transition-colors" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Search messages..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-zinc-100/80 border-0 rounded-xl pl-10 pr-4 py-2.5 text-[15px] font-medium outline-none focus:ring-2 focus:ring-lime-500/50 focus:bg-white transition-all shadow-sm placeholder:text-zinc-500 text-zinc-900"
-                            />
-                        </div>
+                        {!isSidebarCollapsed && (
+                            <div className="relative group">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-lime-500 transition-colors" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Search messages..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full bg-zinc-100/80 border-0 rounded-xl pl-10 pr-4 py-2.5 text-[15px] font-medium outline-none focus:ring-2 focus:ring-lime-500/50 focus:bg-white transition-all shadow-sm placeholder:text-zinc-500 text-zinc-900"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-6">
@@ -481,9 +497,9 @@ function ChatPageContent() {
                                 {/* Direct Messages */}
                                 {filteredDms.length > 0 && (
                                     <div>
-                                        <div className="flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+                                        <div className={`flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
                                             <UserCircle2 size={14} />
-                                            <span>Direct Messages</span>
+                                            {!isSidebarCollapsed && <span>Direct Messages</span>}
                                         </div>
                                         <div className="space-y-[2px]">
                                             <AnimatePresence mode="popLayout">
@@ -498,12 +514,12 @@ function ChatPageContent() {
                                                             transition={{ delay: index * 0.03 }}
                                                             key={chat.id}
                                                             onClick={() => setSelectedPeerId(chat.id)}
-                                                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
+                                                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 p-2.5'} rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
                                                         >
                                                             {isActive && (
                                                                 <motion.div layoutId="activeDMIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
                                                             )}
-                                                            <div className="relative shrink-0 ml-1">
+                                                            <div className={`relative shrink-0 ${isSidebarCollapsed ? 'ml-0' : 'ml-1'}`}>
                                                                 <Avatar
                                                                     src={chat.avatarUrl}
                                                                     fallback={chat.name.charAt(0)}
@@ -513,23 +529,25 @@ function ChatPageContent() {
                                                                     <div className="absolute right-0 bottom-0 w-3 h-3 bg-lime-400 rounded-full border-2 border-white shadow-[0_0_8px_rgba(163,230,53,0.4)]" />
                                                                 )}
                                                             </div>
-                                                            <div className="flex-1 min-w-0 pr-1">
-                                                                <div className="flex justify-between items-baseline mb-0.5">
-                                                                    <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
-                                                                    <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-600" : "text-zinc-400"}`}>
-                                                                        {formatTime(chat.lastMessageAt)}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center gap-2">
-                                                                    {getTypingSummary(chat.id) ? (
-                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
-                                                                    ) : (
-                                                                        <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
-                                                                            {chat.lastMessage || 'No messages yet'}
+                                                            {!isSidebarCollapsed && (
+                                                                <div className="flex-1 min-w-0 pr-1">
+                                                                    <div className="flex justify-between items-baseline mb-0.5">
+                                                                        <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
+                                                                        <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-600" : "text-zinc-400"}`}>
+                                                                            {formatTime(chat.lastMessageAt)}
                                                                         </span>
-                                                                    )}
+                                                                    </div>
+                                                                    <div className="flex justify-between items-center gap-2">
+                                                                        {getTypingSummary(chat.id) ? (
+                                                                            <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
+                                                                        ) : (
+                                                                            <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                                {chat.lastMessage || 'No messages yet'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            )}
                                                         </motion.button>
                                                     );
                                                 })}
@@ -541,9 +559,9 @@ function ChatPageContent() {
                                 {/* Study Circles */}
                                 {filteredGroups.length > 0 && (
                                     <div>
-                                        <div className="flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+                                        <div className={`flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
                                             <Users size={14} />
-                                            <span>Study Circles</span>
+                                            {!isSidebarCollapsed && <span>Study Circles</span>}
                                         </div>
                                         <div className="space-y-[2px]">
                                             <AnimatePresence mode="popLayout">
@@ -558,12 +576,12 @@ function ChatPageContent() {
                                                             transition={{ delay: index * 0.03 }}
                                                             key={chat.id}
                                                             onClick={() => setSelectedPeerId(chat.id)}
-                                                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
+                                                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 p-2.5'} rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
                                                         >
                                                             {isActive && (
                                                                 <motion.div layoutId="activeGroupIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
                                                             )}
-                                                            <div className="relative shrink-0 ml-1">
+                                                            <div className={`relative shrink-0 ${isSidebarCollapsed ? 'ml-0' : 'ml-1'}`}>
                                                                 <div className={`w-[46px] h-[46px] rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm overflow-hidden ${isActive ? "bg-lime-400 text-black border border-lime-500/20" : "bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-500 border border-zinc-200/60"}`}>
                                                                     {chat.avatarUrl?.startsWith('http') ? (
                                                                         <img src={chat.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -574,23 +592,25 @@ function ChatPageContent() {
                                                                     )}
                                                                 </div>
                                                             </div>
-                                                            <div className="flex-1 min-w-0 pr-1">
-                                                                <div className="flex justify-between items-baseline mb-0.5">
-                                                                    <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
-                                                                    <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-700" : "text-zinc-400"}`}>
-                                                                        {formatTime(chat.lastMessageAt)}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center gap-2">
-                                                                    {getTypingSummary(chat.id) ? (
-                                                                        <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
-                                                                    ) : (
-                                                                        <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
-                                                                            {chat.lastMessage || 'No messages yet'}
+                                                            {!isSidebarCollapsed && (
+                                                                <div className="flex-1 min-w-0 pr-1">
+                                                                    <div className="flex justify-between items-baseline mb-0.5">
+                                                                        <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
+                                                                        <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-700" : "text-zinc-400"}`}>
+                                                                            {formatTime(chat.lastMessageAt)}
                                                                         </span>
-                                                                    )}
+                                                                    </div>
+                                                                    <div className="flex justify-between items-center gap-2">
+                                                                        {getTypingSummary(chat.id) ? (
+                                                                            <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
+                                                                        ) : (
+                                                                            <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
+                                                                                {chat.lastMessage || 'No messages yet'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            )}
                                                         </motion.button>
                                                     );
                                                 })}
@@ -616,7 +636,7 @@ function ChatPageContent() {
                         )}
                     </div>
                 </motion.div>
-            </div>
+            </motion.div>
 
             {/* Chat Area */}
             <AnimatePresence mode="popLayout">

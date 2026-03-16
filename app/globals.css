@@ -114,7 +114,26 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Universal Fluid Scaling: Root Baseline Strategy */
+:root {
+  /* 
+    Fluidly scales root font-size from 13px (at 1024px) to 16px (at 1920px).
+    This proportionally adjusts all 'rem' based sizes (Tailwind defaults)
+    to prevent the UI from feeling "too big" on smaller laptops.
+  */
+  font-size: clamp(13px, calc(13px + (16 - 13) * ((100vw - 1024px) / (1920 - 1024))), 16px);
+}
+
+@media (max-width: 1023px) {
+  :root {
+    font-size: 14px; /* Tablet Baseline */
+  }
+}
+
 @media (max-width: 768px) {
+  :root {
+    font-size: 16px; /* Mobile Reset */
+  }
 
   /* Scale down the entire interface slightly on mobile for better density */
   body {

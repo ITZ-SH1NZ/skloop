@@ -13,7 +13,7 @@ export const LoopyMascot = memo(({
     direction = "center",
     isStatic = false
 }: { 
-    size?: number, 
+    size?: number | string, 
     mood?: LoopyMood,
     hasCrown?: boolean,
     hasCape?: boolean,

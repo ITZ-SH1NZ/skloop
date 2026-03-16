@@ -10,6 +10,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useUser } from "@/context/UserContext";
 import { useRouter } from "next/navigation";
 import { signOutAction } from "@/actions/user-actions";
+import { AnimatedFlame } from "@/components/ui/AnimatedFlame";
 
 interface Notification {
     id: string;
@@ -122,12 +123,12 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
 
     return (
         <>
-            <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between mb-8 relative z-10">
-                <div>
+            <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between mb-8 relative z-10 w-full">
+                <div className="shrink-0">
                     <motion.h1
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-2xl font-bold text-slate-900"
+                        className="text-xl md:text-2xl font-bold text-slate-900"
                     >
                         Dashboard
                     </motion.h1>
@@ -135,97 +136,94 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.2 }}
-                        className="text-slate-500 text-sm"
+                        className="text-slate-500 text-xs md:text-sm hidden sm:block"
                     >
                         Welcome back, {userProfile?.full_name || userProfile?.username || "Loading..."}!
                     </motion.p>
                 </div>
 
-                <div className="flex flex-wrap md:flex-nowrap flex-1 md:justify-end items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end min-w-0">
                     {/* Search */}
-                    <div className="relative w-full md:w-auto md:max-w-md group order-last md:order-none mt-2 md:mt-0">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 group-focus-within:text-[#D4F268] transition-colors" />
+                    <div className="relative flex-1 md:flex-initial md:min-w-[180px] lg:min-w-[280px] xl:min-w-[380px] group order-last md:order-none">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5 group-focus-within:text-[#D4F268] transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search tracks, lessons..."
-                            className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#D4F268] focus:border-transparent transition-all shadow-sm"
+                            placeholder="Search..."
+                            className="w-full pl-9 pr-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-slate-200 bg-white text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#D4F268] focus:border-transparent transition-all shadow-sm"
                         />
                     </div>
 
                     {/* XP Widget */}
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="flex items-center gap-3 bg-white border border-slate-200 pl-2 pr-4 py-1.5 rounded-full shadow-sm cursor-default"
+                        className="flex items-center gap-2 bg-white border border-slate-200 pl-1.5 pr-3 py-1.5 rounded-full shadow-sm cursor-default shrink-0"
                     >
-                        <div className="relative w-8 h-8 flex items-center justify-center">
+                        <div className="relative w-[1.75rem] h-[1.75rem] md:w-8 md:h-8 flex items-center justify-center">
                             <svg className="w-full h-full -rotate-90">
-                                <circle cx="16" cy="16" r="14" stroke="#e2e8f0" strokeWidth="3" fill="none" />
+                                <circle cx="50%" cy="50%" r="40%" stroke="#e2e8f0" strokeWidth="2.5" fill="none" />
                                 <circle
-                                    cx="16" cy="16" r="14"
-                                    stroke="#D4F268" strokeWidth="3" fill="none"
+                                    cx="50%" cy="50%" r="40%"
+                                    stroke="#D4F268" strokeWidth="2.5" fill="none"
                                     strokeDasharray="88"
                                     strokeDashoffset={isNaN(userProfile?.xp ?? 0) ? 88 : 88 * (1 - (((userProfile?.xp ?? 0) % 500) / 500))}
                                     strokeLinecap="round"
                                 />
                             </svg>
-                            <span className="absolute text-[10px] font-black text-slate-900">{userProfile?.level || 1}</span>
+                            <span className="absolute text-[8px] md:text-[10px] font-black text-slate-900">{userProfile?.level || 1}</span>
                         </div>
                         <div className="flex flex-col leading-none">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lvl {userProfile?.level || 1}</span>
-                            <span className="text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()} XP</span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden lg:inline">Lvl {userProfile?.level || 1}</span>
+                            <span className="text-xs md:text-sm font-black text-slate-900">{(userProfile?.xp || 0).toLocaleString()}<span className="text-[10px] ml-0.5 text-slate-400 font-bold hidden sm:inline lg:hidden">XP</span><span className="text-[10px] ml-0.5 text-slate-400 font-bold hidden lg:inline">XP</span></span>
                         </div>
                     </motion.div>
 
                     {/* Coin Widget */}
                     <motion.div
                         whileHover={{ scale: 1.05 }}
-                        className="flex items-center gap-2 bg-[#FAFAFA] border border-slate-200 px-3 py-1.5 rounded-full shadow-sm cursor-pointer hover:border-[#D4F268]/50 transition-colors"
+                        className="flex items-center gap-1.5 bg-[#FAFAFA] border border-slate-200 px-2.5 py-1.5 rounded-full shadow-sm cursor-pointer hover:border-[#D4F268]/50 transition-colors shrink-0"
                     >
-                        <div className="w-8 h-8 relative flex items-center justify-center">
-                            <CurrencyCoin size="sm" />
-                        </div>
-                        <span className="text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
+                        <CurrencyCoin size="sm" />
+                        <span className="text-xs md:text-sm font-black text-slate-900">{(userProfile?.coins || 0).toLocaleString()}</span>
                     </motion.div>
 
                     {/* Streak Pill */}
                     <motion.div
                         whileHover={{ scale: 1.05, rotate: 2 }}
-                        className="flex items-center gap-2 bg-[#D4F268] px-4 py-2.5 rounded-2xl shadow-[0_4px_10px_-2px_rgba(212,242,104,0.5)] cursor-pointer"
+                        className="flex items-center gap-1.5 bg-[#D4F268] px-3 py-2 rounded-xl md:rounded-2xl shadow-[0_4px_10px_-2px_rgba(212,242,104,0.3)] cursor-pointer shrink-0"
                         onClick={() => toast("Streak protected! Keep it up!", "success")}
                     >
-                        <span className="text-slate-900 font-bold">🔥 {userProfile?.streak || 0}</span>
-                        <span className="text-xs font-bold text-slate-900/60 uppercase tracking-wider">Day Streak</span>
+                        <div className="flex items-center gap-1">
+                            <AnimatedFlame size={18} className="-mt-1" />
+                            <span className="text-sm md:text-base font-bold text-slate-900 leading-none">{userProfile?.streak || 0}</span>
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-900/60 uppercase tracking-wider hidden xl:inline">Streak</span>
                     </motion.div>
 
-                    {/* Notifications Bell */}
-                    <div className="relative">
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Notifications Bell */}
                         <motion.button
                             whileTap={{ scale: 0.9 }}
                             onClick={() => setNotificationsOpen(true)}
-                            className={`w-10 h-10 rounded-2xl border flex items-center justify-center transition-colors shadow-sm relative bg-white border-slate-200 hover:bg-slate-50 text-slate-600`}
+                            className="w-9 h-9 md:w-10 md:h-10 rounded-xl md:rounded-2xl border flex items-center justify-center transition-colors shadow-sm relative bg-white border-slate-200 hover:bg-slate-50 text-slate-600"
                         >
-                            <Bell className="w-4 h-4" />
+                            <Bell className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             {unreadCount > 0 && (
-                                <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                                    <span className="sr-only">{unreadCount} new</span>
-                                </div>
+                                <div className="absolute top-1.5 right-1.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-red-500 rounded-full border-2 border-white" />
                             )}
                         </motion.button>
-                    </div>
 
-                    {/* Logout */}
-                    <div className="relative block">
+                        {/* Logout */}
                         <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors disabled:opacity-60"
+                            className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-colors disabled:opacity-60"
                             onClick={handleLogout}
                             disabled={isLoggingOut}
                         >
                             {isLoggingOut ? (
                                 <span className="w-4 h-4 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
                             ) : (
-                                <LogOut size={20} className="ml-0.5" />
+                                <LogOut size={16} className="md:w-[18px] md:h-[18px]" />
                             )}
                         </motion.button>
                     </div>

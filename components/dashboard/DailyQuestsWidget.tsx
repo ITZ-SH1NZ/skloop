@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Sunrise, FastForward } from "lucide-react";
+import { CheckCircle2, Circle, Flame, Terminal, Gift, ArrowRight, Sparkles, BookOpen, Brain, Keyboard, Map, UserPlus, FolderOpen, Sunrise, FastForward, Coins } from "lucide-react";
 import Link from "next/link";
 import { claimDailyQuest } from "@/actions/task-actions";
 import { skipQuestWithConsumable, QuestProgress } from "@/actions/quest-actions";
@@ -33,6 +33,11 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
     const [activeTab, setActiveTab] = useState<TabType>("daily");
     const [claimingId, setClaimingId] = useState<string | null>(null);
     const [claimFeedback, setClaimFeedback] = useState<{ id: string; message: string } | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
+ 
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const { data, isLoading, mutate } = useSWR(
         user?.id ? ['dailyQuests', user.id] : null,
@@ -179,70 +184,75 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                                         return (
                                             <div key={quest.id} className="block w-full">
                                                 <div className={`
-                                                    flex items-center justify-between p-4 rounded-2xl transition-all w-full
+                                                    flex items-center justify-between p-3 md:p-4 rounded-2xl transition-all w-full
                                                     ${isDone ? 'bg-slate-50 border border-transparent cursor-default' : 'bg-white border hover:border-slate-300 hover:shadow-sm border-slate-200'}
                                                 `}>
-                                                    <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-3 md:gap-4 min-w-0">
                                                         <div className={`p-2 rounded-xl flex-shrink-0 ${isDone ? 'bg-slate-200 text-slate-400' : 'bg-slate-100 text-slate-700'}`}>
-                                                            <Icon size={20} />
+                                                            <Icon size={18} className="md:w-5 md:h-5" />
                                                         </div>
-                                                        <div className={`flex flex-col items-start ${isDone ? 'opacity-50' : ''}`}>
-                                                            <h4 className={`font-bold text-sm ${isDone ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-800'}`}>
+                                                        <div className={`flex flex-col items-start min-w-0 ${isDone ? 'opacity-50' : ''}`}>
+                                                            <h4 className={`font-bold text-xs md:text-sm truncate w-full ${isDone ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-800'}`}>
                                                                 {quest.title}
                                                             </h4>
                                                             <div className="flex gap-2 items-center mt-1">
-                                                                <span className="text-[10px] uppercase font-bold text-blue-500 tracking-wider">+{quest.xp_reward} XP</span>
-                                                                <span className="text-[10px] uppercase font-bold text-amber-500 tracking-wider">+{quest.coins_reward} COINS</span>
+                                                                <div className="flex items-center gap-1 text-[10px] font-bold text-blue-500 tracking-wider bg-blue-50/50 px-1.5 py-0.5 rounded-md">
+                                                                    <Sparkles size={10} strokeWidth={3} />
+                                                                    {quest.xp_reward}
+                                                                </div>
+                                                                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-500 tracking-wider bg-amber-50/50 px-1.5 py-0.5 rounded-md">
+                                                                    <Coins size={10} strokeWidth={3} />
+                                                                    {quest.coins_reward}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-2">
                                                         <AnimatePresence>
                                                             {feedback && (
                                                                 <motion.span
                                                                     initial={{ opacity: 0, x: 10 }}
                                                                     animate={{ opacity: 1, x: 0 }}
                                                                     exit={{ opacity: 0, x: -10 }}
-                                                                    className="text-xs font-bold text-emerald-600"
+                                                                    className="text-[10px] md:text-xs font-bold text-emerald-600 hidden sm:inline"
                                                                 >
                                                                     {feedback}
                                                                 </motion.span>
                                                             )}
                                                         </AnimatePresence>
-
+ 
                                                         {!isDone && quest.key === 'login' && activeTab === 'daily' ? (
                                                             <motion.button
                                                                 whileTap={{ scale: 0.95 }}
                                                                 onClick={(e) => { e.stopPropagation(); handleClaimQuest(quest.key); }}
                                                                 disabled={isClaiming}
-                                                                className="text-xs font-bold bg-[#D4F268] text-slate-900 px-3 py-1.5 rounded-xl hover:bg-lime-300 transition-colors disabled:opacity-70 flex items-center gap-1"
+                                                                className="text-[10px] font-bold bg-[#D4F268] text-slate-900 px-2 py-1 rounded-lg hover:bg-lime-300 transition-colors disabled:opacity-70 flex items-center gap-1 shrink-0"
                                                             >
-                                                                {isClaiming ? 'Claiming...' : <><Sparkles size={12} /> Claim</>}
+                                                                {isClaiming ? '...' : 'Claim'}
                                                             </motion.button>
                                                         ) : !isDone && Object.keys(hrefProps).length > 0 ? (
-                                                            <div className="flex gap-2">
+                                                            <div className="flex gap-1.5 shrink-0">
                                                                 {profile?.inventory?.includes('item_daily_skip') && (
                                                                     <motion.button
                                                                         whileTap={{ scale: 0.95 }}
                                                                         onClick={(e) => { e.stopPropagation(); handleSkipQuest(quest.key); }}
-                                                                        className="text-[10px] md:text-xs font-bold text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors group/skip"
+                                                                        className="text-[10px] font-bold text-zinc-500 bg-zinc-50 border border-zinc-100 px-2 py-1 rounded-lg inline-flex items-center gap-1 transition-colors group/skip"
                                                                         title="Use Daily Skip"
                                                                     >
-                                                                        <FastForward size={14} className="text-zinc-400 group-hover/skip:text-zinc-600" />
-                                                                        <span className="hidden sm:inline">Skip</span>
+                                                                        <FastForward size={12} />
                                                                     </motion.button>
                                                                 )}
-                                                                <Link href={(hrefProps as any).href} className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 md:px-3 py-1.5 rounded-xl inline-flex items-center gap-1 transition-colors">
-                                                                    <span>Go</span> <ArrowRight size={14} />
+                                                                <Link href={(hrefProps as any).href} className="text-[10px] font-bold text-slate-500 bg-slate-50 border border-transparent hover:border-slate-200 px-2 py-1 rounded-lg inline-flex items-center gap-1 transition-colors">
+                                                                    <span>Go</span> <ArrowRight size={12} />
                                                                 </Link>
                                                             </div>
                                                         ) : null}
-
-                                                        <div className="flex flex-col items-end pl-2 border-l border-slate-100 ml-2">
+ 
+                                                        <div className="flex flex-col items-end pl-2 border-l border-slate-100 shrink-0">
                                                             {isDone ? (
-                                                                <CheckCircle2 className="text-[#D4F268]" size={24} fill="#18181b" />
+                                                                <CheckCircle2 className="text-[#D4F268]" size={isMounted && typeof window !== 'undefined' && window.innerWidth < 768 ? 20 : 24} fill="#18181b" />
                                                             ) : (
-                                                                <Circle className="text-slate-300" size={24} />
+                                                                <Circle className="text-slate-300" size={isMounted && typeof window !== 'undefined' && window.innerWidth < 768 ? 20 : 24} />
                                                             )}
                                                             {!isDone && progressRaw > 0 && quest.type !== 'daily' && (
                                                                 <span className="text-[10px] font-bold text-slate-400 mt-1">

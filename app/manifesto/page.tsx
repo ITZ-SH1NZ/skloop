@@ -156,7 +156,7 @@ export default function ManifestoPage() {
                             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                             className="relative z-10"
                         >
-                            <LoopyMascot size={isMounted ? (window.innerWidth < 768 ? 160 : window.innerWidth < 1024 ? 240 : 380) : 380} mood={currentMission.mood} />
+                            <LoopyMascot size="24rem" mood={currentMission.mood} />
                         </motion.div>
 
                         {/* Speech Bubble (Open Style) */}
@@ -164,7 +164,7 @@ export default function ManifestoPage() {
                             key={activeTab}
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
-                            className="absolute top-[160px] left-1/2 -translate-x-1/2 md:-top-20 md:-right-20 md:left-auto md:translate-x-0 z-20 w-max"
+                            className="absolute top-[40px] left-1/2 -translate-x-1/2 lg:-top-20 lg:-right-20 lg:left-auto lg:translate-x-0 z-20 w-max"
                         >
                             <div className="bg-white border-2 md:border-4 border-black p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-[4px_4px_0_0_#000] md:shadow-[8px_8px_0_0_#000] max-w-[180px] md:max-w-[280px]">
                                 <div className="text-[8px] md:text-xs font-black uppercase tracking-widest mb-1 md:mb-2 text-zinc-400">Contextual Origin</div>
@@ -173,8 +173,8 @@ export default function ManifestoPage() {
                                 </p>
                                 {/* Bubble Pointer */}
                                 <div className={`
-                                    absolute left-1/2 -translate-x-1/2 md:left-6 md:translate-x-0 w-3 h-3 md:w-4 md:h-4 bg-white border-black rotate-45
-                                    -top-1.5 border-l-2 border-t-2 md:-bottom-1.5 md:top-auto md:border-l-0 md:border-t-0 md:border-r-2 md:border-b-2 md:border-r-4 md:border-b-4
+                                    absolute left-1/2 -translate-x-1/2 lg:left-6 lg:translate-x-0 w-3 h-3 md:w-4 md:h-4 bg-white border-black rotate-45
+                                    -top-1.5 border-l-2 border-t-2 lg:-bottom-1.5 lg:top-auto lg:border-l-0 lg:border-t-0 lg:border-r-2 lg:border-b-2 lg:border-r-4 lg:border-b-4
                                 `} />
                             </div>
                         </motion.div>
