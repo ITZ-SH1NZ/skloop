@@ -15,6 +15,8 @@ const PlayableBossFight = dynamic(() => import("./PlayableBossFight"), { ssr: fa
 const EmbeddedCodele = dynamic(() => import("./EmbeddedCodele"), { ssr: false });
 const SkillTreeExplorer = dynamic(() => import("./SkillTreeExplorer"), { ssr: false });
 
+import InView from "./InView";
+
 export default function ExpandedSections() {
     const [isMounted, setIsMounted] = useState(false);
 
@@ -26,25 +28,20 @@ export default function ExpandedSections() {
 
     return (
         <div className="w-full flex flex-col gap-24 md:gap-32 py-10 md:py-20 px-4 md:px-0 overflow-hidden will-change-transform">
-            {/* Phase 2: Original Expanded Sections + Phase 3: Trading Cards & Skill Tree */}
-            <DevTradingCards />
-            <SkillTreeExplorer />
-            <CharacterSelect />
+            <InView><DevTradingCards /></InView>
+            <InView><SkillTreeExplorer /></InView>
+            <InView><CharacterSelect /></InView>
 
-            {/* Phase 3: Live MMO Features */}
-            <LiveServerLog />
+            <InView><LiveServerLog /></InView>
 
-            {/* Original Social Proof */}
-            <LeaderboardSnippet />
-            <RPGDialogues />
+            <InView><LeaderboardSnippet /></InView>
+            <InView><RPGDialogues /></InView>
 
-            {/* Phase 3: Interactive Demos & Economy */}
-            <EmbeddedCodele />
-            <LootBoxShowcase />
-            <PlayableBossFight />
+            <InView><EmbeddedCodele /></InView>
+            <InView><LootBoxShowcase /></InView>
+            <InView><PlayableBossFight /></InView>
 
-            {/* The Final Gate */}
-            <InteractiveConsoleCTA />
+            <InView><InteractiveConsoleCTA /></InView>
         </div>
     );
 }

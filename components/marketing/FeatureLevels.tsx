@@ -6,6 +6,7 @@ import {
     LayoutDashboard, Map, Gamepad2, Users, UserCheck, Bot,
     CheckCircle2, Flame, Award, ArrowRight
 } from "lucide-react";
+import InView from "./InView";
 
 export default function FeatureLevels() {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -121,25 +122,27 @@ export default function FeatureLevels() {
                 </LevelCard>
 
                 {/* LEVEL 5: LOOPY AI */}
-                <LevelCard
-                    title="Boss Fight: Loopy AI"
-                    description="Face off against our dual-mode AI. Use it as a helpful tutor, or challenge it in the gamified coding arena."
-                    icon={<Bot className="w-8 h-8 text-lime-400" />}
-                    align="left"
-                    color="bg-zinc-900"
-                    textColor="text-white"
-                >
-                    <div className="bg-zinc-800 border-4 border-zinc-700 rounded-xl p-4 flex gap-4 mt-2">
-                        <div className="w-12 h-12 rounded border-2 border-lime-400 bg-lime-400/20 shrink-0 flex items-center justify-center animate-pulse">
-                            <Bot className="w-6 h-6 text-lime-400" />
+                <InView>
+                    <LevelCard
+                        title="Boss Fight: Loopy AI"
+                        description="Face off against our dual-mode AI. Use it as a helpful tutor, or challenge it in the gamified coding arena."
+                        icon={<Bot className="w-8 h-8 text-lime-400" />}
+                        align="left"
+                        color="bg-zinc-900"
+                        textColor="text-white"
+                    >
+                        <div className="bg-zinc-800 border-4 border-zinc-700 rounded-xl p-4 flex gap-4 mt-2">
+                            <div className="w-12 h-12 rounded border-2 border-lime-400 bg-lime-400/20 shrink-0 flex items-center justify-center animate-pulse">
+                                <Bot className="w-6 h-6 text-lime-400" />
+                            </div>
+                            <div className="space-y-2 flex-1 pt-1">
+                                <div className="h-3 w-full bg-zinc-700 rounded-sm" />
+                                <div className="h-3 w-3/4 bg-zinc-700 rounded-sm" />
+                                <div className="h-3 w-1/2 bg-lime-400 rounded-sm mt-4 shadow-[0_0_10px_rgba(212,242,104,0.5)]" />
+                            </div>
                         </div>
-                        <div className="space-y-2 flex-1 pt-1">
-                            <div className="h-3 w-full bg-zinc-700 rounded-sm" />
-                            <div className="h-3 w-3/4 bg-zinc-700 rounded-sm" />
-                            <div className="h-3 w-1/2 bg-lime-400 rounded-sm mt-4 shadow-[0_0_10px_rgba(212,242,104,0.5)]" />
-                        </div>
-                    </div>
-                </LevelCard>
+                    </LevelCard>
+                </InView>
 
             </div>
         </section>

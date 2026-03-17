@@ -10,6 +10,11 @@ export default function MarketingNavbar() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { scrollY } = useScroll();
     const { isLoading } = useLoading();
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     // DOCKING TRANSITIONS (Top of page -> Floating Pill)
     // 0 to 100px scroll range
@@ -20,6 +25,8 @@ export default function MarketingNavbar() {
     const navShadow = useTransform(scrollY, [0, 80], ["0px 0px 0 0 #000", "0px 8px 0 0 #000"]);
     const navPadding = useTransform(scrollY, [0, 80], ["16px 24px", "12px 24px"]);
     const navOpacity = useTransform(scrollY, [0, 80], [1, 0.95]);
+
+    if (!isMounted) return null;
 
     return (
         <>
