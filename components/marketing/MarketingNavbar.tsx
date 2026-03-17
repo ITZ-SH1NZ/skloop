@@ -2,19 +2,40 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useTransform, useAnimation } from "framer-motion";
 import { Menu, X, ArrowRight, Gamepad2, Infinity } from "lucide-react";
 import { useLoading } from "../LoadingProvider";
 
+const navVariants = {
+    visible: { y: 0, opacity: 1 },
+    hidden: { y: -100, opacity: 0 },
+    entrance: {
+        y: 0,
+        opacity: 1,
+        transition: { type: "spring" as any, bounce: 0.4, duration: 1 }
+    }
+};
+
 export default function MarketingNavbar() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [hoveredPath, setHoveredPath] = useState<string | null>(null);
     const { scrollY } = useScroll();
     const { isLoading } = useLoading();
     const [isMounted, setIsMounted] = useState(false);
+    const controls = useAnimation();
+    const [hasEntered, setHasEntered] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    useEffect(() => {
+        if (!isLoading && isMounted) {
+            controls.start("entrance");
+        } else if (isLoading && isMounted) {
+            controls.set("hidden");
+        }
+    }, [isLoading, isMounted, controls]);
 
     // DOCKING TRANSITIONS (Top of page -> Floating Pill)
     // 0 to 100px scroll range
@@ -42,9 +63,9 @@ export default function MarketingNavbar() {
                     backdropFilter: "blur(8px)",
                     translateX: "-50%"
                 }}
-                initial={{ y: -100 }}
-                animate={isLoading ? { y: -100 } : { y: 0 }}
-                transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
+                initial={isMounted ? "hidden" : "visible"}
+                variants={navVariants}
+                animate={controls}
                 className="fixed left-1/2 z-50 bg-white border-black flex items-center justify-between shadow-black"
             >
                 {/* Logo */}
@@ -58,19 +79,22 @@ export default function MarketingNavbar() {
                 </Link>
 
                 {/* Desktop Links (HUD Style) */}
-                <div className="hidden md:flex items-center gap-2 bg-zinc-100 p-1.5 rounded-full border-2 border-zinc-200">
-                    <Link
-                        href="/manifesto"
-                        className="px-6 py-2 rounded-full text-sm font-bold text-zinc-600 hover:text-black hover:bg-white hover:shadow-sm transition-all"
-                    >
-                        The Lore
-                    </Link>
-                    <Link
-                        href="/login"
-                        className="px-6 py-2 rounded-full text-sm font-bold text-zinc-600 hover:text-black hover:bg-white hover:shadow-sm transition-all"
-                    >
-                        Load Save (Login)
-                    </Link>
+                <div 
+                    className="hidden md:flex items-center gap-1 bg-zinc-100 p-1.5 rounded-full border-2 border-zinc-200 relative"
+                    onMouseLeave={() => setHoveredPath(null)}
+                >
+                    <NavLink 
+                        href="/manifesto" 
+                        label="The Lore" 
+                        isHovered={hoveredPath === "/manifesto"}
+                        onHover={() => setHoveredPath("/manifesto")}
+                    />
+                    <NavLink 
+                        href="/login" 
+                        label="Load Save (Login)" 
+                        isHovered={hoveredPath === "/login"}
+                        onHover={() => setHoveredPath("/login")}
+                    />
                 </div>
 
                 {/* Desktop CTA */}
@@ -152,5 +176,25 @@ export default function MarketingNavbar() {
                 )}
             </AnimatePresence>
         </>
+    );
+}
+
+function NavLink({ href, label, isHovered, onHover }: { href: string, label: string, isHovered: boolean, onHover: () => void }) {
+    return (
+        <Link
+            href={href}
+            onMouseEnter={onHover}
+            className="px-6 py-2 rounded-full text-sm font-bold transition-colors relative z-10 block no-underline"
+            style={{ color: isHovered ? "#000" : "#52525b" }}
+        >
+            <span className="relative z-20">{label}</span>
+            {isHovered && (
+                <motion.div
+                    layoutId="nav-pill"
+                    transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
+                    className="absolute inset-0 bg-white rounded-full shadow-sm border border-zinc-200 z-10"
+                />
+            )}
+        </Link>
     );
 }

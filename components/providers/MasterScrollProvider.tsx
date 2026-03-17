@@ -70,11 +70,11 @@ export function MasterScrollProvider({ children }: { children: React.ReactNode }
             root
             autoRaf={false}
             options={{
-                lerp: 0.1,
-                duration: 1.2,
+                lerp: 0.15,
+                duration: 1.0,
                 smoothWheel: true,
                 syncTouch: true,
-                touchMultiplier: 1.5,
+                touchMultiplier: 1.2,
             }}
             ref={(s: any) => {
                 if (s?.lenis) {

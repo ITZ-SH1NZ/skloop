@@ -5,6 +5,15 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { useLoading } from "../LoadingProvider";
 import { useMediaQuery } from "@/hooks/use-media-query";
 
+const itemVariants = {
+    hidden: { opacity: 0, scale: 0.8 },
+    entrance: {
+        opacity: 1,
+        scale: 1,
+        transition: { type: "spring" as any, bounce: 0.4, duration: 1, delay: 0.8 }
+    }
+};
+
 export default function ParallaxBackground() {
     const { isLoading } = useLoading();
     const isMobile = useMediaQuery("(max-width: 768px)");
@@ -22,11 +31,9 @@ export default function ParallaxBackground() {
 
     useEffect(() => {
         setIsMounted(true);
-        if (isMobile) return; // Disable mouse tracking on mobile to save CPU
+        if (isMobile) return; 
 
         const handleMouseMove = (e: MouseEvent) => {
-            // ... (rest of mouse logic)
-            // Normalize mouse position to range [-1, 1]
             const nx = (e.clientX / window.innerWidth) * 2 - 1;
             const ny = (e.clientY / window.innerHeight) * 2 - 1;
             mouseX.set(nx);
@@ -37,62 +44,53 @@ export default function ParallaxBackground() {
     }, [mouseX, mouseY, isMobile]);
 
     // 2. Parallax Transforms
-    // Foreground (moves opposite to mouse, stronger effect)
     const fgX = useTransform(smoothMouseX, [-1, 1], [-40, 40]);
     const fgY = useTransform(smoothMouseY, [-1, 1], [-40, 40]);
-    // Background (moves with mouse, weaker effect)
     const bgX = useTransform(smoothMouseX, [-1, 1], [20, -20]);
     const bgY = useTransform(smoothMouseY, [-1, 1], [20, -20]);
-    // Rotations based on mouse
-    const rotate1 = useTransform(smoothMouseX, [-1, 1], [-15, 35]);
-    const rotate2 = useTransform(smoothMouseY, [-1, 1], [5, -25]);
+    const rotate1 = useTransform(smoothMouseX, [-1, 1], [-5, 15]);
+    const rotate2 = useTransform(smoothMouseY, [-1, 1], [2, -10]);
 
     if (!isMounted || isLoading) return null;
-
-    // Wait for loading flash to finish before showing these visually complex items
-    // The previous `if (isLoading) return null;` is now redundant due to the combined check above.
 
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 0.5 }}
-            className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible will-change-transform"
-            style={{ transform: "translateZ(0)" }}
+            className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible"
+            style={{ zIndex: -10 }}
         >
-            {/* The primary bouncing lime square */}
             {!isMobile && (
-                <motion.div
-                    style={{ x: fgX, y: fgY, rotate: rotate1, z: 0 }}
-                    className="absolute top-1/4 left-4 md:left-1/4 w-20 h-20 md:w-32 md:h-32 bg-lime-300 rounded-2xl md:rounded-[2rem] shadow-[0_10px_20px_-5px_rgba(212,242,104,0.4)] backdrop-blur-xl border-2 md:border-4 border-white flex items-center justify-center -z-10 will-change-transform"
-                >
+                <>
                     <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="w-8 h-8 md:w-12 md:h-12 bg-white rounded-lg"
-                    />
-                </motion.div>
+                        initial="hidden"
+                        animate="entrance"
+                        variants={itemVariants}
+                        style={{ x: fgX, y: fgY, rotate: rotate1, z: 0 }}
+                        className="absolute top-1/4 left-1/4 w-32 h-32 bg-lime-300 rounded-[2rem] shadow-lg border-4 border-white flex items-center justify-center will-change-transform"
+                    >
+                        <div className="w-12 h-12 bg-white rounded-lg shadow-inner" />
+                    </motion.div>
+
+                    <motion.div
+                        initial="hidden"
+                        animate="entrance"
+                        variants={itemVariants}
+                        style={{ x: bgX, y: bgY, rotate: rotate2, z: 0 }}
+                        className="absolute bottom-1/3 right-1/5 w-40 h-40 bg-zinc-900 rounded-[2rem] shadow-2xl flex items-center justify-center will-change-transform"
+                    >
+                        <div className="w-20 h-2 bg-lime-400 rounded-sm" />
+                    </motion.div>
+                </>
             )}
 
-            {/* The secondary black bouncing pill */}
-            {!isMobile && (
-                <motion.div
-                    style={{ x: bgX, y: bgY, rotate: rotate2, z: 0 }}
-                    className="absolute bottom-1/3 right-4 md:right-1/5 w-24 h-24 md:w-40 md:h-40 bg-zinc-900 rounded-2xl md:rounded-[2rem] shadow-xl md:shadow-2xl flex items-center justify-center -z-10 will-change-transform"
-                >
-                    <div className="w-12 h-1.5 md:w-20 md:h-2 bg-lime-400 rounded-sm" />
-                </motion.div>
-            )}
-
-            {/* The large rotating target ring */}
-            <motion.div
-                animate={isMobile ? { rotate: 360 } : { scale: [1, 1.05, 1], rotate: 360 }}
-                transition={{ duration: isMobile ? 40 : 20, repeat: Infinity, ease: "linear" }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] md:w-[600px] md:h-[600px] border border-zinc-200 md:border-2 rounded-full flex items-center justify-center pointer-events-none -z-20 opacity-30 will-change-transform"
+            <div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] md:w-[600px] md:h-[600px] border border-zinc-200 md:border-2 rounded-full flex items-center justify-center pointer-events-none opacity-20"
                 style={{ transform: "translateZ(0) translate(-50%, -50%)" }}
             >
                 <div className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] border border-zinc-200 md:border-2 rounded-full border-dashed" />
-            </motion.div>
+            </div>
         </motion.div>
     );
 }

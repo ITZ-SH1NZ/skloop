@@ -12,8 +12,8 @@ interface InViewProps {
 export default function InView({ children, margin = "-100px", triggerOnce = true }: InViewProps) {
     return (
         <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
+            initial={{ opacity: 1 }}
+            whileInView={{ opacity: [0, 1], y: [20, 0] }}
             viewport={{ once: triggerOnce, margin }}
             className="w-full"
         >

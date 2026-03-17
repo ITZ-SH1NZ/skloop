@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import Logo from "./Logo";
+import { soundManager } from "@/lib/sound";
 
 // To fix hydration errors, we generate random star data only on the client
 interface StarData {
@@ -41,16 +42,35 @@ export default function GamifiedLoader({ onComplete, preloadTasksRef }: { onComp
         let t1: NodeJS.Timeout, t2: NodeJS.Timeout, t3: NodeJS.Timeout, t4: NodeJS.Timeout, t5: NodeJS.Timeout, t6: NodeJS.Timeout;
 
         // Animation Sequence (Matching steps + progress bar)
-        t1 = setTimeout(() => { setStep(1); setProgress(20); }, 600);  // Base + Fins drop in
-        t2 = setTimeout(() => { setStep(2); setProgress(40); }, 1200); // Body drops in
-        t3 = setTimeout(() => { setStep(3); setProgress(60); }, 1800); // Nose drops in
+        t1 = setTimeout(() => { 
+            setStep(1); 
+            setProgress(20); 
+            soundManager.playMetalSnap(0.4);
+        }, 600);  // Base + Fins drop in
+        
+        t2 = setTimeout(() => { 
+            setStep(2); 
+            setProgress(40); 
+            soundManager.playMetalSnap(0.5);
+        }, 1200); // Body drops in
+        
+        t3 = setTimeout(() => { 
+            setStep(3); 
+            setProgress(60); 
+            soundManager.playMetalSnap(0.6);
+        }, 1800); // Nose drops in
+        
         t4 = setTimeout(() => { 
             setStep(4); 
             setProgress(80); 
+            soundManager.playRocketLaunch(0.8);
             
             // Wait for preloaded tasks (if any) or proceed after a short delay
             const proceedToBlastoff = () => {
-                t5 = setTimeout(() => { setStep(5); setProgress(100); }, 800); // BLAST OFF
+                t5 = setTimeout(() => { 
+                    setStep(5); 
+                    setProgress(100); 
+                }, 800); // BLAST OFF
                 t6 = setTimeout(() => onComplete(), 1500);
             };
 
@@ -92,7 +112,8 @@ export default function GamifiedLoader({ onComplete, preloadTasksRef }: { onComp
 
     return (
         <motion.div
-            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[#1A1A1A] text-[#FDFCF8] overflow-hidden touch-none"
+            onClick={() => soundManager.playClick(0.1)}
+            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[#1A1A1A] text-[#FDFCF8] overflow-hidden touch-none cursor-pointer"
             initial={{ opacity: 1 }}
             animate={step >= 5 ? { opacity: 0 } : { opacity: 1 }}
             transition={{ duration: 0.6, ease: "easeIn", delay: 0.3 }} // Fade out entire loader after blastoff

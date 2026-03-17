@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, useAnimation } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Titan_One } from "next/font/google";
@@ -13,9 +13,39 @@ const ParallaxBackground = dynamic(() => import("@/components/marketing/Parallax
 
 const titanOne = Titan_One({ weight: "400", subsets: ["latin"] });
 
+const variants = {
+    visible: { opacity: 1, y: 0, scale: 1 },
+    hidden: { opacity: 0, y: 20, scale: 0.98 },
+    entrance: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: { 
+            type: "spring" as any, 
+            stiffness: 100, 
+            damping: 20,
+            mass: 1 
+        }
+    }
+};
+
 export default function HomeHero() {
     const { isLoading } = useLoading();
     const { scrollToElement } = useMasterScroll();
+    const controls = useAnimation();
+    const [isMounted, setIsMounted] = React.useState(false);
+
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    React.useEffect(() => {
+        if (!isLoading && isMounted) {
+            controls.start("entrance");
+        } else if (isLoading && isMounted) {
+            controls.set("hidden");
+        }
+    }, [isLoading, isMounted, controls]);
 
     React.useEffect(() => {
         window.scrollTo(0, 0);
@@ -30,9 +60,9 @@ export default function HomeHero() {
 
             <div className="relative z-10 flex flex-col items-center px-4">
                 <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={isLoading ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
+                    variants={variants}
+                    initial={isMounted ? "hidden" : "visible"}
+                    animate={controls}
                     className="inline-block px-4 py-1.5 md:px-6 md:py-2 rounded-xl bg-white text-black text-xs md:text-sm font-black uppercase tracking-widest shadow-lg border border-zinc-100 mb-6 md:mb-8"
                 >
                     Ready to level up?
@@ -40,9 +70,9 @@ export default function HomeHero() {
 
                 <div className={`relative mb-6 ${titanOne.className}`}>
                     <motion.h1
-                        initial={{ y: 50, opacity: 0 }}
-                        animate={isLoading ? { y: 50, opacity: 0 } : { y: 0, opacity: 1 }}
-                        transition={{ type: "spring", bounce: 0.4, delay: 0.1 }}
+                        variants={variants}
+                        initial={isMounted ? "hidden" : "visible"}
+                        animate={controls}
                         className="text-7xl sm:text-8xl md:text-[10rem] font-normal text-zinc-900 tracking-normal select-none relative z-10 uppercase drop-shadow-[0_8px_20px_rgba(0,0,0,0.15)]"
                         style={{
                             WebkitTextStroke: "2px white",
@@ -58,18 +88,18 @@ export default function HomeHero() {
                 </div>
 
                 <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={isLoading ? { opacity: 0 } : { opacity: 1 }}
-                    transition={{ delay: 0.6 }}
+                    variants={variants}
+                    initial={isMounted ? "hidden" : "visible"}
+                    animate={controls}
                     className="text-zinc-700 font-bold tracking-wide text-lg sm:text-xl md:text-2xl max-w-xl mx-auto relative z-20 mb-8 md:mb-12 text-balance lg:px-0"
                 >
                     The high-fidelity <span className="text-black bg-lime-300 px-2 rounded">Habit Engineering Platform</span> for mastering Web Dev and DSA. Conquer the Motivation Gap through RPG-driven technical mastery.
                 </motion.p>
 
                 <motion.div
-                    initial={{ y: 30, opacity: 0 }}
-                    animate={isLoading ? { y: 30, opacity: 0 } : { y: 0, opacity: 1 }}
-                    transition={{ type: "spring", bounce: 0.5, delay: 0.8 }}
+                    variants={variants}
+                    initial={isMounted ? "hidden" : "visible"}
+                    animate={controls}
                     className="flex flex-col sm:flex-row gap-4 md:gap-6 relative z-30 w-full sm:w-auto"
                 >
                     <Link href="/signup" className="group w-full sm:w-auto">

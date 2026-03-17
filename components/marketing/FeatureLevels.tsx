@@ -20,10 +20,10 @@ export default function FeatureLevels() {
         <section ref={containerRef} className="relative w-full py-20 pb-40">
 
             {/* The Mario-style World Map Path connecting the levels */}
-            <div className="absolute top-0 bottom-0 left-6 md:left-1/2 md:-translate-x-1/2 w-3 md:w-4 bg-zinc-200 rounded-full flex flex-col items-center">
+            <div className="absolute top-0 bottom-0 left-6 md:left-1/2 md:-translate-x-1/2 w-3 md:w-4 bg-zinc-200 rounded-full flex flex-col items-center overflow-hidden">
                 <motion.div
-                    className="w-full bg-lime-400 origin-top rounded-full shadow-[0_0_10px_2px_rgba(212,242,104,0.6)] md:shadow-[0_0_20px_5px_rgba(212,242,104,0.6)]"
-                    style={{ scaleY: scrollYProgress, height: "100%" }}
+                    className="w-full bg-lime-400 origin-top rounded-full shadow-[0_0_10px_2px_rgba(212,242,104,0.6)] md:shadow-[0_0_20px_5px_rgba(212,242,104,0.6)] will-change-transform"
+                    style={{ scaleY: scrollYProgress, height: "100%", z: 0 }}
                 />
             </div>
 
@@ -167,8 +167,8 @@ function LevelCard({ title, description, icon, align, children, color = "bg-whit
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 100, x: isLeft ? -50 : 50 }}
-            whileInView={{ opacity: 1, y: 0, x: 0 }}
+            initial={{ opacity: 1 }}
+            whileInView={{ opacity: [0, 1], y: [100, 0], x: [isLeft ? -50 : 50, 0] }}
             viewport={{ once: true, margin: "-50px" }}
             transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
             className={`flex flex-col md:flex-row items-center gap-8 ${isLeft ? '' : 'md:flex-row-reverse'}`}
