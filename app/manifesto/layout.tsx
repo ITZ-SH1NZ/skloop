@@ -1,8 +1,12 @@
-"use client";
-
+import { Metadata } from "next";
 import React from "react";
 import MarketingNavbar from "@/components/marketing/MarketingNavbar";
 import { MasterScrollProvider } from "@/components/providers/MasterScrollProvider";
+
+export const metadata: Metadata = {
+    title: "Our Manifesto",
+    description: "The philosophy behind Skloop: Bridging the motivation gap in learning to code."
+};
 
 export default function ManifestoLayout({ children }: { children: React.ReactNode }) {
     return (
