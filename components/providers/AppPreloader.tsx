@@ -10,14 +10,13 @@ export function AppPreloader() {
         // Fire all heavy imports in the background. We don't await them here, 
         // we just hand the promises to the GamifiedLoader to wait for them.
         
-        const preloadTasks = [
+        const preloadTasks: Promise<any>[] = [
             // 1. Preload Monaco Editor (Heavy Client-Side Engine)
-            import('@monaco-editor/react').then(mod => {
+            import('@monaco-editor/react').then(async (mod) => {
                 // Initialize the loader if possible, or just let it cache the chunk
                 if (mod.loader && mod.loader.init) {
-                    return mod.loader.init();
+                    await mod.loader.init();
                 }
-                return mod;
             }).catch(e => console.warn("Monaco preload failed", e)),
 
             // 2. Preload React Flow (Used in Tracks)

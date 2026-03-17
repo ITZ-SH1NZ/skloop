@@ -112,6 +112,9 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                 res = await claimAndOpenChest(user.id, chestData.type);
             }
 
+            if (res?.success) {
+                setReward((res as any).reward);
+                setBonusCoins((res as any).bonusCoins || 0);
             const result = res as { success: boolean; reward: any; bonusCoins: number; error?: string };
 
             if (result?.success && result.reward) {
