@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { Titan_One } from "next/font/google";
 import dynamic from "next/dynamic";
 import { useLoading } from "@/components/LoadingProvider";
+import { useMasterScroll } from "@/components/providers/MasterScrollProvider";
 
 const ParallaxBackground = dynamic(() => import("@/components/marketing/ParallaxBackground"), { ssr: false });
 
@@ -14,6 +15,7 @@ const titanOne = Titan_One({ weight: "400", subsets: ["latin"] });
 
 export default function HomeHero() {
     const { isLoading } = useLoading();
+    const { scrollToElement } = useMasterScroll();
 
     React.useEffect(() => {
         window.scrollTo(0, 0);
@@ -59,9 +61,9 @@ export default function HomeHero() {
                     initial={{ opacity: 0 }}
                     animate={isLoading ? { opacity: 0 } : { opacity: 1 }}
                     transition={{ delay: 0.6 }}
-                    className="text-zinc-700 font-bold tracking-wide text-lg sm:text-xl md:text-2xl max-w-xl mx-auto relative z-20 mb-8 md:mb-12 text-balance"
+                    className="text-zinc-700 font-bold tracking-wide text-lg sm:text-xl md:text-2xl max-w-xl mx-auto relative z-20 mb-8 md:mb-12 text-balance lg:px-0"
                 >
-                    The gamified platform for mastering Web Dev and DSA. Play games, follow tracks, and conquer code.
+                    The high-fidelity <span className="text-black bg-lime-300 px-2 rounded">Habit Engineering Platform</span> for mastering Web Dev and DSA. Conquer the Motivation Gap through RPG-driven technical mastery.
                 </motion.p>
 
                 <motion.div
@@ -79,11 +81,14 @@ export default function HomeHero() {
                         </button>
                     </Link>
 
-                    <Link href="/manifesto" className="w-full sm:w-auto">
-                        <button className="w-full sm:w-auto h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-white text-zinc-900 border-4 border-zinc-200 text-base md:text-lg font-bold flex items-center justify-center gap-2 shadow-[0_6px_0_0_#e5e5e5] md:shadow-[0_8px_0_0_#e5e5e5] active:shadow-[0_0px_0_0_#e5e5e5] active:translate-y-[6px] hover:-translate-y-1 transition-all">
-                            Access Lore
+                    <div
+                        onClick={() => scrollToElement("purpose")}
+                        className="w-full sm:w-auto"
+                    >
+                        <button className="h-14 md:h-16 px-8 md:px-10 rounded-2xl bg-white text-zinc-900 border-4 border-zinc-200 text-base md:text-lg font-bold flex items-center justify-center gap-2 shadow-[0_6px_0_0_#e5e5e5] md:shadow-[0_8px_0_0_#e5e5e5] active:shadow-[0_0px_0_0_#e5e5e5] active:translate-y-[6px] hover:-translate-y-1 transition-all">
+                            Learn More
                         </button>
-                    </Link>
+                    </div>
                 </motion.div>
             </div>
         </section>

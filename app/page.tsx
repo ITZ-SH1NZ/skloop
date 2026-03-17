@@ -8,6 +8,7 @@ const MarketingNavbar = dynamic(() => import("@/components/marketing/MarketingNa
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import { MasterScrollProvider } from "@/components/providers/MasterScrollProvider";
 import HomeHero from "@/components/marketing/HomeHero";
+import PurposeSection from "@/components/marketing/PurposeSection";
 
 export default function Home() {
     return (
@@ -26,6 +27,8 @@ export default function Home() {
 
                 <main className="relative z-10 pt-32 pb-24 px-6 max-w-7xl mx-auto">
                     <HomeHero />
+
+                    <PurposeSection />
 
                     <Suspense fallback={<div className="min-h-screen" />}>
                         {/* THE MAP / FEATURE LEVELS */}
