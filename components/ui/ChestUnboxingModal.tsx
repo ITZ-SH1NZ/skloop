@@ -113,8 +113,8 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
             }
 
             if (res?.success) {
-                setReward(res.reward);
-                setBonusCoins(res.bonusCoins);
+                setReward((res as any).reward);
+                setBonusCoins((res as any).bonusCoins || 0);
                 setStep("revealed");
                 confetti({
                     particleCount: 150,
