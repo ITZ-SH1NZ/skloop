@@ -134,6 +134,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     <FlowchartBuilder
                         task={lesson.flowchartTask}
                         requiredNodes={lesson.requiredNodes}
+                        validation={lesson.validation}
                         onComplete={handleComplete}
                     />
                 </div>
