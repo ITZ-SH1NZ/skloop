@@ -210,7 +210,7 @@ function MobileMenu({ onClose }: { onClose: () => void }) {
                     className="pt-8 border-t border-black/5"
                 >
                     <p className="text-gray-400 text-sm">
-                        &copy; 2026 Skloop Inc.
+                        &copy; 2026 skloop.online
                     </p>
                 </motion.div>
             </motion.div>

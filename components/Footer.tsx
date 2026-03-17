@@ -64,10 +64,10 @@ export function Footer() {
 
                 {/* Bottom Bar */}
                 <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-400">
-                    <p>&copy; {new Date().getFullYear()} Skloop Inc. All rights reserved.</p>
+                    <p>&copy; {new Date().getFullYear()} skloop.online. All rights reserved.</p>
                     <div className="flex gap-8">
-                        <Link href="#" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
-                        <Link href="#" className="hover:text-gray-900 transition-colors">Terms of Service</Link>
+                        <Link href="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
+                        <Link href="/terms" className="hover:text-gray-900 transition-colors">Terms of Service</Link>
                         <Link href="#" className="hover:text-gray-900 transition-colors">Cookie Settings</Link>
                     </div>
                 </div>

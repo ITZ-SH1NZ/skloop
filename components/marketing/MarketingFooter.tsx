@@ -46,15 +46,15 @@ export default function MarketingFooter() {
 
                     <div className="md:col-span-2 flex flex-col gap-4">
                         <h4 className="text-lime-400 font-black uppercase tracking-widest text-sm mb-2">Legal</h4>
-                        <FooterLink href="#">Terms of Service</FooterLink>
-                        <FooterLink href="#">Privacy Policy</FooterLink>
+                        <FooterLink href="/terms">Terms of Service</FooterLink>
+                        <FooterLink href="/privacy">Privacy Policy</FooterLink>
                     </div>
                 </div>
 
                 {/* Bottom Bar */}
                 <div className="pt-8 border-t-2 border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4">
                     <p className="text-zinc-500 font-semibold text-sm">
-                        © {new Date().getFullYear()} Skloop Inc. All rights reserved.
+                        © {new Date().getFullYear()} skloop.online. All rights reserved.
                     </p>
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-sm bg-lime-400 animate-pulse" />
