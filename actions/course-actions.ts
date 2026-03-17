@@ -284,10 +284,15 @@ export async function awardTopicCompletion(userId: string, topicId: string) {
     const completedSet = new Set(completedProgress?.map(c => c.topic_id) || []);
 
     // Check if previous topics are completed
-    for (const mt of moduleTopics) {
-        if (mt.id === topicId) break; // Reached the current topic
-        if (!completedSet.has(mt.id)) {
-            return { success: false, error: 'Please complete the prerequisite topics first.' };
+    const { data: profileCheck } = await supabase.from('profiles').select('is_mentor').eq('id', userId).single();
+    const isMentor = profileCheck?.is_mentor === true;
+
+    if (!isMentor) {
+        for (const mt of moduleTopics) {
+            if (mt.id === topicId) break; // Reached the current topic
+            if (!completedSet.has(mt.id)) {
+                return { success: false, error: 'Please complete the prerequisite topics first.' };
+            }
         }
     }
 

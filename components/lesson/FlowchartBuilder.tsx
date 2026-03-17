@@ -268,18 +268,19 @@ const initialNodes: Node<FlowchartNodeData>[] = [
     { id: '1', type: 'start', position: { x: 250, y: 50 }, data: { label: 'Start' } },
 ];
 
-let id = 2; // Start from 2 since 1 is taken
-const getId = () => `node_${id++}`;
+const getId = () => `node_${Math.random().toString(36).substring(2, 9)}`;
 
 interface FlowchartBuilderProps {
     task?: string;
     requiredNodes?: string[];
+    validation?: any;
     onComplete?: () => void;
 }
 
 export default function FlowchartBuilder({
     task = "Build a flowchart to solve the problem.",
     requiredNodes = [],
+    validation,
     onComplete
 }: FlowchartBuilderProps) {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -288,6 +289,7 @@ export default function FlowchartBuilder({
     const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
     const [logs, setLogs] = useState<string[]>([]);
     const [isRunning, setIsRunning] = useState(false);
+    const [hasPassed, setHasPassed] = useState(false);
     const isDesktop = useMediaQuery("(min-width: 768px)");
     const [isConsoleOpen, setIsConsoleOpen] = useState(false); // Default to closed on mobile (and desktop initially until hydration)
 
@@ -443,19 +445,32 @@ export default function FlowchartBuilder({
 
 
     // LOGIC EXECUTION ENGINE
-    const runFlowchart = async () => {
-        setLogs([]);
-        setIsRunning(true);
-        setLogs(l => [...l, ">>> STARTING EXECUTION..."]);
+    const runFlowchart = async (testQueue?: any[], silent = false): Promise<string[]> => {
+        const generatedLogs: string[] = [];
+        const addLog = (msg: string) => {
+            generatedLogs.push(msg);
+            if (!silent) setLogs(l => [...l, msg]);
+        };
+
+        if (!silent) {
+            setLogs([]);
+            setIsRunning(true);
+        }
+        addLog(">>> STARTING EXECUTION...");
 
         // Context for variables
         const context: Record<string, any> = {};
 
         // Helper to delay for visualization
-        const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const wait = (ms: number) => silent ? Promise.resolve() : new Promise(resolve => setTimeout(resolve, ms));
 
         // Helper to get input from console
         const getInput = (prompt: string): Promise<string> => {
+            if (testQueue && testQueue.length > 0) {
+                return Promise.resolve(String(testQueue.shift()));
+            }
+            if (silent) return Promise.resolve("0");
+
             return new Promise((resolve) => {
                 setInputPrompt(prompt);
                 setInputValue("");
@@ -475,7 +490,7 @@ export default function FlowchartBuilder({
                 const func = new Function('ctx', `with(ctx) { return (${code}); }`);
                 return !!func(context);
             } catch (e: any) {
-                setLogs(l => [...l, `Condition Error: ${e.message}`]);
+                addLog(`Condition Error: ${e.message}`);
                 return false;
             }
         };
@@ -491,12 +506,11 @@ export default function FlowchartBuilder({
             }
         };
 
-        // 1. Find Start Node
         let currentNode: Node<FlowchartNodeData> | undefined = nodes.find(n => n.type === 'start');
         if (!currentNode) {
-            setLogs(l => [...l, "Error: No Start Node found."]);
-            setIsRunning(false);
-            return;
+            addLog("Error: No Start Node found.");
+            if (!silent) setIsRunning(false);
+            return generatedLogs;
         }
 
         // Execution Loop limits to prevent infinite loops
@@ -516,42 +530,46 @@ export default function FlowchartBuilder({
                                 const func = new Function('ctx', `with(ctx) { ${code} }`);
                                 func(context);
                             } catch (e: any) {
-                                setLogs(l => [...l, `Error in Process: ${e.message}`]);
+                                addLog(`Error in Process: ${e.message}`);
                             }
                         }
                         break;
 
                     case 'input':
-                        if (currentNode.data.code) {
+                        if (currentNode.data) { // Changed to allow input without target variable code
                             try {
-                                // Parse variable name from code like "ctx.x = ..." or "x = ..."
-                                const code = currentNode.data.code as string;
+                                const code = (currentNode.data.code as string) || '';
                                 const match = code.match(/(?:ctx\.)?(\w+)\s*=/);
                                 const varName = match ? match[1] : 'value';
 
                                 const userInput = await getInput(`Input for ${varName}: `);
 
-                                // Try to detect if it's a number
                                 const numValue = parseFloat(userInput);
                                 const finalValue = !isNaN(numValue) && userInput.trim() !== '' ? numValue : userInput;
 
                                 context[varName] = finalValue;
-                                setLogs(l => [...l, `Input: ${varName} = ${finalValue}`]);
+                                addLog(`Input: ${varName} = ${finalValue}`);
                             } catch (e: any) {
-                                setLogs(l => [...l, `Input Error: ${e.message}`]);
+                                addLog(`Input Error: ${e.message}`);
                             }
                         }
                         break;
 
                     case 'output':
-                        if (currentNode.data.code) {
+                        if (currentNode.data) { // Changed to allow output of implicit value
                             try {
-                                const code = currentNode.data.code as string;
-                                const func = new Function('ctx', `with(ctx) { return (${code}); }`);
-                                const result = func(context);
-                                setLogs(l => [...l, `> ${result}`]);
+                                const code = (currentNode.data.code as string) || '';
+                                let result;
+                                if (code) {
+                                    const func = new Function('ctx', `with(ctx) { return (${code}); }`);
+                                    result = func(context);
+                                } else {
+                                    // Default print whatever we hold, mostly fallback to literal string
+                                    result = "Empty Print";
+                                }
+                                addLog(`> ${result}`);
                             } catch (e: any) {
-                                setLogs(l => [...l, `Print Error: ${e.message}`]);
+                                addLog(`Print Error: ${e.message}`);
                             }
                         }
                         break;
@@ -589,7 +607,7 @@ export default function FlowchartBuilder({
                                                 if (bodyNode.type === 'output' && bodyNode.data.code) {
                                                     const func = new Function('ctx', `with(ctx) { return (${bodyNode.data.code}); }`);
                                                     const result = func(context);
-                                                    setLogs(l => [...l, `> ${result}`]);
+                                                    addLog(`> ${result}`);
                                                 } else if (bodyNode.type === 'process' && bodyNode.data.code) {
                                                     const func = new Function('ctx', `with(ctx) { ${bodyNode.data.code} }`);
                                                     func(context);
@@ -614,19 +632,19 @@ export default function FlowchartBuilder({
                                     }
 
                                     // Loop done, follow false path
-                                    setLogs(l => [...l, `For loop completed`]);
+                                    addLog(`For loop completed`);
                                     if (falseEdge) {
                                         currentNode = nodes.find(n => n.id === falseEdge.target);
                                     } else {
                                         currentNode = undefined;
                                     }
                                     await wait(500);
-                                    continue; // Skip standard navigation
+                                    continue; // Skip standard navigation but keep logs intact
                                 } else {
-                                    setLogs(l => [...l, `For loop syntax error. Use: i=0; i<10; i++`]);
+                                    addLog(`For loop syntax error. Use: i=0; i<10; i++`);
                                 }
                             } catch (e: any) {
-                                setLogs(l => [...l, `For Loop Error: ${e.message}`]);
+                                addLog(`For Loop Error: ${e.message}`);
                             }
                         }
                         break;
@@ -639,9 +657,9 @@ export default function FlowchartBuilder({
                         try {
                             const code: string = (currentNode.data.code as string) || "false";
                             condition = evaluateCondition(code);
-                            setLogs(l => [...l, `Condition (${code}) is ${condition}`]);
+                            addLog(`Condition (${code}) is ${condition}`);
                         } catch (e: any) {
-                            setLogs(l => [...l, `Condition Error: ${e.message}`]);
+                            addLog(`Condition Error: ${e.message}`);
                         }
 
                         const targetHandle = condition ? 'true' : 'false';
@@ -652,7 +670,7 @@ export default function FlowchartBuilder({
                         if (edge) {
                             currentNode = nodes.find(n => n.id === edge.target);
                         } else {
-                            setLogs(l => [...l, `Dead end: No path for ${condition}`]);
+                            addLog(`Dead end: No path for ${condition}`);
                             currentNode = undefined;
                         }
                         await wait(500);
@@ -663,35 +681,197 @@ export default function FlowchartBuilder({
 
                 // Find Next Node (for non-branching nodes)
                 if (currentNode?.type === 'end') {
-                    setLogs(l => [...l, ">>> EXECUTION FINISHED"]);
+                    addLog(">>> EXECUTION FINISHED");
                     currentNode = undefined;
-                    if (onComplete) {
-                        setTimeout(() => onComplete(), 1500);
-                    }
+                    if (!validation) setHasPassed(true);
                 } else if (currentNode && !['decision', 'while', 'for'].includes(currentNode.type as string)) {
                     // Standard single output
                     const edge: Edge | undefined = edges.find(e => e.source === currentNode?.id);
                     if (edge) {
                         currentNode = nodes.find(n => n.id === edge.target);
                     } else {
-                        if (currentNode.type !== 'end') setLogs(l => [...l, "Dead end."]);
+                        if (currentNode.type !== 'end') addLog("Dead end.");
                         currentNode = undefined;
                     }
                 }
             }
 
             if (steps >= MAX_STEPS) {
-                setLogs(l => [...l, `⚠️ Max steps (${MAX_STEPS}) reached. Possible infinite loop.`]);
+                addLog(`⚠️ Max steps (${MAX_STEPS}) reached. Possible infinite loop.`);
             }
         } catch (err: any) {
             console.error(err);
-            setLogs(l => [...l, `System Error: ${err.message}`]);
+            addLog(`System Error: ${err.message}`);
         } finally {
             setIsRunning(false);
             setIsPendingInput(false);
         }
+
+        console.log(`runFlowchart silent (${silent}) exiting... Logs Length:`, generatedLogs.length);
+        return generatedLogs;
     };
 
+
+    const runValidation = async () => {
+        if (!validation || !validation.testCases) {
+            console.log("No functional validation tests defined.");
+            return true;
+        }
+
+        console.log("=========================================");
+
+        setIsRunning(true);
+        setIsConsoleOpen(true);
+
+        const accumulatedLogs: string[] = [];
+        const addLogUI = (msg: string) => {
+            accumulatedLogs.push(msg);
+            setLogs([...accumulatedLogs]); // Always set to current accumulated state
+        };
+
+        setLogs([]);
+        addLogUI(">>> STARTING VALIDATION TESTS...");
+
+        let passedCount = 0;
+        let hiddenPassedCount = 0;
+        let visibleTotal = 0;
+        let hiddenTotal = 0;
+        
+        const totalTests = validation.testCases.length;
+        const testResultsSummary: string[] = [];
+        const hiddenTestResultsSummary: string[] = [];
+
+        for (let i = 0; i < totalTests; i++) {
+            const testCase = validation.testCases[i];
+            const testQueue = [...testCase.inputQueue];
+            const isHidden = testCase.hidden === 1;
+
+            if (isHidden) {
+                hiddenTotal++;
+            } else {
+                visibleTotal++;
+                const headerLog = `\n> Running Test Case ${i + 1}/${totalTests}\n> Inputs: [${testCase.inputQueue.join(", ")}]`;
+                console.log(headerLog);
+                addLogUI(headerLog);
+            }
+
+            // Execute logic silently
+            const testLogs = await runFlowchart(testQueue, true);
+
+            // Push test logs to UI immediately if not hidden
+            if (!isHidden) {
+                if (testLogs && testLogs.length > 0) {
+                    testLogs.forEach(log => {
+                        console.log(`  ${log}`);
+                        addLogUI(`  ${log}`);
+                    });
+                } else {
+                    console.log(`  [No logs generated]`);
+                    addLogUI(`  [No logs generated]`);
+                }
+            }
+
+            let passed = false;
+
+            if (validation.matchStrategy === "contains_number") {
+                // Find outputs in the logs (lines starting with '>')
+                const outputs = testLogs.filter(log => log.startsWith('> '));
+
+                // Check if any output contains the expected number
+                for (const output of outputs) {
+                    const strVal = output.substring(2).trim(); // Remove '> '
+                    // Try parsing the number
+                    const numVal = parseFloat(strVal);
+                    if (!isNaN(numVal) && numVal === testCase.expected) {
+                        passed = true;
+                        break;
+                    }
+                    if (strVal.includes(String(testCase.expected))) {
+                        passed = true;
+                        break;
+                    }
+                }
+            } else {
+                // Default: just check if the output array includes the expected value
+                passed = testLogs.some(log => log.startsWith('> ') && log.includes(String(testCase.expected)));
+            }
+
+            if (passed) {
+                if (isHidden) {
+                    hiddenPassedCount++;
+                    hiddenTestResultsSummary.push(`Test ${i + 1} - ✅ Passed`);
+                } else {
+                    passedCount++;
+                    testResultsSummary.push(`Test ${i + 1} - ✅ Passed`);
+                }
+            } else {
+                if (isHidden) {
+                    hiddenTestResultsSummary.push(`Test ${i + 1} - ❌ Failed`);
+                } else {
+                    testResultsSummary.push(`Test ${i + 1} - ❌ Failed: ${testCase.hint}`);
+                }
+            }
+        }
+
+        const allPassed = (passedCount + hiddenPassedCount) === totalTests;
+        
+        // Output summary block
+        console.log("\n");
+        addLogUI("\n");
+        
+        if (testResultsSummary.length > 0) {
+            testResultsSummary.forEach(res => {
+                console.log(res);
+                addLogUI(res);
+            });
+            const visibleSummaryMsg = `\n(${passedCount}/${visibleTotal}) Tests Passed`;
+            console.log(visibleSummaryMsg);
+            addLogUI(visibleSummaryMsg);
+        }
+
+        if (hiddenTestResultsSummary.length > 0) {
+            const header = "\nHidden Tests:";
+            console.log(header);
+            addLogUI(header);
+            hiddenTestResultsSummary.forEach(res => {
+                console.log(res);
+                addLogUI(res);
+            });
+            const hiddenSummaryMsg = `\n(${hiddenPassedCount}/${hiddenTotal}) Tests Passed`;
+            console.log(hiddenSummaryMsg);
+            addLogUI(hiddenSummaryMsg);
+        }
+
+        const totalSummaryMsg = `\n(${passedCount + hiddenPassedCount}/${totalTests}) Total Passed\n`;
+        console.log(totalSummaryMsg);
+        addLogUI(totalSummaryMsg);
+
+        if (allPassed) {
+            const completeMsg = "🎉 ALL TESTS PASSED!";
+            console.log(completeMsg);
+            addLogUI(completeMsg);
+            setHasPassed(true);
+        } else {
+            addLogUI("⚠️ VALIDATION FAILED. Fix errors and try again.");
+        }
+
+        setIsRunning(false);
+        setIsPendingInput(false);
+        return allPassed;
+    };
+
+    const runFlowchartAction = async () => {
+        setHasPassed(false); // Reset pass state on new run
+
+        // If there is validation set, run the validation sequence
+        // We will no longer run the visual sequence if validation exists to prevent doubling outputs
+        if (validation) {
+            await runValidation();
+        } else {
+            // Only run the standard visual component if there is no implicit validation mapped out.
+            await runFlowchart();
+        }
+    };
 
     const onDragStart = (event: React.DragEvent, nodeType: string) => {
         event.dataTransfer.setData('application/reactflow', nodeType);
@@ -709,15 +889,25 @@ export default function FlowchartBuilder({
                             <Terminal size={14} className="md:w-4 md:h-4" /> Challenge
                         </h3>
                     </div>
-                    <button
-                        onClick={runFlowchart}
-                        disabled={isRunning}
-                        className={`md:hidden px-2 py-1 rounded-md flex items-center gap-1 font-bold text-[10px] tracking-wide transition-all shadow-sm active:scale-95
-                            ${isRunning ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-[#D4F268] text-zinc-900'}
-                        `}
-                    >
-                        {isRunning ? '...' : <><Play size={10} fill="currentColor" /> RUN</>}
-                    </button>
+                    <div className="flex gap-2">
+                        {hasPassed && onComplete && (
+                            <button
+                                onClick={onComplete}
+                                className="md:hidden px-2 py-1 rounded-md flex items-center gap-1 font-bold text-[10px] tracking-wide transition-all shadow-sm active:scale-95 bg-emerald-500 text-white"
+                            >
+                                CONTINUE
+                            </button>
+                        )}
+                        <button
+                            onClick={runFlowchartAction}
+                            disabled={isRunning}
+                            className={`md:hidden px-2 py-1 rounded-md flex items-center gap-1 font-bold text-[10px] tracking-wide transition-all shadow-sm active:scale-95
+                                ${isRunning ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-[#D4F268] text-zinc-900'}
+                            `}
+                        >
+                            {isRunning ? '...' : <><Play size={10} fill="currentColor" /> RUN</>}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Task Instructions */}
@@ -844,22 +1034,43 @@ export default function FlowchartBuilder({
                     </div>
                 </div>
 
-                <div className="p-2 md:p-4 border-t border-zinc-100 bg-zinc-50 sticky bottom-0 md:static z-20 flex gap-2">
+                <div className="p-2 md:p-4 border-t border-zinc-100 bg-zinc-50 sticky bottom-0 md:static z-20 flex flex-col gap-2">
                     {/* Desktop Run Button */}
-                    <button
-                        onClick={runFlowchart}
-                        disabled={isRunning}
-                        className={`hidden md:flex w-full py-2.5 rounded-lg items-center justify-center gap-2 font-bold tracking-wide transition-all shadow-md active:scale-95
-                            ${isRunning ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-[#D4F268] hover:bg-[#ccee55] text-zinc-900'}
-                        `}
-                    >
-                        {isRunning ? 'Running...' : <><Play size={16} fill="currentColor" /> RUN</>}
-                    </button>
+                    <div className="hidden md:flex flex-col gap-2 w-full">
+                        <div className="flex gap-2 w-full">
+                            <button
+                                onClick={() => runFlowchart()}
+                                disabled={isRunning}
+                                className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-bold tracking-wide transition-all shadow-md active:scale-95
+                                    ${isRunning ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-[#D4F268] hover:bg-zinc-100 border border-zinc-200 text-zinc-900'}
+                                `}
+                            >
+                                {isRunning ? 'Running...' : <><Play size={16} fill="currentColor" className="text-black" /> RUN</>}
+                            </button>
+                            <button
+                                onClick={runFlowchartAction}
+                                disabled={isRunning}
+                                className={`flex-1 py-2.5 rounded-lg flex items-center justify-center gap-2 font-bold tracking-wide transition-all shadow-md active:scale-95
+                                    ${isRunning ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-[#D4F268] hover:zinc-100 border border-zinc-200 text-zinc-900'}
+                                `}
+                            >
+                                {isRunning ? 'Running...' : <><Play size={16} fill="currentColor" className="text-black" /> SUBMIT</>}
+                            </button>
+                        </div>
+                        {hasPassed && onComplete && (
+                            <button
+                                onClick={onComplete}
+                                className="w-full py-2.5 rounded-lg flex items-center justify-center gap-2 font-bold tracking-wide transition-all shadow-md active:scale-95 bg-emerald-500 hover:bg-emerald-600 text-white"
+                            >
+                                CONTINUE
+                            </button>
+                        )}
+                    </div>
 
                     {/* Mobile Tools (Reset/Delete) */}
-                    <div className="flex gap-2 w-full md:mt-2">
+                    <div className="flex gap-2 w-full">
                         <button
-                            onClick={() => { setNodes(initialNodes); setEdges([]); setLogs([]); id = 2; }}
+                            onClick={() => { setNodes(initialNodes); setEdges([]); setLogs([]); }}
                             className="flex-1 py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs font-bold text-zinc-500 bg-white border border-zinc-200 hover:bg-zinc-100 flex items-center justify-center gap-1.5 transition-colors"
                             title="Reset Canvas"
                         >
@@ -910,7 +1121,7 @@ export default function FlowchartBuilder({
 
                 {/* Console Output (Bottom Panel - Collapsible) */}
                 <div
-                    className={`bg-zinc-900 border-t border-zinc-800 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${isConsoleOpen ? 'h-[120px] md:h-[200px]' : 'h-9'}`}
+                    className={`bg-zinc-900 border-t border-zinc-800 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${isConsoleOpen ? 'h-[150px] md:h-[250px]' : 'h-9'}`}
                 >
                     <div
                         className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between bg-zinc-900 cursor-pointer hover:bg-zinc-800 transition-colors"

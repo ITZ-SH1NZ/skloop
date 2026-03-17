@@ -17,16 +17,19 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
         .maybeSingle();
 
     if (course) {
-        // Parallelize lesson and progress fetching
-        const [lessonsResult, progressResult] = await Promise.all([
+        // Parallelize lesson, progress, and role fetching
+        const [lessonsResult, progressResult, profileResult] = await Promise.all([
             supabase
                 .from("lessons")
                 .select("id, title, order_index, content, video_url")
                 .eq("course_id", course.id)
                 .order("order_index", { ascending: true }),
-            userId 
+            userId
                 ? supabase.from("user_lesson_progress").select("lesson_id").eq("user_id", userId)
-                : Promise.resolve({ data: [] })
+                : Promise.resolve({ data: [] }),
+            userId
+                ? supabase.from("profiles").select("is_mentor").eq("id", userId).single()
+                : Promise.resolve({ data: null })
         ]);
 
         const lessons = lessonsResult.data;
@@ -34,6 +37,8 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
 
         let completedLessonIds = new Set<string>();
         if (progressData) completedLessonIds = new Set(progressData.map((p: any) => p.lesson_id));
+
+        const isMentor = profileResult?.data?.is_mentor === true;
 
         const lessonList = lessons ?? [];
         const completedCount = lessonList.filter((l) => completedLessonIds.has(l.id)).length;
@@ -58,7 +63,7 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
                     isCompleted: completed,
                     type: l.video_url ? "video" : "article",
                     duration: (l as any).content_data?.duration || (l as any).content_data?.readTime || "10 min",
-                    isLocked: locked,
+                    isLocked: isMentor ? false : locked,
                 };
             });
             const allDone = moduleLessons.every((l) => l.isCompleted);
@@ -101,8 +106,8 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
 
     if (!track) return null;
 
-    // Parallelize module, topic, and progress fetching
-    const [modulesResult, topicsResult, progressResult] = await Promise.all([
+    // Parallelize module, topic, progress, and role fetching
+    const [modulesResult, topicsResult, progressResult, profileResult] = await Promise.all([
         supabase
             .from("modules")
             .select("id, title, description, order_index")
@@ -113,9 +118,12 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
             .select("id, module_id, title, order_index, type, content_data, modules!inner(track_id)")
             .eq("modules.track_id", track.id)
             .order("order_index", { ascending: true }),
-        userId 
+        userId
             ? supabase.from("user_topic_progress").select("topic_id").eq("user_id", userId).eq("status", "completed")
-            : Promise.resolve({ data: [] })
+            : Promise.resolve({ data: [] }),
+        userId
+            ? supabase.from("profiles").select("is_mentor").eq("id", userId).single()
+            : Promise.resolve({ data: null })
     ]);
 
     const dbModules = modulesResult.data;
@@ -124,6 +132,8 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
 
     let completedTopicIds = new Set<string>();
     if (progressData) completedTopicIds = new Set(progressData.map((p: any) => p.topic_id));
+
+    const isMentor = profileResult?.data?.is_mentor === true;
 
     if (!dbModules || dbModules.length === 0) return null;
 
@@ -146,7 +156,7 @@ export const fetchCourseTrack = async ([key, courseId, userId]: [string, string,
                 isCompleted: completed,
                 type: t.type as any,
                 duration: (t.content_data as any)?.duration || (t.content_data as any)?.readTime || "10 min",
-                isLocked: locked,
+                isLocked: isMentor ? false : locked,
             };
         });
         const allDone = moduleLessons.every((l) => l.isCompleted);
@@ -222,6 +232,7 @@ export const fetchLesson = async ([key, lessonId]: [string, string]) => {
             trackSlug: topic.module?.track?.slug || "web-development",
             flowchartTask: content.task,
             requiredNodes: content.requiredNodes || [],
+            validation: content.validation || undefined,
             miniQuiz: content.miniQuiz || []
         };
     }
@@ -400,19 +411,19 @@ export const fetchPeers = async ([key, userId]: [string, string]): Promise<PeerP
             }
         }
 
-    return {
-        id: p.id,
-        name: p.full_name || p.username || 'Unknown',
-        username: p.username || `user_${p.id.substring(0, 5)}`,
-        avatarUrl: p.avatar_url || undefined,
-        track: p.role || "Learner",
-        level: p.level || 1,
-        xp: p.xp || 0,
-        streak: p.streak || 0,
-        status,
-        isOnline: false
-    };
-});
+        return {
+            id: p.id,
+            name: p.full_name || p.username || 'Unknown',
+            username: p.username || `user_${p.id.substring(0, 5)}`,
+            avatarUrl: p.avatar_url || undefined,
+            track: p.role || "Learner",
+            level: p.level || 1,
+            xp: p.xp || 0,
+            streak: p.streak || 0,
+            status,
+            isOnline: false
+        };
+    });
 };
 
 export interface LeaderboardUser {
@@ -451,7 +462,7 @@ export interface ShopData {
 
 export const fetchShopData = async ([key, userId]: [string, string]): Promise<ShopData | null> => {
     const supabase = createClient();
-    
+
     // 1. Fetch User Profile and Shop Items in parallel
     const [profileResult, itemsResult] = await Promise.all([
         supabase.from("profiles").select("coins, inventory, streak_shields").eq("id", userId).single(),
@@ -478,7 +489,7 @@ export const fetchUserProfile = async ([key, userId]: [string, string]) => {
         .select('full_name, username, bio, avatar_url')
         .eq('id', userId)
         .single();
-    
+
     if (error) return null;
     return profile;
 };
@@ -501,7 +512,7 @@ export const fetchCodeleLeaderboard = async ([key]: [string]) => {
 export const fetchWorkspaceProjects = async ([key, userId]: [string, string]) => {
     const { createClient } = await import("@/utils/supabase/client");
     const supabase = createClient();
-    
+
     const { data, error } = await supabase
         .from('project_members')
         .select(`
@@ -518,7 +529,7 @@ export const fetchWorkspaceProjects = async ([key, userId]: [string, string]) =>
         .eq('user_id', userId);
 
     if (error || !data) throw error;
-    
+
     return data.map((item: any) => ({
         ...item.projects,
         members: 1, // Placeholder until a member count aggregation is performed
@@ -539,9 +550,9 @@ export const fetchWorkspaceProjectDetails = async ([key, projectId]: [string, st
     if (projectResult.error) throw projectResult.error;
     if (tasksResult.error) throw tasksResult.error;
 
-    return { 
-        project: projectResult.data, 
-        tasks: tasksResult.data || [] 
+    return {
+        project: projectResult.data,
+        tasks: tasksResult.data || []
     };
 };
 
@@ -640,9 +651,9 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
 
     const claimedCycleKeys = new Set((allCycleAwards || []).map(c => c.cycle_key));
 
-    return { 
-        questsData: grouped, 
-        chestCount, 
+    return {
+        questsData: grouped,
+        chestCount,
         lastCourseSlug: resumeSlug,
         claimedCycleKeys: Array.from(claimedCycleKeys)
     };

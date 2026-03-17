@@ -96,7 +96,6 @@ export async function getUserTasks(userId: string) {
                 title,
                 description,
                 xp_reward,
-                task_type,
                 difficulty
             )
         `)
