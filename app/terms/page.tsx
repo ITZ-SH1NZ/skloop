@@ -20,7 +20,7 @@ export default function TermsOfServicePage() {
 
             <main className="relative z-10 pt-32 pb-24 px-6 max-w-4xl mx-auto">
                 <Link 
-                    href="/onboarding" 
+                    href="/" 
                     className="inline-flex items-center gap-2 text-zinc-500 hover:text-black transition-colors mb-12 group"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />

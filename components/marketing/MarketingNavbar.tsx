@@ -41,7 +41,7 @@ export default function MarketingNavbar() {
                 className="fixed left-1/2 z-50 bg-white border-black flex items-center justify-between shadow-black"
             >
                 {/* Logo */}
-                <Link href="/onboarding" className="flex items-center gap-3 group text-black">
+                <Link href="/" className="flex items-center gap-3 group text-black">
                     <div className="w-10 h-10 rounded-xl bg-lime-400 border-2 border-black flex items-center justify-center rotate-3 group-hover:rotate-12 transition-transform shadow-[2px_2px_0_0_#000]">
                         <Infinity className="w-6 h-6" />
                     </div>

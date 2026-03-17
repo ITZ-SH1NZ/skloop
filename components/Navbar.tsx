@@ -12,10 +12,10 @@ import MagneticButton from "./MagneticButton";
 import Logo from "./Logo";
 
 const NAV_LINKS = [
-    { label: "How It Works", href: "/onboarding#how-it-works" },
-    { label: "Community", href: "/onboarding#community" },
+    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Community", href: "/#community" },
     { label: "The Lore", href: "/manifesto" },
-    { label: "Contact", href: "/onboarding#contact" }
+    { label: "Contact", href: "/#contact" }
 ];
 
 export function Navbar() {
@@ -37,7 +37,7 @@ export function Navbar() {
             const [path, hash] = href.split('#');
 
             // If we are already on the path (or it's just a hash), scroll smoothly
-            if (pathname === path || pathname === '/onboarding') {
+            if (pathname === path || pathname === '/') {
                 e.preventDefault();
                 scrollToElement(hash, -100);
                 setIsMobileMenuOpen(false);

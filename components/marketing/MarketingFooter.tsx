@@ -10,7 +10,7 @@ export default function MarketingFooter() {
 
                     {/* Brand Column */}
                     <div className="md:col-span-5 flex flex-col gap-6">
-                        <Link href="/onboarding" className="flex items-center gap-3 w-max group">
+                        <Link href="/" className="flex items-center gap-3 w-max group">
                             <div className="w-12 h-12 rounded-xl bg-lime-400 border-4 border-black flex items-center justify-center text-black rotate-[-6deg] group-hover:rotate-0 transition-transform shadow-[4px_4px_0_0_#A3E635]">
                                 <Infinity className="w-8 h-8" />
                             </div>

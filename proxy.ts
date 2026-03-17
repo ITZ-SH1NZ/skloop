@@ -62,14 +62,13 @@ export async function proxy(request: NextRequest) {
     // Define paths
     const isProtectedPath = request.nextUrl.pathname.match(/^\/(dashboard|profile|settings|roadmap|marketplace|mentorship|workspace|messages|notifications|stats|peer|practice|course|lesson|loopy|calendar|contacts|session)/);
     const isAuthPath = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup');
-    const isOnboardingPath = request.nextUrl.pathname === '/onboarding';
     const isManifestoPath = request.nextUrl.pathname === '/manifesto';
     const isRootPath = request.nextUrl.pathname === '/';
 
     // Logic 1: Auth Guard for Protected Paths
     if (isProtectedPath && !user) {
         if (!hasSeenOnboarding) {
-            url.pathname = '/onboarding'
+            url.pathname = '/'
         } else {
             url.pathname = '/login'
         }
@@ -77,24 +76,15 @@ export async function proxy(request: NextRequest) {
     }
 
     // Logic 2: Redirect authenticated users away from Public/Auth paths (except Manifesto)
-    if (user && (isAuthPath || isOnboardingPath || isRootPath)) {
+    if (user && (isAuthPath || isRootPath)) {
         url.pathname = '/dashboard'
         return NextResponse.redirect(url)
     }
 
     // Logic 3: Onboarding "One-Time" Visibility for unauthenticated users
-    if (!user) {
-        if (isRootPath) {
-            if (hasSeenOnboarding) {
-                url.pathname = '/login'
-            } else {
-                url.pathname = '/onboarding'
-            }
-            return NextResponse.redirect(url)
-        }
-
-        // Allow revisiting onboarding even if cookie is set (good for reference/debugging)
-        // Only redirect if they are at the root and have seen it.
+    if (!user && isRootPath && hasSeenOnboarding) {
+        url.pathname = '/login'
+        return NextResponse.redirect(url)
     }
 
     return response

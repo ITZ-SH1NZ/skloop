@@ -6,16 +6,26 @@ import { Code2, Braces, Swords, Trophy, Sparkles, ArrowRight, Terminal, User, Pl
 import confetti from "canvas-confetti";
 import Link from "next/link";
 
-import LiveServerLog from "./LiveServerLog";
-import LootBoxShowcase from "./LootBoxShowcase";
-import DevTradingCards from "./DevTradingCards";
-import PlayableBossFight from "./PlayableBossFight";
-import EmbeddedCodele from "./EmbeddedCodele";
-import SkillTreeExplorer from "./SkillTreeExplorer";
+import dynamic from "next/dynamic";
+
+const LiveServerLog = dynamic(() => import("./LiveServerLog"), { ssr: false });
+const LootBoxShowcase = dynamic(() => import("./LootBoxShowcase"), { ssr: false });
+const DevTradingCards = dynamic(() => import("./DevTradingCards"), { ssr: false });
+const PlayableBossFight = dynamic(() => import("./PlayableBossFight"), { ssr: false });
+const EmbeddedCodele = dynamic(() => import("./EmbeddedCodele"), { ssr: false });
+const SkillTreeExplorer = dynamic(() => import("./SkillTreeExplorer"), { ssr: false });
 
 export default function ExpandedSections() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) return <div className="min-h-screen" />;
+
     return (
-        <div className="w-full flex flex-col gap-24 md:gap-32 py-10 md:py-20 px-4 md:px-0 overflow-hidden">
+        <div className="w-full flex flex-col gap-24 md:gap-32 py-10 md:py-20 px-4 md:px-0 overflow-hidden will-change-transform">
             {/* Phase 2: Original Expanded Sections + Phase 3: Trading Cards & Skill Tree */}
             <DevTradingCards />
             <SkillTreeExplorer />
@@ -146,15 +156,9 @@ function PathCard({
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             onClick={onClick}
-            style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-            animate={{
-                scale: isSelected ? 1.05 : 1,
-                y: isSelected ? -10 : 0,
-                boxShadow: isSelected ? "20px 20px 0 0 #000" : "12px 12px 0 0 #000"
-            }}
-            whileHover={{ y: isSelected ? -10 : -5 }}
             whileTap={{ scale: 0.98 }}
-            className={`${color} border-4 md:border-8 border-black rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden cursor-pointer hover:z-20 z-10 transition-shadow duration-300`}
+            className={`${color} border-4 md:border-8 border-black rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 relative overflow-hidden cursor-pointer hover:z-20 z-10 transition-shadow duration-300 will-change-transform`}
+            style={{ rotateX, rotateY, transformStyle: "preserve-3d", transform: "translateZ(0)" }}
         >
             {/* Holographic Glare */}
             <motion.div

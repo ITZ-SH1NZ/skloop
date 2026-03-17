@@ -12,14 +12,14 @@ export default function DocsPage() {
             <header className="sticky top-0 z-50 w-full border-b border-black/5 bg-white/80 backdrop-blur-xl">
                 <div className="container flex h-16 items-center justify-between px-4 max-w-screen-2xl mx-auto">
                     <div className="flex gap-6 md:gap-10">
-                        <Link href="/onboarding" className="flex items-center space-x-2">
+                        <Link href="/" className="flex items-center space-x-2">
                             <div className="h-4 w-4 rounded-full bg-primary" />
                             <span className="inline-block font-bold">Skloop Manifesto</span>
                         </Link>
                     </div>
                     <div className="flex flex-1 items-center justify-end space-x-4">
                         <nav className="flex items-center space-x-2">
-                            <Link href="/onboarding">
+                            <Link href="/">
                                 <Button variant="ghost" size="sm" className="h-8 px-4 text-xs font-medium">
                                     <ArrowLeft className="mr-2 h-3 w-3" />
                                     Back to App

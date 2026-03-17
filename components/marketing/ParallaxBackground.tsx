@@ -16,8 +16,12 @@ export default function ParallaxBackground() {
     const smoothMouseX = useSpring(mouseX, smoothOptions);
     const smoothMouseY = useSpring(mouseY, smoothOptions);
 
+    const [isMounted, setIsMounted] = React.useState(false);
+
     useEffect(() => {
+        setIsMounted(true);
         const handleMouseMove = (e: MouseEvent) => {
+            // ... (rest of mouse logic)
             // Normalize mouse position to range [-1, 1]
             const nx = (e.clientX / window.innerWidth) * 2 - 1;
             const ny = (e.clientY / window.innerHeight) * 2 - 1;
@@ -39,19 +43,23 @@ export default function ParallaxBackground() {
     const rotate1 = useTransform(smoothMouseX, [-1, 1], [-15, 35]);
     const rotate2 = useTransform(smoothMouseY, [-1, 1], [5, -25]);
 
-    if (isLoading) return null; // Wait for loading flash to finish before showing these visually complex items
+    if (!isMounted || isLoading) return null;
+
+    // Wait for loading flash to finish before showing these visually complex items
+    // The previous `if (isLoading) return null;` is now redundant due to the combined check above.
 
     return (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 0.5 }}
-            className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible"
+            className="absolute inset-0 pointer-events-none overflow-hidden md:overflow-visible will-change-transform"
+            style={{ transform: "translateZ(0)" }}
         >
             {/* The primary bouncing lime square */}
             <motion.div
-                style={{ x: fgX, y: fgY, rotate: rotate1 }}
-                className="absolute top-1/4 left-4 md:left-1/4 w-20 h-20 md:w-32 md:h-32 bg-lime-300 rounded-2xl md:rounded-[2rem] shadow-[0_10px_20px_-5px_rgba(212,242,104,0.4)] backdrop-blur-xl border-2 md:border-4 border-white flex items-center justify-center -z-10"
+                style={{ x: fgX, y: fgY, rotate: rotate1, z: 0 }}
+                className="absolute top-1/4 left-4 md:left-1/4 w-20 h-20 md:w-32 md:h-32 bg-lime-300 rounded-2xl md:rounded-[2rem] shadow-[0_10px_20px_-5px_rgba(212,242,104,0.4)] backdrop-blur-xl border-2 md:border-4 border-white flex items-center justify-center -z-10 will-change-transform"
             >
                 <motion.div
                     animate={{ scale: [1, 1.2, 1] }}
@@ -62,8 +70,8 @@ export default function ParallaxBackground() {
 
             {/* The secondary black bouncing pill */}
             <motion.div
-                style={{ x: bgX, y: bgY, rotate: rotate2 }}
-                className="absolute bottom-1/3 right-4 md:right-1/5 w-24 h-24 md:w-40 md:h-40 bg-zinc-900 rounded-2xl md:rounded-[2rem] shadow-xl md:shadow-2xl flex items-center justify-center -z-10"
+                style={{ x: bgX, y: bgY, rotate: rotate2, z: 0 }}
+                className="absolute bottom-1/3 right-4 md:right-1/5 w-24 h-24 md:w-40 md:h-40 bg-zinc-900 rounded-2xl md:rounded-[2rem] shadow-xl md:shadow-2xl flex items-center justify-center -z-10 will-change-transform"
             >
                 <div className="w-12 h-1.5 md:w-20 md:h-2 bg-lime-400 rounded-sm" />
             </motion.div>
@@ -72,7 +80,8 @@ export default function ParallaxBackground() {
             <motion.div
                 animate={{ scale: [1, 1.05, 1], rotate: 360 }}
                 transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] md:w-[600px] md:h-[600px] border border-zinc-200 md:border-2 rounded-full flex items-center justify-center pointer-events-none -z-20 opacity-50"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] md:w-[600px] md:h-[600px] border border-zinc-200 md:border-2 rounded-full flex items-center justify-center pointer-events-none -z-20 opacity-50 will-change-transform"
+                style={{ transform: "translateZ(0) translate(-50%, -50%)" }}
             >
                 <div className="w-[300px] h-[300px] md:w-[500px] md:h-[500px] border border-zinc-200 md:border-2 rounded-full border-dashed" />
             </motion.div>
