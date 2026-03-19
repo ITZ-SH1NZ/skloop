@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import LessonLayout from "@/components/lesson/LessonLayout";
 import VideoView from "@/components/lesson/VideoView";
 import ArticleView from "@/components/lesson/ArticleView";
@@ -12,6 +12,8 @@ import { claimDailyQuest } from "@/actions/task-actions";
 import useSWR from "swr";
 import { fetchLesson } from "@/lib/swr-fetchers";
 import { createClient } from "@/utils/supabase/client";
+import LessonComplete from "@/components/lesson/LessonComplete";
+import { GameOverScreen } from "@/components/lesson/GameOverScreen";
 
 export default function LessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
     const { lessonId } = use(params);
@@ -21,6 +23,12 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
         lessonId ? ['lesson', lessonId] : null,
         fetchLesson as any
     );
+
+    const [hearts, setHearts] = useState(3);
+    const [currentStep, setCurrentStep] = useState(0);
+    const [totalSteps, setTotalSteps] = useState(1);
+    const [showComplete, setShowComplete] = useState(false);
+    const [xpAwarded, setXpAwarded] = useState(0);
 
     if (isLoading || !lesson) return (
         <div className="min-h-screen bg-[#FDFCF8] flex items-center justify-center">
@@ -48,10 +56,10 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     }
 
                     if (result.xpAwarded && result.xpAwarded > 0) {
-                        console.log(`Awarded ${result.xpAwarded} XP and ${result.coinsAwarded} Coins!`);
-                        if (result.moduleCompleted) {
-                            console.log("Module completed bonus awarded!");
-                        }
+                        setXpAwarded(result.xpAwarded);
+                        console.log(`Awarded ${result.xpAwarded} XP!`);
+                    } else {
+                        setXpAwarded(20);
                     }
                 }
 
@@ -69,6 +77,7 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
             }
         } catch (err) {
             console.error("Failed to mark complete:", err);
+            setXpAwarded(20);
         } finally {
             // Also log lesson completion quest background process
             try {
@@ -79,9 +88,31 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                 }
             } catch (ignore) { }
 
-            router.push(`/course/${lesson.trackSlug || 'web-development'}`); // Re-route to course map
+            setShowComplete(true);
         }
     };
+
+    if (showComplete) {
+        return (
+            <LessonComplete 
+                xpEarned={xpAwarded} 
+                isPerfect={hearts === 3} 
+                topicTitle={lesson.title}
+                onContinue={() => router.push(`/course/${lesson.trackSlug || 'web-development'}`)}
+            />
+        );
+    }
+
+    if (hearts <= 0) {
+        return (
+            <GameOverScreen 
+                onRetry={() => {
+                    setHearts(3);
+                    setCurrentStep(0);
+                }} 
+            />
+        );
+    }
 
     return (
         <LessonLayout
@@ -90,6 +121,10 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
             moduleTitle={lesson.moduleTitle}
             onComplete={handleComplete}
             trackSlug={lesson.trackSlug}
+            hearts={(lesson.type === "quiz" || lesson.type === "challenge" || lesson.type === "video") ? hearts : undefined}
+            maxHearts={3}
+            currentStep={currentStep}
+            totalSteps={totalSteps}
         >
             {lesson.type === "video" && (
                 <VideoView
@@ -98,6 +133,8 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     duration={lesson.duration}
                     miniQuiz={lesson.miniQuiz}
                     onComplete={handleComplete}
+                    hearts={hearts}
+                    onHeartLost={() => setHearts(prev => Math.max(0, prev - 1))}
                 />
             )}
 
@@ -113,6 +150,16 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                 <QuizView
                     questions={lesson.questions}
                     onComplete={handleComplete}
+                    hearts={hearts}
+                    onHeartLost={() => setHearts(prev => Math.max(0, prev - 1))}
+                    onProgress={(curr, total) => {
+                        setCurrentStep(curr);
+                        setTotalSteps(total);
+                    }}
+                    onRetry={() => {
+                        setHearts(3);
+                        setCurrentStep(0);
+                    }}
                 />
             )}
 
@@ -126,6 +173,8 @@ export default function LessonPage({ params }: { params: Promise<{ lessonId: str
                     mode={lesson.mode || 'web'}
                     validationRules={lesson.validationRules}
                     onComplete={handleComplete}
+                    hearts={hearts}
+                    onHeartLost={() => setHearts(prev => Math.max(0, prev - 1))}
                 />
             )}
 

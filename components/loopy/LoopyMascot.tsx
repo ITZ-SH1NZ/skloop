@@ -55,7 +55,7 @@ export const LoopyMascot = memo(({
         screaming: {
             colorTop: "#ef4444", colorMid: "#b91c1c", colorBottom: "#7f1d1d",
             glow: "rgba(239, 68, 68, 0.5)",
-            eyeR: 10, eyeY: 50, mouthD: "M40 75 Q50 95 60 75 L60 85 Q50 100 40 85 Z",
+            eyeR: 8, eyeY: 46, mouthD: "M40 60 Q50 50 60 60 L60 70 Q50 85 40 70 Z",
             shake: 8
         },
         huddled: {
@@ -85,15 +85,29 @@ export const LoopyMascot = memo(({
     useEffect(() => {
         if (!isStatic) return;
 
+        let isMounted = true;
+
         const blinkLoop = async () => {
-            while (true) {
+            while (isMounted) {
                 await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 5000));
-                await blinkControls.start({ scaleY: 0, transition: { duration: 0.1 } });
-                await blinkControls.start({ scaleY: 1, transition: { duration: 0.1 } });
+                if (!isMounted) break;
+                
+                try {
+                    await blinkControls.start({ scaleY: 0, transition: { duration: 0.1 } });
+                    if (!isMounted) break;
+                    await blinkControls.start({ scaleY: 1, transition: { duration: 0.1 } });
+                } catch (error) {
+                    // Ignore Framer Motion unmount aborts
+                    break;
+                }
             }
         };
 
         blinkLoop();
+
+        return () => {
+            isMounted = false;
+        };
     }, [isStatic, blinkControls]);
 
     return (
@@ -102,18 +116,21 @@ export const LoopyMascot = memo(({
             className="relative"
             animate={{ 
                 x: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? [0, -config.shake, config.shake, -config.shake, config.shake, 0] : 0,
-                y: (!isStatic && mood === "thinking") ? [0, -4, 0] : (!isStatic && mood === "celebrating") ? [0, -20, 0] : (!isStatic && mood === "huddled") ? [0, 5, 0] : 0,
+                y: (!isStatic && mood === "thinking") ? [0, -6, 0] : (!isStatic && mood === "celebrating") ? [0, -30, 0] : (!isStatic && mood === "huddled") ? [0, 8, 0] : 0,
                 rotate: rotation,
-                scale: (!isStatic && mood === "celebrating") ? [1, 1.1, 0.9, 1] : mood === "huddled" ? 0.8 : 1
+                scaleX: (!isStatic && mood === "celebrating") ? [1, 1.25, 0.85, 1] : mood === "huddled" ? 0.8 : 1,
+                scaleY: (!isStatic && mood === "celebrating") ? [1, 0.75, 1.15, 1] : mood === "huddled" ? 0.8 : 1
             }}
             transition={{ 
                 x: { duration: 0.1, repeat: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? Infinity : 0 },
                 y: { 
-                    duration: mood === "celebrating" ? 0.6 : 2, 
+                    duration: mood === "celebrating" ? 0.5 : 2.5, 
                     repeat: !isStatic ? Infinity : 0, 
                     ease: "easeInOut" 
                 },
-                rotate: { type: "spring", stiffness: 200, damping: 15 }
+                scaleX: { duration: mood === "celebrating" ? 0.5 : 2.5, repeat: !isStatic ? Infinity : 0, ease: "easeInOut" },
+                scaleY: { duration: mood === "celebrating" ? 0.5 : 2.5, repeat: !isStatic ? Infinity : 0, ease: "easeInOut" },
+                rotate: { type: "spring", stiffness: 260, damping: 20 }
             }}
         >
             <svg viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -177,12 +194,17 @@ export const LoopyMascot = memo(({
                         : (mood === "surprised" || mood === "screaming" || mood === "huddled") 
                         ? { y: 1, scaleX: 1, scaleY: 1 } 
                         : { 
-                            y: [0, 2, 0], 
-                            scaleX: [1, 1.05, 1],
-                            scaleY: [1, 0.98, 1]
+                            y: [0, 6, 0], // Exaggerated lag
+                            scaleX: [1, 1.08, 1],
+                            scaleY: [1, 0.94, 1]
                         }
                     }
-                    transition={{ duration: 3, repeat: !isStatic ? Infinity : 0, ease: "easeInOut" }}
+                    transition={{ 
+                        duration: 2.5, 
+                        repeat: !isStatic ? Infinity : 0, 
+                        ease: "circOut", // Shifted easing to create 'floating' delay
+                        delay: 0.1 // Physical delay relative to body
+                    }}
                     style={{ transformOrigin: "50% 60%" }}
                 >
                     {/* Eyes */}
@@ -213,11 +235,11 @@ export const LoopyMascot = memo(({
                         {/* Lids */}
                         <motion.g animate={{ opacity: (mood === "annoyed" || mood === "screaming" || mood === "huddled") ? 1 : 0 }} transition={{ duration: 0.3 }}>
                             <path 
-                                d={mood === "huddled" ? "M30 62 L46 64" : "M30 48 L46 52"} 
+                                d={mood === "huddled" ? "M30 62 L46 64" : "M30 44 L46 48"} 
                                 stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
                             />
                             <path 
-                                d={mood === "huddled" ? "M70 62 L54 64" : "M70 48 L54 52"} 
+                                d={mood === "huddled" ? "M70 62 L54 64" : "M70 44 L54 48"} 
                                 stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round" 
                             />
                         </motion.g>

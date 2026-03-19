@@ -61,6 +61,8 @@ interface ChallengeViewProps {
     mode?: "web" | "algorithm" | "pseudocode";
     validationRules?: ValidationRule[];
     onComplete?: () => void;
+    hearts?: number;
+    onHeartLost?: () => void;
 }
 
 interface FileNode {
@@ -86,7 +88,9 @@ export default function ChallengeView({
     initialCode,
     mode = "web",
     validationRules = [],
-    onComplete
+    onComplete,
+    hearts,
+    onHeartLost
 }: ChallengeViewProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("code");
     const [fullscreen, setFullscreen] = useState<FullscreenMode>("none");
@@ -590,6 +594,9 @@ export default function ChallengeView({
             }, 1500);
             return () => clearTimeout(timer);
         } else {
+            // Failure! Deduct heart
+            if (onHeartLost) onHeartLost();
+            
             setValidationStatus("error");
             setErrorMessage("Some requirements are not met. Open 'Details' to see what's missing!");
             setShowInfo(true); // Proactively show details if they fail

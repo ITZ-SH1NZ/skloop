@@ -10,6 +10,7 @@ import {
     GraduationCap,
     Bot,
     ShoppingBag,
+    Settings,
 } from "lucide-react";
 import { useState, memo } from "react";
 import Link from "next/link";
@@ -324,7 +325,33 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             </nav>
 
             {/* Bottom Actions Area */}
-            <div className="p-4 mt-auto space-y-2 hidden md:block">
+            <div className="p-4 mt-auto space-y-1 hidden md:block">
+                {/* Settings Link */}
+                <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Link
+                                href="/settings"
+                                className={cn(
+                                    "w-full flex items-center gap-4 px-5 py-3 rounded-[1.5rem] transition-all duration-200 font-medium text-sm",
+                                    pathname.startsWith('/settings')
+                                        ? "bg-primary text-primary-foreground"
+                                        : "text-gray-400 hover:bg-gray-50 hover:text-foreground",
+                                    isCollapsed ? "justify-center px-0" : ""
+                                )}
+                            >
+                                <Settings size={20} strokeWidth={2} className="shrink-0" />
+                                {!isCollapsed && <span>Settings</span>}
+                            </Link>
+                        </TooltipTrigger>
+                        {isCollapsed && isDesktop && (
+                            <TooltipContent side="right">
+                                <p>Settings</p>
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
+                </TooltipProvider>
+
                 {/* Clean Collapse Toggle - Desktop Only */}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}

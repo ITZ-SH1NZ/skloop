@@ -13,6 +13,9 @@ import { NotificationListener } from "../notifications/NotificationListener";
 // Pages that need fixed full-height layout (no scroll)
 const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages"];
 
+// Settings routes — skip the main sidebar entirely; settings has its own layout
+const SETTINGS_ROUTES = ["/settings"];
+
 // PERF 6: Inner component that pauses/resumes Lenis for full-height routes
 // instead of unmounting/remounting the Lenis instance on every navigation.
 function LenisController({ isFullHeight }: { isFullHeight: boolean }) {
@@ -32,10 +35,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const [mobileOpen, setMobileOpen] = useState(false);
     const pathname = usePathname();
     const { isLoading } = useLoading();
-    const isFullHeight = FULL_HEIGHT_ROUTES.some(r => pathname.startsWith(r));
     // PERF 5: Skip the enter animation after the initial load to prevent nav flash
     const hasLoadedRef = useRef(false);
     if (!isLoading) hasLoadedRef.current = true;
+
+    const isFullHeight = FULL_HEIGHT_ROUTES.some(r => pathname.startsWith(r));
+    const isSettingsRoute = SETTINGS_ROUTES.some(r => pathname.startsWith(r));
+
+    // For settings routes, skip the sidebar — settings has its own SettingsShell layout
+    if (isSettingsRoute) {
+        return (
+            <>
+                <NotificationListener />
+                {children}
+            </>
+        );
+    }
 
     return (
         <div className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-stretch">
@@ -54,7 +69,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <ReactLenis
                         root={false}
                         autoRaf={true}
-                        options={{ lerp: 0.1, duration: 1.2, smoothWheel: true, syncTouch: true }}
+                        id="app-scroll-container"
+                        options={{ 
+                            lerp: 0.08, 
+                            duration: 1.5, 
+                            smoothWheel: true, 
+                            syncTouch: true,
+                            touchMultiplier: 2 // More responsive on mobile
+                        }}
                         className="flex-1 overflow-y-auto no-scrollbar h-full"
                     >
                         <LenisController isFullHeight={isFullHeight} />

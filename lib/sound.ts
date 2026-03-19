@@ -143,6 +143,85 @@ export class SoundManager {
         osc.start();
         osc.stop(ctx.currentTime + 0.15);
     }
+
+    async playVictory(volume = 0.5) {
+        if (!await this.ensureContext()) return;
+        const ctx = this.audioContext!;
+
+        // Notes for a major chord progression emphasizing the end: C - E - G - C maj
+        const sequence = [
+            { freq: 523.25, time: 0, duration: 0.15 }, // C5
+            { freq: 659.25, time: 0.15, duration: 0.15 }, // E5
+            { freq: 783.99, time: 0.3, duration: 0.15 }, // G5
+            { freq: 1046.50, time: 0.45, duration: 1.5 }  // C6 (Sustained)
+        ];
+
+        const then = ctx.currentTime;
+        
+        sequence.forEach(({ freq, time, duration }) => {
+            const osc = ctx.createOscillator();
+            const osc2 = ctx.createOscillator(); // Sub-oscillator for warmth
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc2.type = 'sine';
+            
+            osc.frequency.setValueAtTime(freq, then + time);
+            osc2.frequency.setValueAtTime(freq / 2, then + time); // One octave down
+            
+            gain.gain.setValueAtTime(0, then + time);
+            gain.gain.linearRampToValueAtTime(volume * 0.15, then + time + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, then + time + duration);
+            
+            osc.connect(gain);
+            osc2.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(then + time);
+            osc2.start(then + time);
+            osc.stop(then + time + duration);
+            osc2.stop(then + time + duration);
+        });
+    }
+
+    async playGameOver(volume = 0.5) {
+        if (!await this.ensureContext()) return;
+        const ctx = this.audioContext!;
+
+        // Womp womp womp woooooooomp (Descending minor)
+        const sequence = [
+            { freq: 329.63, time: 0, duration: 0.3 }, // E4
+            { freq: 311.13, time: 0.3, duration: 0.3 }, // Eb4
+            { freq: 293.66, time: 0.6, duration: 0.3 }, // D4
+            { freq: 277.18, time: 0.9, duration: 2.0 }  // Db4 (Drops)
+        ];
+
+        const then = ctx.currentTime;
+        
+        sequence.forEach(({ freq, time, duration }, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sawtooth'; // Harsh synth sound for failure
+            
+            osc.frequency.setValueAtTime(freq, then + time);
+            
+            if (i === sequence.length - 1) {
+                // Pitch bend down on the last note for the "death/deflating" feel
+                osc.frequency.exponentialRampToValueAtTime(freq / 4, then + time + duration);
+            }
+            
+            gain.gain.setValueAtTime(0, then + time);
+            gain.gain.linearRampToValueAtTime(volume * 0.2, then + time + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, then + time + duration);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(then + time);
+            osc.stop(then + time + duration);
+        });
+    }
 }
 
 export const soundManager = new SoundManager();

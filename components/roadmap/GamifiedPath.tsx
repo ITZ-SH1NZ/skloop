@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from
 import { Check, Lock, Play, Star, Trophy, Zap, Cloud, ArrowRight } from "lucide-react";
 import { useRef, useEffect, useState, useCallback, memo } from "react";
 import { useRouter } from "next/navigation";
+import { useLenis } from "lenis/react";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { createClient } from "@/utils/supabase/client";
@@ -747,13 +748,9 @@ export default function GamifiedPath() {
     const scrollY = useMotionValue(0);
     const parallaxY = useTransform(scrollY, [0, 5000], [0, -300]);
 
-    useEffect(() => {
-        const container = document.getElementById("app-scroll-container");
-        if (!container) return;
-        const handleScroll = () => scrollY.set(container.scrollTop);
-        container.addEventListener("scroll", handleScroll, { passive: true });
-        return () => container.removeEventListener("scroll", handleScroll);
-    }, [scrollY]);
+    useLenis(({ scroll }) => {
+        scrollY.set(scroll);
+    });
 
     const contentHeight = pathData.length > 0 ? pathData[pathData.length - 1].position.y + 200 : 800;
 

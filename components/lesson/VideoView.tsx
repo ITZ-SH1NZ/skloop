@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CheckCircle, Play, Check, X, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { soundManager } from "@/lib/sound";
+import { OptionButton } from "./OptionButton";
 
 interface Question {
     question: string;
@@ -17,35 +19,49 @@ interface VideoViewProps {
     duration?: string;
     miniQuiz?: Question[];
     onComplete?: () => void;
+    hearts?: number;
+    onHeartLost?: () => void;
 }
 
-export default function VideoView({ videoUrl, summary, duration, miniQuiz, onComplete }: VideoViewProps) {
+export default function VideoView({ videoUrl, summary, duration, miniQuiz, onComplete, hearts, onHeartLost }: VideoViewProps) {
     const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
-    // Strict Sequential Quiz State
     const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
     const [failedAttempts, setFailedAttempts] = useState<Record<number, number[]>>({});
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [isAnswered, setIsAnswered] = useState(false);
 
     const hasMiniQuiz = miniQuiz && miniQuiz.length > 0;
     const isCompleteEnabled = !hasMiniQuiz || currentQuizIndex >= miniQuiz!.length;
 
     const handleQuizOptionSelect = (oIndex: number) => {
-        if (!hasMiniQuiz || currentQuizIndex >= miniQuiz!.length) return;
+        if (!hasMiniQuiz || currentQuizIndex >= miniQuiz!.length || isAnswered) return;
+
+        setSelectedOption(oIndex);
+        setIsAnswered(true);
 
         const currentQ = miniQuiz![currentQuizIndex];
         const correctAnswer = currentQ.correctIndex !== undefined ? currentQ.correctIndex : currentQ.answer;
 
         if (oIndex === correctAnswer) {
-            // Correct - move to next question (or finish)
+            soundManager.playMetalSnap();
             setTimeout(() => {
                 setCurrentQuizIndex(prev => prev + 1);
-            }, 600); // Small delay to let user see the green success state
+                setIsAnswered(false);
+                setSelectedOption(null);
+            }, 800);
         } else {
-            // Incorrect - record failure
-            setFailedAttempts(prev => ({
-                ...prev,
-                [currentQuizIndex]: [...(prev[currentQuizIndex] || []), oIndex]
-            }));
+            soundManager.playError();
+            if (onHeartLost) onHeartLost();
+            
+            setTimeout(() => {
+                setFailedAttempts(prev => ({
+                    ...prev,
+                    [currentQuizIndex]: [...(prev[currentQuizIndex] || []), oIndex]
+                }));
+                setIsAnswered(false);
+                setSelectedOption(null);
+            }, 800);
         }
     };
 
@@ -155,33 +171,26 @@ export default function VideoView({ videoUrl, summary, duration, miniQuiz, onCom
                                                     {currentQ.question}
                                                 </p>
 
-                                                <div className="space-y-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 w-full">
                                                     {currentQ.options.map((opt, oIndex) => {
                                                         const isFailed = currentFailures.includes(oIndex);
-
-                                                        let btnStyle = "bg-white border-zinc-200 text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50 shadow-sm";
-
-                                                        if (isFailed) {
-                                                            btnStyle = "bg-red-50 border-red-300 text-red-900 opacity-60 cursor-not-allowed";
-                                                        }
+                                                        const isSelectingThis = selectedOption === oIndex;
+                                                        
+                                                        // It answers as "failed" if it's deeply stored in failedAttempts, 
+                                                        // OR if it's currently selected, answered, and incorrect.
+                                                        const effectivelyAnswered = (isAnswered && isSelectingThis) || isFailed;
+                                                        const effectivelyCorrect = (isAnswered && isSelectingThis && oIndex === correctAnswer);
 
                                                         return (
-                                                            <button
+                                                            <OptionButton
                                                                 key={oIndex}
-                                                                disabled={isFailed}
+                                                                idx={oIndex}
+                                                                option={opt}
+                                                                isAnswered={effectivelyAnswered || isFailed || isAnswered} 
+                                                                isSelected={isSelectingThis || isFailed}
+                                                                isCorrect={effectivelyCorrect}
                                                                 onClick={() => handleQuizOptionSelect(oIndex)}
-                                                                className={`w-full p-5 rounded-2xl border-2 font-bold transition-all text-left flex justify-between items-center group active:scale-[0.99] ${btnStyle}`}
-                                                            >
-                                                                <span className="text-lg">{opt}</span>
-
-                                                                <div className="shrink-0">
-                                                                    {isFailed && (
-                                                                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-red-500 bg-red-100 p-1.5 rounded-full">
-                                                                            <X size={18} strokeWidth={3} />
-                                                                        </motion.div>
-                                                                    )}
-                                                                </div>
-                                                            </button>
+                                                            />
                                                         );
                                                     })}
                                                 </div>
