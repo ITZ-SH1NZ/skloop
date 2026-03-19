@@ -41,52 +41,50 @@ export default function GamifiedLoader({ onComplete, preloadTasksRef }: { onComp
 
         let t1: NodeJS.Timeout, t2: NodeJS.Timeout, t3: NodeJS.Timeout, t4: NodeJS.Timeout, t5: NodeJS.Timeout, t6: NodeJS.Timeout;
 
-        // Animation Sequence (Matching steps + progress bar)
+        // Animation Sequence (cut delays in half for faster perceived load)
         t1 = setTimeout(() => { 
             setStep(1); 
             setProgress(20); 
             soundManager.playMetalSnap(0.4);
-        }, 600);  // Base + Fins drop in
+        }, 300);  // was 600ms
         
         t2 = setTimeout(() => { 
             setStep(2); 
             setProgress(40); 
             soundManager.playMetalSnap(0.5);
-        }, 1200); // Body drops in
+        }, 600); // was 1200ms
         
         t3 = setTimeout(() => { 
             setStep(3); 
             setProgress(60); 
             soundManager.playMetalSnap(0.6);
-        }, 1800); // Nose drops in
+        }, 900); // was 1800ms
         
-        t4 = setTimeout(() => { 
-            setStep(4); 
-            setProgress(80); 
+        t4 = setTimeout(() => {
+            setStep(4);
+            setProgress(80);
             soundManager.playRocketLaunch(0.8);
             
-            // Wait for preloaded tasks (if any) or proceed after a short delay
             const proceedToBlastoff = () => {
                 t5 = setTimeout(() => { 
                     setStep(5); 
                     setProgress(100); 
-                }, 800); // BLAST OFF
+                }, 800);
                 t6 = setTimeout(() => onComplete(), 1500);
             };
 
+            // PERF 2: Always proceed immediately — preloads are background optimizations, not gates
+            proceedToBlastoff();
+
+            // Still kick off preloads in background so they warm cache (just don't block)
             if (preloadTasksRef && preloadTasksRef.current && preloadTasksRef.current.length > 0) {
-                // Wait for all registered preloads, with a fallback timeout of 6 seconds to prevent infinite hang
                 Promise.race([
                     Promise.allSettled(preloadTasksRef.current),
-                    new Promise(resolve => setTimeout(resolve, 6000))
-                ]).then(() => {
-                    proceedToBlastoff();
-                });
-            } else {
-                proceedToBlastoff();
+                    new Promise(resolve => setTimeout(resolve, 2000)) // was 6000ms
+                ]);
             }
 
-        }, 2600); // IGNITION (Shake)
+        }, 1300); // was 2600ms
 
         return () => {
             document.documentElement.style.overflow = "";

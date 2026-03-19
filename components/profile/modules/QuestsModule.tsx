@@ -108,7 +108,7 @@ export function QuestsModule() {
                 return;
             }
 
-            const result = await openChest(user.id, targetChest.id);
+            const result = await openChest(targetChest.id);
             if (result.success) {
                 setRewardRevealed({ ...result.reward, bonusCoins: result.bonusCoins });
                 mutate(['dailyQuests', user.id]);

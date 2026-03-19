@@ -3,6 +3,38 @@
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
+// --- REQUIRED MIGRATIONS (Run in Supabase SQL editor before deploying) ---
+//
+// 1. Unique constraint for daily_quest_completions (FIX 3):
+//    ALTER TABLE public.daily_quest_completions
+//      ADD CONSTRAINT daily_quest_completions_user_quest_cycle_unique
+//      UNIQUE (user_id, quest_id, cycle_key);
+//
+// 2. Unique constraint for user_chests to prevent double-award (FIX 9):
+//    ALTER TABLE public.user_chests
+//      ADD CONSTRAINT user_chests_unique_cycle
+//      UNIQUE (user_id, cycle_key, chest_type);
+//
+// 3. Add equipped_frame column to profiles (FIX 4):
+//    ALTER TABLE public.profiles ADD COLUMN equipped_frame text;
+//
+// 4. Create append_to_inventory RPC (FIX 2):
+//    CREATE OR REPLACE FUNCTION append_to_inventory(x_user_id uuid, item_id text)
+//    RETURNS void LANGUAGE plpgsql AS $$
+//    BEGIN
+//      UPDATE profiles
+//      SET inventory = inventory || jsonb_build_array(item_id::text)
+//      WHERE id = x_user_id AND NOT (inventory @> jsonb_build_array(item_id::text));
+//    END;
+//    $$;
+//
+// 5. Insert typing quest rows (FIX 11):
+//    INSERT INTO public.quests (key, title, description, type, xp_reward, coins_reward, icon, sort_order)
+//    VALUES
+//      ('type_race_3w', 'Speed Demon', 'Complete 3 typing races this week', 'weekly', 75, 30, '⌨️', 5),
+//      ('type_race_10m', 'Keystroke Legend', 'Complete 10 typing races this month', 'monthly', 200, 100, '⌨️', 5)
+//    ON CONFLICT (key) DO NOTHING;
+
 // --- Cycle Key Helpers ---
 // Generates Strings like 'daily:2026-03-01', 'weekly:2026-W09', 'monthly:2026-03'
 
@@ -11,7 +43,6 @@ function getDailyCycleKey(date = new Date()) {
 }
 
 function getWeeklyCycleKey(date = new Date()) {
-    // Basic ISO week-ish calculation
     const target = new Date(date.valueOf());
     const dayNr = (date.getDay() + 6) % 7;
     target.setDate(target.getDate() - dayNr + 3);
@@ -35,6 +66,17 @@ function getCycleKey(type: "daily" | "weekly" | "monthly", date = new Date()) {
     if (type === "weekly") return getWeeklyCycleKey(date);
     return getMonthlyCycleKey(date);
 }
+
+// --- Hardcoded quest target map (FIX 12) ---
+// Used by skipQuestWithConsumable since the DB has no target_amount column
+const QUEST_TARGETS: Record<string, number> = {
+    'login': 1, 'codele': 1, 'type_race': 1,
+    'streak_7': 7, 'streak_20m': 20,
+    'codele_3w': 3, 'codele_15m': 15,
+    'type_race_3w': 3, 'type_race_10m': 10,
+    'lesson': 1, 'lessons_5w': 5, 'lessons_20m': 20,
+    'quiz_3w': 3, 'quiz_10m': 10,
+};
 
 // --- Types ---
 
@@ -99,13 +141,12 @@ export async function getUserQuestProgress(userId: string, type: QuestType) {
         auto_progress: completionsMap.has(q.key) ? Math.max(0, completionsMap.get(q.key)!) : 0
     }));
 
-    // Calculate chest status here too if needed, but usually handled separately
     return progress;
 }
 
 /**
  * Marks a quest as complete (or increments progress). If the quest hits the threshold, awards XP/Coins.
- * If 3 total quests of this type are now complete, awards a Chest.
+ * FIX 3: Replaced upsert (that required a missing unique constraint) with explicit insert/update pattern.
  */
 export async function claimQuestProgress(userId: string, questKey: string, type: QuestType, progressAmount = 1, targetAmount = 1) {
     const supabase = await createClient();
@@ -138,27 +179,44 @@ export async function claimQuestProgress(userId: string, questKey: string, type:
 
     if (!questDetails) return { success: false, message: 'Quest not found' };
 
-    // 3. Save progress
-    const { error: upsertError } = await supabase
-        .from('daily_quest_completions')
-        .upsert({
-            user_id: userId,
-            quest_id: questKey,
-            cycle_key: cycleKey,
-            quest_type: questDetails.type,
-            auto_progress: finalProgressToSave,
-            xp_awarded: isNowComplete ? questDetails.xp_reward : 0,
-            coins_awarded: isNowComplete ? questDetails.coins_reward : 0
-        }, { onConflict: 'user_id, quest_id, cycle_key' });
+    // 3. Save progress with explicit insert/update (FIX 3)
+    if (existing) {
+        const { error: updateError } = await supabase
+            .from('daily_quest_completions')
+            .update({
+                auto_progress: finalProgressToSave,
+                xp_awarded: isNowComplete ? questDetails.xp_reward : 0,
+                coins_awarded: isNowComplete ? questDetails.coins_reward : 0
+            })
+            .eq('user_id', userId)
+            .eq('quest_id', questKey)
+            .eq('cycle_key', cycleKey);
 
-    if (upsertError) {
-        console.error('Error saving quest progress:', upsertError);
-        return { success: false, error: upsertError };
+        if (updateError) {
+            console.error('Error updating quest progress:', updateError);
+            return { success: false, error: updateError };
+        }
+    } else {
+        const { error: insertError } = await supabase
+            .from('daily_quest_completions')
+            .insert({
+                user_id: userId,
+                quest_id: questKey,
+                cycle_key: cycleKey,
+                quest_type: questDetails.type,
+                auto_progress: finalProgressToSave,
+                xp_awarded: isNowComplete ? questDetails.xp_reward : 0,
+                coins_awarded: isNowComplete ? questDetails.coins_reward : 0
+            });
+
+        if (insertError) {
+            console.error('Error inserting quest progress:', insertError);
+            return { success: false, error: insertError };
+        }
     }
 
-    // 4. If completed, award XP/Coins and check for Chest
+    // 4. If completed, award XP/Coins
     if (isNowComplete) {
-        // Fetch profile to check for multipliers
         const { data: profile } = await supabase
             .from('profiles')
             .select('active_powers')
@@ -188,25 +246,32 @@ export async function claimQuestProgress(userId: string, questKey: string, type:
         if (rpcError) {
             console.error('Error awarding quest rewards via RPC:', rpcError);
         }
-
-        // Check if they hit exactly 3 completions for this cycle type to award a chest
-        await checkAndAwardChest(userId, type, cycleKey);
     }
 
-    return { success: true, isComplete: isNowComplete };
+    return {
+        success: true,
+        isComplete: isNowComplete,
+        xpAwarded: isNowComplete ? questDetails.xp_reward : 0,
+        coinsAwarded: isNowComplete ? questDetails.coins_reward : 0
+    };
 }
 
 /**
  * Uses a 'Daily Skip' item to instantly complete a quest.
+ * FIX 12: Uses QUEST_TARGETS map to look up correct target per quest.
  */
 export async function skipQuestWithConsumable(userId: string, questKey: string, type: QuestType) {
     const supabase = await createClient();
+
+    // FIX 5: Verify the user from session, not from parameter
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) return { success: false, error: 'Unauthorized' };
 
     // 1. Check inventory for skip item
     const { data: profile } = await supabase
         .from("profiles")
         .select("inventory")
-        .eq("id", userId)
+        .eq("id", user.id)
         .single();
 
     const inventory = profile?.inventory || [];
@@ -214,73 +279,19 @@ export async function skipQuestWithConsumable(userId: string, questKey: string, 
         return { success: false, error: "No Daily Skip items available." };
     }
 
-    // 2. Complete the quest (targetAmount=1, progressAmount=1 for simplicity if not multi-step)
-    // Most skips just fill the bar.
-    const result = await claimQuestProgress(userId, questKey, type, 999, 1); // Force completion
+    // 2. Complete the quest using the correct target from the map (FIX 12)
+    const target = QUEST_TARGETS[questKey] ?? 1;
+    const result = await claimQuestProgress(user.id, questKey, type, target, target);
 
     if (result.success) {
         // 3. Deduct one skip item
         const newInventory = inventory.filter((id: string) => id !== 'item_daily_skip');
-        await supabase.from("profiles").update({ inventory: newInventory }).eq("id", userId);
+        await supabase.from("profiles").update({ inventory: newInventory }).eq("id", user.id);
         revalidatePath("/profile");
         return { success: true, message: "Quest skipped!" };
     }
 
     return result;
-}
-
-/**
- * Specifically for topics/lessons, ensures progress is recorded AND rewards are granted.
- */
-export async function awardTopicCompletion(userId: string, topicId: string, xpReward: number) {
-    const supabase = await createClient();
-
-    // 1. Record progress
-    const { error: progressError } = await supabase
-        .from("user_topic_progress")
-        .upsert({
-            user_id: userId,
-            topic_id: topicId,
-            status: "completed",
-            completed_at: new Date().toISOString()
-        });
-
-    if (progressError) {
-        console.error('Error saving topic progress:', progressError);
-        return { success: false, error: progressError };
-    }
-
-    // 2. Grant XP
-    const { error: rpcError } = await supabase.rpc('increment_profile_stats', {
-        x_user_id: userId,
-        xp_amount: xpReward,
-        coins_amount: 0 // Topics usually only give XP unless specified
-    });
-
-    if (rpcError) {
-        console.error('Error awarding topic rewards via RPC:', rpcError);
-    }
-
-    // 3. Mark quest progress across all cycles in parallel
-    await Promise.all([
-        claimQuestProgress(userId, 'lesson',      'daily',   1, 1),
-        claimQuestProgress(userId, 'lessons_5w',  'weekly',  1, 5),
-        claimQuestProgress(userId, 'lessons_20m', 'monthly', 1, 20),
-    ]);
-
-    // 4. Record milestone on Timeline
-    await recordTimelineEvent(
-        userId, 
-        "Topic Completed", 
-        topicId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-        `Successfully finished lesson module: ${topicId}`,
-        'course',
-        'text-blue-500'
-    );
-
-    revalidatePath('/dashboard');
-    revalidatePath('/profile');
-    return { success: true };
 }
 
 /**
@@ -316,31 +327,6 @@ export async function recordTimelineEvent(
     return { success: true };
 }
 
-async function checkAndAwardChest(userId: string, type: QuestType, cycleKey: string) {
-    const supabase = await createClient();
-
-    // How many full completions (-1) exist for this cycle and type?
-    const { count } = await supabase
-        .from('daily_quest_completions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('cycle_key', cycleKey)
-        .eq('quest_type', type)
-        .eq('auto_progress', -1);
-
-    if (count === 3) {
-        const chestType = type === 'daily' ? 'common' : type === 'weekly' ? 'rare' : 'legendary';
-
-        // Try to insert the chest (unique constraint protects against duplicates)
-        await supabase.from('user_chests').insert({
-            user_id: userId,
-            chest_type: chestType,
-            cycle_key: cycleKey,
-            status: 'sealed'
-        });
-    }
-}
-
 // --- Chest Actions ---
 
 /** Fetch all un-opened chests */
@@ -361,11 +347,14 @@ export async function getSealedChests(userId: string) {
 export async function grantAdminChest(userId: string, chestType: 'common' | 'rare' | 'legendary') {
     const supabase = await createClient();
 
-    // Generate a unique cycle key for admin grants so it doesn't conflict with normal daily/weekly/monthly keys
+    // FIX 5: Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) return { success: false, error: 'Unauthorized' };
+
     const adminCycleKey = `admin_grant:${new Date().getTime()}`;
 
     const { data, error } = await supabase.from('user_chests').insert({
-        user_id: userId,
+        user_id: user.id,
         chest_type: chestType,
         cycle_key: adminCycleKey,
         status: 'sealed'
@@ -376,7 +365,6 @@ export async function grantAdminChest(userId: string, chestType: 'common' | 'rar
         return { success: false, error: error.message };
     }
 
-    // Revalidate paths so UI updates if user is currently online
     revalidatePath('/profile');
     revalidatePath('/');
 
@@ -385,17 +373,21 @@ export async function grantAdminChest(userId: string, chestType: 'common' | 'rar
 
 /** 
  * Handled by the UI when the user clicks 'Claim' on a 3/3 quest cycle.
- * Verifies eligibility and returns the chest data.
+ * FIX 9: Added chest_type filter to prevent returning the wrong chest.
  */
 export async function saveChestAction(userId: string, type: QuestType) {
     const supabase = await createClient();
     const cycleKey = getCycleKey(type);
 
+    // FIX 5: Verify the user from session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) return { success: false, error: 'Unauthorized' };
+
     // 1. Verify eligibility (3 completions)
     const { count } = await supabase
         .from('daily_quest_completions')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('cycle_key', cycleKey)
         .eq('quest_type', type)
         .eq('auto_progress', -1);
@@ -406,12 +398,13 @@ export async function saveChestAction(userId: string, type: QuestType) {
 
     const chestType = type === 'daily' ? 'common' : type === 'weekly' ? 'rare' : 'legendary';
 
-    // 2. Insert or get existing chest
+    // 2. Check for existing chest (FIX 9: filter by chest_type to get the correct one)
     const { data: existing } = await supabase
         .from('user_chests')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('cycle_key', cycleKey)
+        .eq('chest_type', chestType)  // FIX 9: Added chest_type filter
         .maybeSingle();
 
     if (existing) {
@@ -421,7 +414,7 @@ export async function saveChestAction(userId: string, type: QuestType) {
     const { data: newChest, error } = await supabase
         .from('user_chests')
         .insert({
-            user_id: userId,
+            user_id: user.id,
             chest_type: chestType,
             cycle_key: cycleKey,
             status: 'sealed'
@@ -438,72 +431,104 @@ export async function saveChestAction(userId: string, type: QuestType) {
     return { success: true, chest: newChest, cycle_key: cycleKey };
 }
 
-/** Opens a chest, rolls for a Quest Exclusive reward, and awards it. */
-export async function openChest(userId: string, chestId: string) {
+/**
+ * Opens a chest, rolls for a Quest Exclusive reward, and awards it.
+ * FIX 1 & FIX 2: Uses atomic update WHERE status='sealed'. Rewards go into profiles.inventory via RPC.
+ * Does NOT write to reward_exclusive_id (column doesn't exist) or reward_product_id (wrong table).
+ */
+export async function openChest(chestId: string) {
     const supabase = await createClient();
 
-    // 1. Verify chest is sealed
-    const { data: chest } = await supabase
+    // FIX 5: Verify the user from session, not from a parameter
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) throw new Error("Unauthorized");
+
+    // 1. Atomic update: only succeeds if chest is still 'sealed' (FIX 1)
+    const { data: updated, error: updateError } = await supabase
         .from('user_chests')
-        .select('id, chest_type, status, cycle_key')
+        .update({ status: 'opened', opened_at: new Date().toISOString() })
         .eq('id', chestId)
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
+        .eq('status', 'sealed')  // FIX 1: Atomic guard — prevents re-opening
+        .select()
         .single();
 
-    if (!chest || chest.status !== 'sealed') {
-        return { success: false, error: 'Chest not found or already opened' };
+    if (updateError || !updated) {
+        return { success: false, error: 'Chest already opened or not found' };
     }
 
-    // 2. Draft reward pool matching chest rarity
-    const { data: pool } = await supabase
-        .from('quest_exclusives')
-        .select('*')
-        .eq('rarity', chest.chest_type);
+    const chest = updated;
 
-    if (!pool || pool.length === 0) {
-        return { success: false, error: 'No rewards available for this rarity tier' };
-    }
-
-    // 3. Roll for reward
-    const reward = pool[Math.floor(Math.random() * pool.length)];
-
-    // 4. Bonus Coins based on rarity
+    // 2. Bonus Coins based on rarity
     let bonusCoins = 0;
     if (chest.chest_type === 'common') bonusCoins = 50;
     if (chest.chest_type === 'rare') bonusCoins = 250;
     if (chest.chest_type === 'legendary') bonusCoins = 1000;
 
-    // 5. Update Profile ATOMICALLY
-    const { error: updateError } = await supabase.rpc('award_chest_rewards', {
-        x_user_id: userId,
-        reward_id: reward.id,
+    // 3. Draft reward pool matching chest rarity
+    const { data: pool } = await supabase
+        .from('quest_exclusives')
+        .select('*')
+        .eq('rarity', chest.chest_type);
+
+    // 4. Roll for reward (coins-only fallback if no exclusives seeded yet)
+    if (!pool || pool.length === 0) {
+        await supabase.rpc('increment_profile_stats', {
+            x_user_id: user.id,
+            xp_amount: 0,
+            coins_amount: bonusCoins
+        });
+        revalidatePath('/dashboard');
+        revalidatePath('/profile');
+        return { success: true, reward: null, bonusCoins };
+    }
+
+    const reward = pool[Math.floor(Math.random() * pool.length)];
+
+    // 5. FIX 2: Add reward string ID to profiles.inventory via RPC (safe jsonb append)
+    // award_chest_rewards RPC should: append item to inventory AND increment coins
+    const { error: rpcError } = await supabase.rpc('award_chest_rewards', {
+        x_user_id: user.id,
+        reward_id: reward.id,    // text ID like 'frame_neon_glitch'
         coin_amount: bonusCoins
     });
 
-    if (updateError) {
-        console.error('Error awarding chest rewards via RPC:', updateError);
-        
-        // Manual fallback if RPC is not yet created in Supabase
-        const { data: profile } = await supabase.from('profiles').select('inventory, coins').eq('id', userId).single();
-        const inv = profile?.inventory || [];
-        if (!inv.includes(reward.id)) inv.push(reward.id);
-        
-        await supabase.from('profiles').update({ 
-            inventory: inv,
-            coins: (profile?.coins || 0) + bonusCoins
-        }).eq('id', userId);
+    if (rpcError) {
+        // Fallback: manual append if RPC not yet created
+        // FIX 2: use append_to_inventory RPC if available, else direct update
+        const { error: invRpcError } = await supabase.rpc('append_to_inventory', {
+            x_user_id: user.id,
+            item_id: reward.id
+        });
+
+        if (invRpcError) {
+            // Last resort: safe manual update that avoids duplicates
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('inventory, coins')
+                .eq('id', user.id)
+                .single();
+
+            const inv: string[] = Array.isArray(profileData?.inventory) ? profileData.inventory : [];
+            const updatedInv = inv.includes(reward.id) ? inv : [...inv, reward.id];
+
+            await supabase.from('profiles').update({
+                inventory: updatedInv,
+                coins: (profileData?.coins || 0) + bonusCoins
+            }).eq('id', user.id);
+        } else {
+            // append_to_inventory succeeded, separately add coins
+            await supabase.rpc('increment_profile_stats', {
+                x_user_id: user.id,
+                xp_amount: 0,
+                coins_amount: bonusCoins
+            });
+        }
     }
 
-    // 6. Mark Chest as Opened
-    await supabase.from('user_chests').update({
-        status: 'opened',
-        reward_exclusive_id: reward.id,
-        opened_at: new Date().toISOString()
-    }).eq('id', chestId);
-
-    // 7. Record to Timeline
+    // 6. Record to Timeline
     await recordTimelineEvent(
-        userId,
+        user.id,
         "Chest Unsealed",
         `${reward.name} (${reward.rarity})`,
         `Successfully opened a ${chest.chest_type} chest and earned a ${reward.type.replace('_', ' ')}!`,
@@ -528,6 +553,6 @@ export async function claimAndOpenChest(userId: string, type: QuestType) {
         return saveResult;
     }
 
-    // 2. Open it
-    return await openChest(userId, saveResult.chest.id);
+    // 2. Open it (openChest now gets userId from session internally)
+    return await openChest(saveResult.chest.id);
 }

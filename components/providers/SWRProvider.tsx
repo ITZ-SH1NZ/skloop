@@ -4,32 +4,30 @@ import { SWRConfig } from "swr";
 import { ReactNode, useEffect, useState } from "react";
 
 export function SWRProvider({ children }: { children: ReactNode }) {
-    const [provider, setProvider] = useState<Map<any, any> | null>(null);
+    // Lazy initialize provider to ensure it's ready before children mount
+    const [provider] = useState(() => {
+        if (typeof window === 'undefined') return new Map();
+        return new Map(JSON.parse(localStorage.getItem('skloop-swr-cache') || '[]'));
+    });
 
     useEffect(() => {
-        // Initialize from localStorage on mount
-        const cache = new Map(JSON.parse(localStorage.getItem('skloop-swr-cache') || '[]'));
-        setProvider(cache);
-
-        // Save to localStorage when the window is unloaded
         const handleBeforeUnload = () => {
-            const appCache = JSON.stringify(Array.from(cache.entries()));
+            const appCache = JSON.stringify(Array.from(provider.entries()));
             localStorage.setItem('skloop-swr-cache', appCache);
         };
-
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+    }, [provider]);
 
     return (
         <SWRConfig
             value={{
-                provider: provider ? () => provider : undefined,
-                revalidateOnFocus: false,
+                provider: () => provider,
+                revalidateOnFocus: true,
+                focusThrottleInterval: 300000, // only re-fetch on focus if 5 minutes have passed
                 revalidateOnReconnect: true,
                 keepPreviousData: true,
-                // Deduplicate identical requests within 5 seconds to avoid redundant fetches
-                dedupingInterval: 5000,
+                dedupingInterval: 10000,
                 fetcher: async (resource: string, init?: RequestInit) => {
                     const res = await fetch(resource, init);
                     return res.json();

@@ -56,6 +56,14 @@ export async function proxy(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    // Protect /api/loopy, /api/loopy-chat, and /api/generate-roadmap
+    const protectedApiRoutes = ['/api/loopy', '/api/loopy-chat', '/api/generate-roadmap']
+    if (protectedApiRoutes.some(route => request.nextUrl.pathname.startsWith(route))) {
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+    }
+
     const url = request.nextUrl.clone()
     const hasSeenOnboarding = request.cookies.get('has_seen_onboarding')?.value === 'true'
 
@@ -97,11 +105,14 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * - api (API routes, Supabase handles these)
+         * - api/auth (Supabase handles these)
          * - manifesto (Always public)
          * - auth (Supabase auth internal routes)
          * - public assets
+         * 
+         * Note: We EXPLICITLY allow /api/loopy etc. to hit the proxy 
+         * by not excluding all of 'api'.
          */
-        '/((?!_next/static|_next/image|favicon.ico|api|auth|manifesto|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+        '/((?!_next/static|_next/image|favicon.ico|api/auth|manifesto|auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 }

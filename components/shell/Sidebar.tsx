@@ -198,6 +198,7 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
                     <Link
                         href={item.href}
                         onMouseEnter={() => handlePrefetch(item.href)}
+                        onTouchStart={() => handlePrefetch(item.href)}
                         onClick={() => {
                             setMobileOpen?.(false);
                         }}

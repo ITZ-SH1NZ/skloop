@@ -110,6 +110,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
     const [letterStatuses, setLetterStatuses] = useState<Record<string, "correct" | "present" | "absent">>({});
 
     const [puzzleId, setPuzzleId] = useState<string | null>(null);
+    const [questReward, setQuestReward] = useState<{ xp: number; coins: number } | null>(null);
 
     useEffect(() => {
         const fetchDailyPuzzle = async () => {
@@ -244,11 +245,15 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
             // Win or loss both complete the quest — quitting (never reaching here) does not
             // We use claimQuestProgress directly to bypass UI validations that might race with the upsert above
             const { claimQuestProgress } = await import('@/actions/quest-actions');
-            await Promise.all([
+            const [dailyResult] = await Promise.all([
                 claimQuestProgress(user.id, 'codele',     'daily',   1, 1),   // daily: play once
                 claimQuestProgress(user.id, 'codele_3w',  'weekly',  1, 3),   // weekly: play 3x
                 claimQuestProgress(user.id, 'codele_15m', 'monthly', 1, 15),  // monthly: play 15x
             ]);
+            // Show XP/coins earned if the daily quest just completed
+            if (dailyResult.isComplete && dailyResult.xpAwarded) {
+                setQuestReward({ xp: dailyResult.xpAwarded, coins: dailyResult.coinsAwarded ?? 0 });
+            }
             // Refresh the profile so XP/coins update immediately in the UI
             await refreshProfile();
             // Notify parent (e.g. dashboard) so it can refresh the quests widget
@@ -395,12 +400,26 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
                             <Trophy size={48} className={`mb-3 ${inline ? "text-lime-600" : "text-lime-600"}`} />
                             <h3 className="text-3xl font-black mb-1">Solved!</h3>
                             <p className="font-medium opacity-80">Streak extended +1 🔥</p>
+                            {questReward && (
+                                <div className="flex items-center gap-3 mt-3 px-4 py-2 bg-white/70 rounded-2xl border border-lime-200">
+                                    <span className="text-sm font-black text-blue-600">+{questReward.xp} XP</span>
+                                    <span className="text-lime-300 font-bold">·</span>
+                                    <span className="text-sm font-black text-amber-500">+{questReward.coins} Coins</span>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className={`p-6 rounded-3xl flex flex-col items-center ${inline ? "bg-rose-50 text-rose-800" : "bg-rose-50 text-rose-800"}`}>
                             <AlertCircle size={48} className={`mb-3 ${inline ? "text-rose-500" : "text-rose-600"}`} />
                             <h3 className="text-3xl font-black mb-1">Missed it.</h3>
                             <p className="font-medium opacity-80">Word was: <span className="font-mono font-bold">{solution}</span></p>
+                            {questReward && (
+                                <div className="flex items-center gap-3 mt-3 px-4 py-2 bg-white/70 rounded-2xl border border-rose-200">
+                                    <span className="text-sm font-black text-blue-600">+{questReward.xp} XP</span>
+                                    <span className="text-rose-200 font-bold">·</span>
+                                    <span className="text-sm font-black text-amber-500">+{questReward.coins} Coins</span>
+                                </div>
+                            )}
                         </div>
                     )}
 

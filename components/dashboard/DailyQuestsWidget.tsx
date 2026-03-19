@@ -82,7 +82,21 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
             if (result.success) {
                 setShowRewardBurst(true);
                 setClaimFeedback({ id: questId, message: result.message });
-                await mutate();
+                // Optimistic update: mark quest as completed immediately in the local SWR cache
+                // so the Claim button doesn't briefly reappear while the re-fetch is in flight.
+                await mutate(
+                    (currentData: any) => {
+                        if (!currentData?.questsData) return currentData;
+                        const updated = { ...currentData.questsData };
+                        for (const type of ['daily', 'weekly', 'monthly'] as const) {
+                            updated[type] = (updated[type] || []).map((q: any) =>
+                                q.key === questId ? { ...q, is_completed: true, auto_progress: -1 } : q
+                            );
+                        }
+                        return { ...currentData, questsData: updated };
+                    },
+                    { revalidate: true }
+                );
                 await refreshProfile();
                 setTimeout(() => setClaimFeedback(null), 3000);
             } else {
@@ -113,7 +127,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
         }
     };
 
-    const completedCount = quests.filter((q: any) => q.is_completed).length;
+    const completedCount = isMounted ? quests.filter((q: any) => q.is_completed).length : 0;
     const requiredForChest = 3;
     const chestProgress = Math.min(completedCount, requiredForChest);
     
@@ -133,9 +147,9 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
             })()
             : `monthly:${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}`;
 
-    const isCycleRewardClaimed = claimedCycleKeys.includes(currentCycleKey);
+    const isCycleRewardClaimed = isMounted && claimedCycleKeys.includes(currentCycleKey);
     const chestReady = chestProgress === requiredForChest && !isCycleRewardClaimed;
-    const hasUnopenedChests = chestCount > 0;
+    const hasUnopenedChests = isMounted && chestCount > 0;
     const chestColor = activeTab === 'daily' ? 'bg-[#9db44d]' : activeTab === 'weekly' ? 'bg-blue-500' : 'bg-amber-500';
     const chestLabel = activeTab === 'daily' ? 'Common Chest' : activeTab === 'weekly' ? 'Rare Chest' : 'Legendary Chest';
 
@@ -202,7 +216,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
 
                     <div className="space-y-3 min-h-[250px] relative">
                         <AnimatePresence mode="wait">
-                            {isLoading ? (
+                        {(!isMounted || isLoading) ? (
                                 <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 space-y-4">
                                     {[1, 2, 3].map(i => <div key={i} className="h-20 bg-slate-50 rounded-2xl w-full animate-pulse" />)}
                                 </motion.div>

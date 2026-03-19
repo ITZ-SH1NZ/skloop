@@ -22,6 +22,17 @@ import '@xyflow/react/dist/style.css';
 import { Play, RotateCcw, Plus, Trash2, Terminal, MousePointerClick } from 'lucide-react';
 import { useMediaQuery } from "@/hooks/use-media-query";
 
+// --- Code Safety Validator (FIX 8) ---
+const BLOCKED_PATTERNS = [
+    /fetch\s*\(/i, /XMLHttpRequest/i, /import\s*\(/i,
+    /\bdocument\b/, /\bwindow\b/, /\blocalStorage\b/, /\bsessionStorage\b/,
+    /\beval\s*\(/, /new\s+Function/i, /:\/\//
+]
+function isSafeCode(code: string): boolean {
+    return !BLOCKED_PATTERNS.some(p => p.test(code))
+}
+
+
 // --- NODE TYPES ---
 
 interface FlowchartNodeData extends Record<string, unknown> {
@@ -486,6 +497,10 @@ export default function FlowchartBuilder({
 
         // Helper to evaluate condition (for decision, while, for)
         const evaluateCondition = (code: string): boolean => {
+            if (!isSafeCode(code)) {
+                addLog('⚠️ Unsafe code blocked');
+                return false;
+            }
             try {
                 const func = new Function('ctx', `with(ctx) { return (${code}); }`);
                 return !!func(context);
@@ -527,6 +542,7 @@ export default function FlowchartBuilder({
                         if (currentNode.data.code) {
                             try {
                                 const code = currentNode.data.code as string;
+                                if (!isSafeCode(code)) { addLog('⚠️ Unsafe code blocked'); break; }
                                 const func = new Function('ctx', `with(ctx) { ${code} }`);
                                 func(context);
                             } catch (e: any) {
@@ -556,15 +572,15 @@ export default function FlowchartBuilder({
                         break;
 
                     case 'output':
-                        if (currentNode.data) { // Changed to allow output of implicit value
+                        if (currentNode.data) {
                             try {
                                 const code = (currentNode.data.code as string) || '';
                                 let result;
                                 if (code) {
+                                    if (!isSafeCode(code)) { addLog('⚠️ Unsafe code blocked'); break; }
                                     const func = new Function('ctx', `with(ctx) { return (${code}); }`);
                                     result = func(context);
                                 } else {
-                                    // Default print whatever we hold, mostly fallback to literal string
                                     result = "Empty Print";
                                 }
                                 addLog(`> ${result}`);
@@ -858,6 +874,11 @@ export default function FlowchartBuilder({
         setIsRunning(false);
         setIsPendingInput(false);
         return allPassed;
+    };
+
+    const isSafeCode = (code: string) => {
+        const forbidden = ['window', 'document', 'eval', 'process', 'require', 'fetch', 'XMLHttpRequest', 'localStorage', 'sessionStorage', 'indexedDB', 'cookie'];
+        return !forbidden.some(word => code.includes(word));
     };
 
     const runFlowchartAction = async () => {

@@ -93,8 +93,6 @@ export async function getUserTasks(userId: string) {
             task_id,
             tasks (
                 id,
-                title,
-                description,
                 xp_reward,
                 difficulty
             )
@@ -276,9 +274,9 @@ export async function claimDailyQuest(
         result = dailyResult;
     } else if (questId === 'type_race') {
          const [dailyResult] = await Promise.all([
-            claimQuestProgress(userId, 'type_race',  'daily',   1, 1),
-            claimQuestProgress(userId, 'quiz_3w',    'weekly',  1, 3), // Example: combined targets
-            claimQuestProgress(userId, 'quiz_10m',   'monthly', 1, 10),
+            claimQuestProgress(userId, 'type_race',      'daily',   1, 1),
+            claimQuestProgress(userId, 'type_race_3w',   'weekly',  1, 3),   // FIX 11: correct quest key
+            claimQuestProgress(userId, 'type_race_10m',  'monthly', 1, 10),  // FIX 11: correct quest key
         ]);
         result = dailyResult;
     } else {

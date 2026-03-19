@@ -35,8 +35,8 @@ export default function TopicViewer({ topic, onClose, onComplete }: TopicViewerP
         setIsCompleting(true);
 
         try {
-            const { awardTopicCompletion } = await import("@/actions/quest-actions");
-            const result = await awardTopicCompletion(user.id, topic.id, topic.xp_reward || 0);
+            const { awardTopicCompletion } = await import("@/actions/course-actions");
+            const result = await awardTopicCompletion(user.id, topic.id);
 
             if (result.success) {
                 onComplete();

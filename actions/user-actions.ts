@@ -16,8 +16,16 @@ function calculateLevel(xp: number): number {
  * Handles daily login reward processing using a server-side transaction logic.
  * This is hosted as a Vercel Serverless Function automatically.
  */
-export async function processDailyLogin(userId: string) {
+export async function processDailyLogin(clientUserId: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Verification: Ensure the client-passed ID matches the session ID
+    if (!user || user.id !== clientUserId) {
+        throw new Error("Unauthorized: Identity mismatch");
+    }
+    
+    const userId = user.id;
     const todayStr = new Date().toISOString().split("T")[0];
 
     // 1. Check for existing activity today (idempotency guard)

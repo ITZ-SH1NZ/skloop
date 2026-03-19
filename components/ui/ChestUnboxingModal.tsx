@@ -106,7 +106,7 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
             let res;
             if (chestData.id) {
                 // Opening existing
-                res = await openChest(user.id, chestData.id);
+                res = await openChest(chestData.id);
             } else if (chestData.type) {
                 // Claiming AND opening
                 res = await claimAndOpenChest(user.id, chestData.type);
@@ -114,8 +114,8 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
 
             const result = res as { success: boolean; reward: any; bonusCoins: number; error?: string };
 
-            if (result?.success && result.reward) {
-                setReward(result.reward);
+            if (result?.success) {
+                setReward(result.reward || null);
                 setBonusCoins(result.bonusCoins || 0);
                 setStep("revealed");
                 confetti({
@@ -124,7 +124,7 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                     origin: { y: 0.6 },
                     colors: ['#D4F268', '#ffffff', '#000000']
                 });
-                
+
                 // IMPORTANT: onSuccess should trigger data refresh in parent
                 // But don't close the modal yet so they can see the reward!
                 onSuccess?.();
@@ -290,7 +290,7 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                         </motion.div>
                     )}
 
-                    {step === "revealed" && reward && (
+                    {step === "revealed" && (
                         <motion.div
                             key="revealed"
                             initial={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -298,23 +298,35 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                             className="w-full bg-white rounded-[3rem] p-10 text-center shadow-2xl border-4 border-[#D4F268] relative flex flex-col items-center"
                         >
                             <div className="w-48 h-48 mb-6">
-                                <ChestGraphic 
-                                    rarity={chestData.rarity} 
-                                    isOpen={true} 
-                                    icon={(() => {
+                                <ChestGraphic
+                                    rarity={chestData.rarity}
+                                    isOpen={true}
+                                    icon={reward ? (() => {
                                         const Icon = getIcon(reward.icon_name);
                                         return <Icon size={60} className="text-white" />;
-                                    })()}
+                                    })() : <Coins size={60} className="text-white" />}
                                 />
                             </div>
 
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-900 text-[#D4F268] rounded-full text-[10px] font-black uppercase tracking-widest mb-4 shadow-xl">
-                                <Sparkles size={12} className="fill-[#D4F268]" />
-                                {reward.rarity} {reward.type.replace('_', ' ')}
-                            </div>
-
-                            <h2 className="text-3xl font-black text-slate-900 mb-2">{reward.name}</h2>
-                            <p className="text-slate-500 font-bold mb-6">{reward.description || "An exclusive quest reward!"}</p>
+                            {reward ? (
+                                <>
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-zinc-900 text-[#D4F268] rounded-full text-[10px] font-black uppercase tracking-widest mb-4 shadow-xl">
+                                        <Sparkles size={12} className="fill-[#D4F268]" />
+                                        {reward.rarity} {reward.type.replace('_', ' ')}
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-900 mb-2">{reward.name}</h2>
+                                    <p className="text-slate-500 font-bold mb-6">{reward.description || "An exclusive quest reward!"}</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest mb-4 shadow-xl">
+                                        <Coins size={12} />
+                                        Coin Reward
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-900 mb-2">Chest Opened!</h2>
+                                    <p className="text-slate-500 font-bold mb-6">You received bonus coins!</p>
+                                </>
+                            )}
 
                             <div className="flex items-center gap-3 bg-amber-50 px-6 py-4 rounded-2xl border-2 border-amber-100/50 mb-8 w-full">
                                 <div className="w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-200 shrink-0">
@@ -328,8 +340,8 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                                     CLAIMED
                                 </div>
                             </div>
-                            
-                            <Button 
+
+                            <Button
                                 onClick={onClose}
                                 className="w-full bg-black text-white py-8 rounded-2xl font-black text-xl shadow-xl hover:shadow-[#D4F268]/20 transition-all group"
                             >

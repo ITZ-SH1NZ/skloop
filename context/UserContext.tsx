@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { processDailyLogin, fetchUserProfile, updateLastSeen } from "@/actions/user-actions";
@@ -66,7 +66,7 @@ export function UserProvider({
     const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
     const [isLoading, setIsLoading] = useState(!initialUser);
     const processedRef = React.useRef<string | null>(null);
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
     const onlineUserIds = usePresence(user?.id);
 
     const fetchProfile = useCallback(async (userId: string) => {

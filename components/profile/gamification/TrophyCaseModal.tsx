@@ -14,7 +14,7 @@ interface TrophyCaseModalProps {
 }
 
 export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
-    const { user, refreshProfile } = useUser();
+    const { user, profile, refreshProfile } = useUser();
     const [activeTab, setActiveTab] = useState<"owned" | "chests">("owned");
 
     // Data
@@ -36,6 +36,7 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
         const sealed = await getSealedChests(user.id);
         setChests(sealed);
 
+        // 1. Shop products from user_inventory table
         const { data: inv } = await supabase
             .from("user_inventory")
             .select(`
@@ -46,11 +47,33 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
             `)
             .eq("user_id", user.id);
 
-        const flatInv = (inv || []).map(row => ({
+        const shopItems = (inv || []).map(row => ({
+            source: 'shop',
             quantity: row.quantity,
             ...(row.products as any)
         }));
-        setInventory(flatInv);
+
+        // 2. Quest exclusive rewards stored as string IDs in profiles.inventory jsonb
+        const exclusiveIds: string[] = Array.isArray(profile?.inventory) ? profile.inventory : [];
+        let exclusiveItems: any[] = [];
+        if (exclusiveIds.length > 0) {
+            const { data: exclusives } = await supabase
+                .from('quest_exclusives')
+                .select('id, name, type, rarity, icon_name, gradient')
+                .in('id', exclusiveIds);
+            exclusiveItems = (exclusives || []).map(item => ({
+                source: 'quest',
+                id: item.id,
+                name: item.name,
+                type: item.type,
+                rarity: item.rarity,
+                icon_name: item.icon_name,
+                gradient: item.gradient,
+                quantity: 1,
+            }));
+        }
+
+        setInventory([...shopItems, ...exclusiveItems]);
         setIsLoading(false);
     };
 
@@ -94,7 +117,7 @@ export function TrophyCaseModal({ isOpen, onClose }: TrophyCaseModalProps) {
         setOpeningChestId(chestId);
         try {
             await new Promise(r => setTimeout(r, 600));
-            const result = await openChest(user.id, chestId);
+            const result = await openChest(chestId);
             if (result.success) {
                 setRewardReveal({ ...result.reward, bonusCoins: result.bonusCoins });
                 refreshProfile();

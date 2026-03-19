@@ -1,10 +1,28 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import { createClient } from "@/utils/supabase/server";
 
-// Initialize Groq client
+if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is not set");
+}
+
 const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY || "dummy_key_for_build",
+    apiKey: process.env.GROQ_API_KEY,
 });
+
+// Simple in-memory rate limiter (resets on server restart, good enough for edge cases)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+function checkRateLimit(userId: string): boolean {
+    const now = Date.now()
+    const entry = rateLimitMap.get(userId)
+    if (!entry || entry.resetAt < now) {
+        rateLimitMap.set(userId, { count: 1, resetAt: now + 60000 })
+        return true
+    }
+    if (entry.count >= 20) return false
+    entry.count++
+    return true
+}
 
 // Prompts
 const HELPFUL_SYSTEM_PROMPT = `
@@ -46,11 +64,21 @@ You are the **Dungeon Master** of the **Glitch Kingdom**.
 
 export async function POST(req: Request) {
     try {
+        // FIX 6: Auth check — reject unauthenticated requests
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        // FIX 6: Rate limit
+        if (!checkRateLimit(user.id)) {
+            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+        }
+
         const { message, mode, history } = await req.json();
 
-        // Validate input
-        if (!message) {
-            return NextResponse.json({ error: "Message is required" }, { status: 400 });
+        // FIX 6: Input length validation
+        if (!message || typeof message !== 'string' || message.length > 2000) {
+            return NextResponse.json({ error: "Invalid input" }, { status: 400 });
         }
 
         const systemPrompt = mode === "helpful" ? HELPFUL_SYSTEM_PROMPT : STORY_SYSTEM_PROMPT;
