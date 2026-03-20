@@ -25,6 +25,9 @@ export function NotificationListener() {
                 },
                 (payload) => {
                     const newNotif = payload.new as any;
+                    // Guard against receiving notifications meant for other users
+                    // (happens when RLS isn't enforced on realtime filter)
+                    if (newNotif.user_id !== profile?.id) return;
                     toast(newNotif.title, "success");
                 }
             )

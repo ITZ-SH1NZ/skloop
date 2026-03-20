@@ -521,6 +521,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [snippetCode, setSnippetCode] = useState("");
     const [snippetLang, setSnippetLang] = useState("javascript");
     const [isSendingSnippet, setIsSendingSnippet] = useState(false);
+    const [isSending, setIsSending] = useState(false);
     const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [lastReadId, setLastReadId] = useState<string | null>(null);
@@ -1233,10 +1234,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
     const handleSend = async (customText?: string, customType?: MessageRow['type'], customUrl?: string) => {
         if (!peer || !currentUserId) return;
+        if (isSending) return;
         const text = customText || inputValue;
         const type = customType || 'text';
 
         if (!text.trim() && !pendingFiles.length && !customUrl) return;
+        setIsSending(true);
 
         // Optimistic update
         const tempId = `temp-${Date.now()}`;
@@ -1307,6 +1310,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         } catch (err) {
             console.error("Send failed:", err);
             setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: "❌ Failed to send. Check your connection.", type: 'text' } : m));
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -1391,10 +1396,21 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                 
                 dest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
 
-                const recorder = new MediaRecorder(stream, {
-                    mimeType: 'video/webm;codecs=vp8,opus',
-                    videoBitsPerSecond: 2500000 // ~2.5 Mbps to aim for ~20MB for 1 min
-                });
+                let recorder: MediaRecorder;
+                try {
+                    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+                        ? 'video/webm;codecs=vp8,opus'
+                        : MediaRecorder.isTypeSupported('video/webm')
+                            ? 'video/webm'
+                            : '';
+                    recorder = new MediaRecorder(stream, {
+                        ...(mimeType ? { mimeType } : {}),
+                        videoBitsPerSecond: 2500000
+                    });
+                } catch {
+                    resolve(file);
+                    return;
+                }
 
                 const chunks: Blob[] = [];
                 recorder.ondataavailable = (e) => chunks.push(e.data);
@@ -1405,6 +1421,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                     resolve(compressedFile.size < file.size ? compressedFile : file);
                     URL.revokeObjectURL(video.src);
                 };
+                recorder.onerror = () => { resolve(file); URL.revokeObjectURL(video.src); };
 
                 video.play();
                 recorder.start();
@@ -1990,20 +2007,35 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                                 {att.type === 'video' && <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />}
                                                                                                 {att.type === 'audio' && <VoicePlayer url={att.url} />}
                                                                                                 {att.type === 'file' && (
-                                                                                                    <a href={att.url} download={att.name} target="_blank" rel="noopener noreferrer"
-                                                                                                        className={`flex items-center gap-3 p-3 rounded-xl border transition-colors hover:opacity-80 ${isMe ? 'bg-black/10 border-black/10' : 'bg-zinc-50 border-zinc-100'}`}
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={async () => {
+                                                                                                            try {
+                                                                                                                const res = await fetch(att.url);
+                                                                                                                const blob = await res.blob();
+                                                                                                                const blobUrl = URL.createObjectURL(blob);
+                                                                                                                const a = document.createElement('a');
+                                                                                                                a.href = blobUrl;
+                                                                                                                a.download = att.name || 'download';
+                                                                                                                a.click();
+                                                                                                                URL.revokeObjectURL(blobUrl);
+                                                                                                            } catch {
+                                                                                                                window.open(att.url, '_blank');
+                                                                                                            }
+                                                                                                        }}
+                                                                                                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors hover:opacity-80 ${isMe ? 'bg-black/10 border-black/10' : 'bg-zinc-50 border-zinc-100'}`}
                                                                                                     >
                                                                                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-black/10' : 'bg-zinc-100'}`}>
                                                                                                             <FileText size={20} className={isMe ? 'text-black/60' : 'text-zinc-500'} />
                                                                                                         </div>
-                                                                                                        <div className="min-w-0 flex-1">
+                                                                                                        <div className="min-w-0 flex-1 text-left">
                                                                                                             <p className={`text-sm font-bold truncate ${isMe ? 'text-black/90' : 'text-zinc-900'}`}>{att.name || 'File'}</p>
                                                                                                             <p className={`text-[10px] uppercase tracking-widest font-bold ${isMe ? 'text-black/40' : 'text-zinc-400'}`}>
                                                                                                                 {att.name?.split('.').pop()?.toUpperCase() || 'FILE'} · Download
                                                                                                             </p>
                                                                                                         </div>
                                                                                                         <Download size={16} className={isMe ? 'text-black/40 shrink-0' : 'text-zinc-400 shrink-0'} />
-                                                                                                    </a>
+                                                                                                    </button>
                                                                                                 )}
                                                                                             </div>
                                                                                         ))}
@@ -2094,8 +2126,18 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         }
                                         setShowAttachments(false);
                                     }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
-                                        <ImageIcon size={18} className="text-blue-500 group-hover/att:scale-110 transition-transform" /> 
+                                        <ImageIcon size={18} className="text-blue-500 group-hover/att:scale-110 transition-transform" />
                                         Photos
+                                    </button>
+                                    <button key="att-video" type="button" onClick={() => {
+                                        if (fileInputRef.current) {
+                                            fileInputRef.current.accept = "video/*";
+                                            fileInputRef.current.click();
+                                        }
+                                        setShowAttachments(false);
+                                    }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <Video size={18} className="text-red-500 group-hover/att:scale-110 transition-transform" />
+                                        Video
                                     </button>
                                     <button key="att-code" type="button" onClick={() => { setShowCodeModal(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
                                         <Code size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" /> 
@@ -2285,14 +2327,15 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                             key="send-btn"
                                             size="icon"
                                             type="submit"
+                                            disabled={isSending}
                                             onMouseDown={handleLongPressStart}
                                             onMouseUp={handleLongPressEnd}
                                             onMouseLeave={handleLongPressEnd}
                                             onTouchStart={handleLongPressStart}
                                             onTouchEnd={handleLongPressEnd}
-                                            className={`rounded-full shadow-xl transition-all active:scale-95 ${editingMsg ? 'bg-blue-600 w-12 h-12' : 'bg-zinc-900 w-12 h-12'}`}
+                                            className={`rounded-full shadow-xl transition-all active:scale-95 ${editingMsg ? 'bg-blue-600 w-12 h-12' : 'bg-zinc-900 w-12 h-12'} disabled:opacity-70`}
                                         >
-                                            {editingMsg ? <Check size={20} className="text-white" /> : <Send size={20} className="text-white" />}
+                                            {isSending ? <Loader2 size={20} className="text-white animate-spin" /> : editingMsg ? <Check size={20} className="text-white" /> : <Send size={20} className="text-white" />}
                                         </Button>
                                     ) : (
                                         <Button key="mic-btn" size="icon" type="button" variant="ghost" onClick={startRecording} className="text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-full w-12 h-12 transition-all" aria-label="Voice Note"><Mic size={20} /></Button>
