@@ -20,6 +20,7 @@ export interface ShopItem {
         badgeTextColorClass?: string;
         secondaryColorClass?: string;
     };
+    is_daily_deal?: boolean;
 }
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -37,6 +38,17 @@ export const SHOP_ITEMS: ShopItem[] = [
     },
 
     // Titles
+    {
+        id: "title_junior_dev",
+        name: "Junior Dev",
+        description: "A badge of honor. You rely on StackOverflow, and that's okay.",
+        price: 150,
+        category: "title",
+        rarity: "common",
+        icon: Zap,
+        gradient: "from-green-500 via-emerald-600 to-green-900",
+        accentColor: "#10b981",
+    },
     {
         id: "title_pixel_pusher",
         name: "Pixel Pusher",
@@ -58,6 +70,7 @@ export const SHOP_ITEMS: ShopItem[] = [
         icon: Crown,
         gradient: "from-amber-400 via-yellow-600 to-amber-900",
         accentColor: "#f59e0b",
+        is_daily_deal: true,
     },
 
     // Rings (Cosmetics)
@@ -88,6 +101,7 @@ export const SHOP_ITEMS: ShopItem[] = [
         gradient: "from-cyan-500 via-sky-600 to-blue-800",
         accentColor: "#06b6d4",
         visualData: { colorClass: "text-cyan-400", badgeColorClass: "bg-cyan-500" },
+        is_daily_deal: true,
     },
 
     // Trading Cards
@@ -99,9 +113,9 @@ export const SHOP_ITEMS: ShopItem[] = [
         category: "card",
         rarity: "legendary",
         icon: CreditCard,
-        imageUrl: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=2000&auto=format&fit=crop",
         gradient: "from-emerald-400 via-teal-600 to-green-900",
         accentColor: "#10b981",
+        is_daily_deal: true,
     },
     {
         id: "card_binary_tree",
@@ -111,7 +125,6 @@ export const SHOP_ITEMS: ShopItem[] = [
         category: "card",
         rarity: "epic",
         icon: GitBranch,
-        imageUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=2000&auto=format&fit=crop",
         gradient: "from-purple-600 via-violet-700 to-indigo-900",
         accentColor: "#8b5cf6",
     }
