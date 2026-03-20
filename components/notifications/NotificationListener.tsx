@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useUser } from "@/context/UserContext";
@@ -9,6 +9,8 @@ export function NotificationListener() {
     const { profile } = useUser();
     const { toast } = useToast();
     const supabase = useMemo(() => createClient(), []);
+    // Track IDs we've already toasted so replayed realtime events don't double-fire
+    const shownIds = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!profile?.id) return;
@@ -24,11 +26,15 @@ export function NotificationListener() {
                     filter: `user_id=eq.${profile.id}`
                 },
                 (payload) => {
-                    const newNotif = payload.new as any;
-                    // Guard against receiving notifications meant for other users
-                    // (happens when RLS isn't enforced on realtime filter)
-                    if (newNotif.user_id !== profile?.id) return;
-                    toast(newNotif.title, "success");
+                    const notif = payload.new as any;
+                    // Skip notifications for other users (RLS filter may not be enforced)
+                    if (notif.user_id !== profile.id) return;
+                    // Skip already-read notifications (e.g. marked read before this session)
+                    if (notif.is_read) return;
+                    // Skip if we already showed this notification (replay on reconnect)
+                    if (shownIds.current.has(notif.id)) return;
+                    shownIds.current.add(notif.id);
+                    toast(notif.title, "success");
                 }
             )
             .subscribe();
@@ -36,7 +42,7 @@ export function NotificationListener() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [profile?.id]); // supabase is stable (useMemo), toast is stable
+    }, [profile?.id]);
 
-    return null; // This component doesn't render anything visible
+    return null;
 }

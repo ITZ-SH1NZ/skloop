@@ -577,9 +577,10 @@ export async function deleteMessage(messageId: string) {
 }
 
 /**
- * Marks all unread messages from a specific sender in a conversation as read.
+ * Marks all unread messages from others in a conversation as read.
+ * Uses the current user's ID so it never accidentally marks their own messages.
  */
-export async function markMessagesAsRead(conversationId: string, peerId: string) {
+export async function markMessagesAsRead(conversationId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
@@ -588,7 +589,7 @@ export async function markMessagesAsRead(conversationId: string, peerId: string)
         .from('messages')
         .update({ status: 'read' })
         .eq('conversation_id', conversationId)
-        .eq('sender_id', peerId)
+        .neq('sender_id', user.id)
         .neq('status', 'read');
 
     if (error) throw new Error(error.message);
@@ -596,9 +597,9 @@ export async function markMessagesAsRead(conversationId: string, peerId: string)
 }
 
 /**
- * Marks messages as delivered for a specific user in a conversation.
+ * Marks messages from others in a conversation as delivered (sent → delivered).
  */
-export async function markMessagesAsDelivered(conversationId: string, peerId: string) {
+export async function markMessagesAsDelivered(conversationId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false };
@@ -607,7 +608,7 @@ export async function markMessagesAsDelivered(conversationId: string, peerId: st
         .from('messages')
         .update({ status: 'delivered' })
         .eq('conversation_id', conversationId)
-        .eq('sender_id', peerId)
+        .neq('sender_id', user.id)
         .eq('status', 'sent');
 
     if (error) {

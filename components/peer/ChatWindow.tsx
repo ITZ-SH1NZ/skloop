@@ -31,6 +31,7 @@ import {
 import { uploadAttachment } from "@/utils/upload";
 import { markNotificationsAsRead } from "@/actions/notification-actions";
 import { soundManager } from "@/lib/sound";
+import { MuxVideoPlayer } from "./MuxVideoPlayer";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 
@@ -628,8 +629,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             setHasMore(history.length >= 50);
 
             // Mark as read and delivered when loading history
-            await markMessagesAsRead(peer.id, peer.peerId || peer.id);
-            await markMessagesAsDelivered(peer.id, peer.peerId || peer.id);
+            await markMessagesAsRead(peer.id);
+            await markMessagesAsDelivered(peer.id);
             await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
 
             // Check for overdue scheduled messages
@@ -714,12 +715,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         return [...prev, mapped];
                     });
                     if (newMessage.sender_id !== currentUserId) {
-                        await markMessagesAsRead(peer.id, peer.peerId || peer.id);
+                        await markMessagesAsRead(peer.id);
                         await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
                     }
                     // Mark as delivered if from peer
                     if (newMessage.sender_id !== currentUserId) {
-                        await markMessagesAsDelivered(peer.id, peer.peerId || peer.id);
+                        await markMessagesAsDelivered(peer.id);
                     }
                     // Ensure auto-bottom on new messages (including polls)
                     if (isAtBottom || newMessage.sender_id === currentUserId) {
@@ -2004,7 +2005,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                         {msg.attachments?.map((att, i) => (
                                                                                             <div key={`att-${i}-${att.url}`} className="rounded-lg overflow-hidden bg-zinc-100 relative">
                                                                                                 {att.type === 'image' && <img src={att.url} alt="" loading="lazy" className="w-full h-48 object-cover cursor-zoom-in" onClick={() => setLightboxUrl(att.url)} />}
-                                                                                                {att.type === 'video' && <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />}
+                                                                                                {att.type === 'video' && (
+                                                                                                    att.url.startsWith('https://stream.mux.com/')
+                                                                                                        ? <MuxVideoPlayer url={att.url} className="w-full" />
+                                                                                                        : <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />
+                                                                                                )}
                                                                                                 {att.type === 'audio' && <VoicePlayer url={att.url} />}
                                                                                                 {att.type === 'file' && (
                                                                                                     <button
