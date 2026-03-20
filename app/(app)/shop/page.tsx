@@ -414,7 +414,7 @@ const SlimeTrail = ({ mouseX, mouseY }: { mouseX: any, mouseY: any }) => {
                     className="absolute w-2 h-2 rounded-full bg-[#D4F268] blur-[2px]"
                     initial={{ opacity: 0.6, scale: 1 }}
                     animate={{ opacity: 0, scale: 0, x: p.x - 4, y: p.y - 4 }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.8 }}
                 />
             ))}
         </div>
@@ -441,7 +441,8 @@ const SlimeMascot = memo(({ dailyDeals, coins, hoveredPrice }: { dailyDeals: Sho
                 sfx.pop();
             }
             if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-            idleTimeoutRef.current = setTimeout(() => setIsSleeping(true), 30000);
+            // Reduced to 12s for easier user verification
+            idleTimeoutRef.current = setTimeout(() => setIsSleeping(true), 12000);
         };
 
         const handleMouseMove = (e: MouseEvent) => {
@@ -469,9 +470,9 @@ const SlimeMascot = memo(({ dailyDeals, coins, hoveredPrice }: { dailyDeals: Sho
         setTimeout(() => setMsgOverride(null), 3000);
     };
 
-    // Contextual dialogue
+    // Contextual dialogue - increased threshold to 100 for visibility
     useEffect(() => {
-        if (hoveredPrice && coins < hoveredPrice && hoveredPrice - coins <= 20) {
+        if (hoveredPrice && coins < hoveredPrice && hoveredPrice - coins <= 100) {
             setMsgOverride(`You're so close! Only ${hoveredPrice - coins} more coins for this! 🚀`);
             setIsHovered(true);
             const t = setTimeout(() => setMsgOverride(null), 4000);
@@ -489,12 +490,13 @@ const SlimeMascot = memo(({ dailyDeals, coins, hoveredPrice }: { dailyDeals: Sho
             >
                 <AnimatePresence>
                     {showWakeAlert && (
-                        <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#D4F268] text-black font-black px-2 py-1 rounded text-lg shadow-xl z-50">
+                        <motion.div key="wake-alert" initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#D4F268] text-black font-black px-2 py-1 rounded text-lg shadow-xl z-50">
                             !
                         </motion.div>
                     )}
                     {(isHovered || msgOverride || isSleeping) && (
                         <motion.div 
+                            key="loopy-bubble"
                             initial={{ opacity: 0, y: 10, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.9 }}
@@ -526,8 +528,17 @@ const SlimeMascot = memo(({ dailyDeals, coins, hoveredPrice }: { dailyDeals: Sho
                 </AnimatePresence>
                 
                 <motion.div
-                    animate={isSleeping ? { rotate: 15, scale: 0.95 } : msgOverride ? { y: [0, -20, 0], scale: [1, 1.2, 0.9, 1] } : isHovered ? { y: -10, rotate: -5 } : { y: 0, rotate: 0 }}
-                    transition={msgOverride ? { duration: 0.4, times: [0, 0.5, 0.8, 1] } : { type: "spring", bounce: 0.6 }}
+                    animate={isSleeping ? 
+                        { rotate: 15, scale: 0.95, y: [0, 5, 0] } : 
+                        msgOverride ? { y: [0, -20, 0], scale: [1, 1.2, 0.9, 1] } : 
+                        isHovered ? { y: -10, rotate: -5 } : 
+                        { y: 0, rotate: 0 }
+                    }
+                    transition={isSleeping ?
+                        { y: { duration: 3, repeat: Infinity, ease: "easeInOut" }, rotate: { type: "spring" } } :
+                        msgOverride ? { duration: 0.4, times: [0, 0.5, 0.8, 1] } : 
+                        { type: "spring", bounce: 0.6 }
+                    }
                     onClick={handlePoke}
                     className="w-24 h-24 relative pointer-events-auto cursor-crosshair drop-shadow-[0_0_20px_rgba(212,242,104,0.6)] hover:scale-105 transition-transform"
                 >
