@@ -325,7 +325,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             </nav>
 
             {/* Bottom Actions Area */}
-            <div className="p-4 mt-auto space-y-1 hidden md:block">
+            <div className="p-4 mt-auto space-y-1">
                 {/* Settings Link */}
                 <TooltipProvider delayDuration={300}>
                     <Tooltip>
@@ -356,7 +356,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className={cn(
-                        "w-full flex items-center gap-4 px-5 py-3 rounded-[1.5rem] transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-foreground",
+                        "hidden md:flex w-full items-center gap-4 px-5 py-3 rounded-[1.5rem] transition-all duration-200 text-gray-400 hover:bg-gray-50 hover:text-foreground",
                         isCollapsed ? "justify-center" : ""
                     )}
                 >

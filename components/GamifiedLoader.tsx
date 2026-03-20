@@ -42,33 +42,33 @@ export default function GamifiedLoader({ onComplete, preloadTasksRef }: { onComp
         let t1: NodeJS.Timeout, t2: NodeJS.Timeout, t3: NodeJS.Timeout, t4: NodeJS.Timeout, t5: NodeJS.Timeout, t6: NodeJS.Timeout;
 
         // Animation Sequence (cut delays in half for faster perceived load)
-        t1 = setTimeout(() => { 
-            setStep(1); 
-            setProgress(20); 
+        t1 = setTimeout(() => {
+            setStep(1);
+            setProgress(20);
             soundManager.playMetalSnap(0.4);
         }, 300);  // was 600ms
-        
-        t2 = setTimeout(() => { 
-            setStep(2); 
-            setProgress(40); 
+
+        t2 = setTimeout(() => {
+            setStep(2);
+            setProgress(40);
             soundManager.playMetalSnap(0.5);
         }, 600); // was 1200ms
-        
-        t3 = setTimeout(() => { 
-            setStep(3); 
-            setProgress(60); 
+
+        t3 = setTimeout(() => {
+            setStep(3);
+            setProgress(60);
             soundManager.playMetalSnap(0.6);
         }, 900); // was 1800ms
-        
+
         t4 = setTimeout(() => {
             setStep(4);
             setProgress(80);
             soundManager.playRocketLaunch(0.8);
-            
+
             const proceedToBlastoff = () => {
-                t5 = setTimeout(() => { 
-                    setStep(5); 
-                    setProgress(100); 
+                t5 = setTimeout(() => {
+                    setStep(5);
+                    setProgress(100);
                 }, 800);
                 t6 = setTimeout(() => onComplete(), 1500);
             };

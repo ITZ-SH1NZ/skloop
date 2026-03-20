@@ -6,6 +6,7 @@ import { X, RefreshCw, Trophy, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import DailyCodeleShare from "@/components/practice/DailyCodeleShare";
+import CodeleQuestModal from "@/components/practice/CodeleQuestModal";
 import confetti from "canvas-confetti";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { useUser } from "@/context/UserContext";
@@ -111,6 +112,7 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
 
     const [puzzleId, setPuzzleId] = useState<string | null>(null);
     const [questReward, setQuestReward] = useState<{ xp: number; coins: number } | null>(null);
+    const [questModalDismissed, setQuestModalDismissed] = useState(false);
 
     useEffect(() => {
         const fetchDailyPuzzle = async () => {
@@ -503,21 +505,44 @@ export default function DailyGame({ isOpen, onClose, inline = false, onComplete 
         </motion.div>
     );
 
+    const questModal = (
+        <AnimatePresence>
+            {questReward && !questModalDismissed && (
+                <CodeleQuestModal
+                    isWin={gameState === "won"}
+                    solution={solution}
+                    guessesUsed={currentRow + 1}
+                    xpEarned={questReward.xp}
+                    coinsEarned={questReward.coins}
+                    onDismiss={() => setQuestModalDismissed(true)}
+                />
+            )}
+        </AnimatePresence>
+    );
+
     if (inline) {
-        return <div className="flex justify-center">{content}</div>;
+        return (
+            <>
+                <div className="flex justify-center">{content}</div>
+                {questModal}
+            </>
+        );
     }
 
     return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-                onClick={onClose}
-            >
-                {content}
-            </motion.div>
-        </AnimatePresence>
+        <>
+            <AnimatePresence>
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    onClick={onClose}
+                >
+                    {content}
+                </motion.div>
+            </AnimatePresence>
+            {questModal}
+        </>
     );
 }

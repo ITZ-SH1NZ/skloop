@@ -13,6 +13,7 @@ import TypingGameShare from "./TypingGameShare";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { useUser } from "@/context/UserContext";
 import { claimDailyQuest } from "@/actions/task-actions";
+import TypingQuestModal from "./TypingQuestModal";
 
 // More realistic code snippets
 const CODE_SNIPPETS = [
@@ -107,6 +108,8 @@ export default function TypingGame() {
     });
     const [history, setHistory] = useState<HistoryPoint[]>([]);
     const [totalKeystrokes, setTotalKeystrokes] = useState(0);
+
+    const [typingQuestComplete, setTypingQuestComplete] = useState<{ xp: number; coins: number; wpm: number; accuracy: number } | null>(null);
 
     // Juice States
     const [streak, setStreak] = useState(0);
@@ -270,11 +273,26 @@ export default function TypingGame() {
         setGameState("finished");
         if (timerRef.current) clearInterval(timerRef.current);
 
-        // Log Quest Progress Background
+        // Capture current stats before async work
+        const capturedWpm = statsRef.current.wpm;
+        const capturedAccuracy = wpm > 0
+            ? Math.max(0, Math.round(((statsRef.current.wpm * 5 - statsRef.current.errors) / (statsRef.current.wpm * 5)) * 100))
+            : accuracy;
+
         if (user) {
             import('@/actions/quest-actions').then(({ claimQuestProgress }) => {
                 claimQuestProgress(user.id, 'type_race', 'daily', 1, 1)
-                    .then(() => refreshProfile())
+                    .then((result) => {
+                        refreshProfile();
+                        if (result.isComplete && result.xpAwarded) {
+                            setTypingQuestComplete({
+                                xp: result.xpAwarded,
+                                coins: result.coinsAwarded ?? 0,
+                                wpm: capturedWpm,
+                                accuracy: capturedAccuracy,
+                            });
+                        }
+                    })
                     .catch(err => console.error("Failed to log typing quest", err));
             });
         }
@@ -383,6 +401,7 @@ export default function TypingGame() {
     }, [startTime, gameState]); // Re-calc on finish
 
     return (
+        <>
         <motion.div
             animate={shake > 0 ? { x: [-5, 5, -5, 5, 0] } : {}}
             transition={{ duration: 0.1 }}
@@ -893,6 +912,19 @@ export default function TypingGame() {
 
             </div >
         </motion.div >
+
+        <AnimatePresence>
+            {typingQuestComplete && (
+                <TypingQuestModal
+                    wpm={typingQuestComplete.wpm}
+                    accuracy={typingQuestComplete.accuracy}
+                    xpEarned={typingQuestComplete.xp}
+                    coinsEarned={typingQuestComplete.coins}
+                    onDismiss={() => setTypingQuestComplete(null)}
+                />
+            )}
+        </AnimatePresence>
+        </>
     );
 }
 

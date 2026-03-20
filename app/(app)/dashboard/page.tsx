@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, Variants } from "framer-motion";
 import { Grid, List } from "lucide-react";
 import Link from "next/link";
@@ -44,6 +44,11 @@ const itemVariants: Variants = {
 export default function DashboardPage() {
     const [isGameOpen, setIsGameOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
     const [activeTab, setActiveTab] = useState("grid");
     const [questRefreshKey, setQuestRefreshKey] = useState(0);
     const { user } = useUser();
@@ -217,13 +222,13 @@ export default function DashboardPage() {
 
                         {/* Task Grid */}
                         <div className={`grid gap-6 ${activeTab === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-                            {isLoadingTasks ? (
+                            {!isMounted || isLoadingTasks ? (
                                 <div className="col-span-full py-12 text-center flex items-center justify-center">
                                     <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-800 animate-spin mx-auto"></div>
                                 </div>
                             ) : tasks.length > 0 ? (
                                 tasks.map((userTask) => (
-                                    <div key={userTask.id} onClick={() => handleTaskClick(userTask)}>
+                                    <div key={userTask.id} onClick={() => handleTaskClick(userTask)} className="cursor-pointer">
                                         <TaskCard
                                             type={userTask.tasks.task_type || "practice"}
                                             title={userTask.tasks.title}

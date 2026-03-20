@@ -9,6 +9,10 @@ import { motion } from "framer-motion";
 import { useLoading } from "@/components/LoadingProvider";
 
 import { NotificationListener } from "../notifications/NotificationListener";
+import { Button } from "../ui/Button";
+import { Menu, Search, Bell, Zap } from "lucide-react";
+import Logo from "@/components/Logo";
+import { useUser } from "@/context/UserContext";
 
 // Pages that need fixed full-height layout (no scroll)
 const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages"];
@@ -58,6 +62,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
             <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh]">
+                <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-zinc-100 flex items-center justify-between px-4 z-[80] safe-top">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setMobileOpen(true)}
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity active:scale-95"
+                        >
+                            <Logo className="w-8 h-8" />
+                            <span className="font-black text-lg tracking-tight text-zinc-900">skloop</span>
+                        </button>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                        <button className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden shadow-sm active:scale-90 transition-transform">
+                            <div className="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 opacity-20" />
+                        </button>
+                    </div>
+                </div>
+
                 <motion.div
                     key={pathname}
                     initial={hasLoadedRef.current ? false : { opacity: 0, y: 10 }}
@@ -70,10 +92,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         root={false}
                         autoRaf={true}
                         id="app-scroll-container"
-                        options={{ 
-                            lerp: 0.08, 
-                            duration: 1.5, 
-                            smoothWheel: true, 
+                        options={{
+                            lerp: 0.08,
+                            duration: 1.5,
+                            smoothWheel: true,
                             syncTouch: true,
                             touchMultiplier: 2 // More responsive on mobile
                         }}

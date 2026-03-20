@@ -9,7 +9,7 @@ interface LoadingContextType {
     registerPreloadTasks: (tasks: Promise<any>[]) => void;
 }
 
-const LoadingContext = createContext<LoadingContextType>({ 
+const LoadingContext = createContext<LoadingContextType>({
     isLoading: true,
     registerPreloadTasks: () => {}
 });
@@ -37,9 +37,9 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
         <LoadingContext.Provider value={{ isLoading: isInitialLoad, registerPreloadTasks }}>
             <AnimatePresence mode="wait">
                 {isInitialLoad && (
-                    <GamifiedLoader 
-                        key="loader" 
-                        onComplete={() => setIsInitialLoad(false)} 
+                    <GamifiedLoader
+                        key="loader"
+                        onComplete={() => setIsInitialLoad(false)}
                         preloadTasksRef={preloadTasksRef}
                     />
                 )}

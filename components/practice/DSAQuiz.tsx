@@ -9,6 +9,7 @@ import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import DSAQuizShare from "./DSAQuizShare";
 import { useUser } from "@/context/UserContext";
 import { claimDailyQuest } from "@/actions/task-actions";
+import DSAQuestModal from "./DSAQuestModal";
 
 const QUESTIONS = [
     {
@@ -52,6 +53,8 @@ export default function DSAQuiz() {
     const [score, setScore] = useState(0);
     const [selectedOption, setSelectedOption] = useState<number | null>(null);
     const [showExplanation, setShowExplanation] = useState(false);
+
+    const [dsaQuestComplete, setDsaQuestComplete] = useState<{ xp: number; coins: number; grade: string; score: number } | null>(null);
 
     // Time & Juice State
     const [startTime, setStartTime] = useState<number | null>(null);
@@ -134,15 +137,36 @@ export default function DSAQuiz() {
             setTotalTime(finalTime);
             setGameState("finished");
 
-            // Log Quest Progress Background — daily, weekly, and monthly in parallel
+            // Compute grade locally (useMemo won't reflect yet in this closure)
+            const finalScore = score;
+            const percentage = (finalScore / QUESTIONS.length) * 100;
+            const avgTime = finalTime / QUESTIONS.length;
+            let computedGrade = "D";
+            if (percentage === 100 && avgTime < 5) computedGrade = "S+";
+            else if (percentage === 100) computedGrade = "S";
+            else if (percentage >= 80) computedGrade = "A";
+            else if (percentage >= 60) computedGrade = "B";
+            else if (percentage >= 40) computedGrade = "C";
+
+            // Log Quest Progress — show modal only on first daily completion
             if (user) {
                 import('@/actions/quest-actions').then(({ claimQuestProgress }) => {
                     Promise.all([
-                        claimQuestProgress(user.id, 'quiz_attempt', 'daily',   1, 1),  // daily: attempt once
-                        claimQuestProgress(user.id, 'quiz_3w',      'weekly',  1, 3),  // weekly: win 3x
-                        claimQuestProgress(user.id, 'quiz_10m',     'monthly', 1, 10), // monthly: win 10x
+                        claimQuestProgress(user.id, 'quiz_attempt', 'daily',   1, 1),
+                        claimQuestProgress(user.id, 'quiz_3w',      'weekly',  1, 3),
+                        claimQuestProgress(user.id, 'quiz_10m',     'monthly', 1, 10),
                     ])
-                        .then(() => refreshProfile())
+                        .then(([dailyResult]) => {
+                            refreshProfile();
+                            if (dailyResult.isComplete && dailyResult.xpAwarded) {
+                                setDsaQuestComplete({
+                                    xp: dailyResult.xpAwarded,
+                                    coins: dailyResult.coinsAwarded ?? 0,
+                                    grade: computedGrade,
+                                    score: finalScore,
+                                });
+                            }
+                        })
                         .catch(err => console.error("Failed to log DSA quest", err));
                 });
             }
@@ -203,6 +227,19 @@ export default function DSAQuiz() {
     }, [questionTimes]);
 
     return (
+        <>
+        <AnimatePresence>
+            {dsaQuestComplete && (
+                <DSAQuestModal
+                    grade={dsaQuestComplete.grade}
+                    score={dsaQuestComplete.score}
+                    totalQuestions={QUESTIONS.length}
+                    xpEarned={dsaQuestComplete.xp}
+                    coinsEarned={dsaQuestComplete.coins}
+                    onDismiss={() => setDsaQuestComplete(null)}
+                />
+            )}
+        </AnimatePresence>
         <div className="h-full flex flex-col relative w-full items-center justify-center font-sans tracking-tight overflow-hidden">
 
             {/* Dynamic Background */}
@@ -455,5 +492,6 @@ export default function DSAQuiz() {
                 )}
             </AnimatePresence>
         </div>
+        </>
     );
 }
