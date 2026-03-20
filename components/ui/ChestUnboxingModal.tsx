@@ -125,9 +125,9 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                     colors: ['#D4F268', '#ffffff', '#000000']
                 });
 
-                // IMPORTANT: onSuccess should trigger data refresh in parent
-                // But don't close the modal yet so they can see the reward!
-                onSuccess?.();
+                // Refresh profile coins/inventory in background — do NOT call onSuccess here
+                // because mutate() would trigger a parent re-render that can reset the step back
+                // to "preview" before the user sees the reward. onSuccess is called on dismiss.
                 await refreshProfile();
             } else {
                 toast(result?.error || "Failed to open chest.", "error");
@@ -342,7 +342,7 @@ export function ChestUnboxingModal({ isOpen, onClose, chestData, onSuccess }: Ch
                             </div>
 
                             <Button
-                                onClick={onClose}
+                                onClick={() => { onSuccess?.(); onClose(); }}
                                 className="w-full bg-black text-white py-8 rounded-2xl font-black text-xl shadow-xl hover:shadow-[#D4F268]/20 transition-all group"
                             >
                                 <span className="flex items-center justify-center gap-3">

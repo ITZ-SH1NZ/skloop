@@ -5,7 +5,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import {
     Send, Plus, Image as ImageIcon, Image, Smile, X, Search,
-    ArrowLeft, Info, Users as UsersIcon, FileText,
+    ArrowLeft, Info, Users as UsersIcon, FileText, Loader2, Download,
     Mic, Square, Check, Video, Reply, Share2,
     Play, Pause, FastForward, ChevronDown, Copy, Star, Pin, Gift, Trash2,
     Bot, BarChart2, Calendar, Palette, PinOff, Zap, Sparkles, Clock, AlertCircle, MoreVertical, Link,
@@ -20,14 +20,15 @@ import data from '@emoji-mart/data';
 import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
 import {
-    getConversationMessages, sendMessage, MessageRow, uploadChatFile,
+    getConversationMessages, sendMessage, MessageRow,
     markMessagesAsRead, markMessagesAsDelivered, deleteMessage, toggleReaction,
     pinMessage, unpinMessage, getPinnedMessage,
     createPoll, getPoll, votePoll,
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
-    getConversationMedia, sendCodeSnippet, getCodeSnippet,
+    getConversationMedia, sendCodeSnippet, getCodeSnippet, getConversationMembers,
     type MessageAttachment
 } from "@/actions/chat-actions";
+import { uploadAttachment } from "@/utils/upload";
 import { markNotificationsAsRead } from "@/actions/notification-actions";
 import { soundManager } from "@/lib/sound";
 
@@ -540,10 +541,25 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
 
+    // Pagination
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const oldestTimestampRef = useRef<string | null>(null);
+
+    // Draft persistence
+    const draftSaveRef = useRef<NodeJS.Timeout | null>(null);
+
+    // @Mentions (group chats)
+    const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+    const [mentionResults, setMentionResults] = useState<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
+    const [mentionAnchor, setMentionAnchor] = useState(0);
+    const [groupMembers, setGroupMembers] = useState<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollContentRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const docInputRef = useRef<HTMLInputElement>(null);
     const sentMessageIds = useRef<Set<string>>(new Set());
     const typingChannelRef = useRef<any>(null);
     const [audioLevels, setAudioLevels] = useState<number[]>(Array(30).fill(2));
@@ -574,6 +590,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         if (isNearBottom && messages.length > 0) {
             setLastReadId(messages[messages.length - 1].id);
         }
+
+        // Load older messages when scrolled near the top
+        if (scrollTop < 200 && hasMore && !isLoadingMore) {
+            loadMoreMessages();
+        }
     };
 
     useEffect(() => {
@@ -600,6 +621,10 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             ]);
             setMessages(history);
             setPinnedMsg(pinned);
+            if (history.length > 0) {
+                oldestTimestampRef.current = history[0].timestamp.toISOString();
+            }
+            setHasMore(history.length >= 50);
 
             // Mark as read and delivered when loading history
             await markMessagesAsRead(peer.id, peer.peerId || peer.id);
@@ -1072,6 +1097,140 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const isNearBottomRef = useRef(true);
     useEffect(() => { isNearBottomRef.current = isAtBottom; }, [isAtBottom]);
 
+    // Load group members for @mention autocomplete
+    useEffect(() => {
+        if (!peer || peer.type !== 'group') return;
+        getConversationMembers(peer.id).then(members => {
+            setGroupMembers(members.map(m => ({
+                id: m.id,
+                name: m.name,
+                username: m.username,
+                avatarUrl: m.avatarUrl
+            })));
+        });
+    }, [peer?.id, peer?.type]);
+
+    // Restore draft from localStorage when peer changes
+    useEffect(() => {
+        if (!peer) return;
+        const draft = localStorage.getItem(`skloop:chat:draft:${peer.id}`);
+        setInputValue(draft || '');
+        return () => {
+            // Save draft on unmount
+            const currentInput = inputValue;
+            if (currentInput.trim()) {
+                localStorage.setItem(`skloop:chat:draft:${peer.id}`, currentInput);
+            } else {
+                localStorage.removeItem(`skloop:chat:draft:${peer.id}`);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [peer?.id]);
+
+    const loadMoreMessages = async () => {
+        if (!peer || isLoadingMore || !hasMore || !oldestTimestampRef.current) return;
+        setIsLoadingMore(true);
+
+        const container = scrollContainerRef.current;
+        const scrollHeightBefore = container?.scrollHeight || 0;
+
+        try {
+            const older = await getConversationMessages(peer.id, {
+                before: oldestTimestampRef.current,
+                limit: 50
+            });
+
+            if (older.length === 0) {
+                setHasMore(false);
+                return;
+            }
+
+            oldestTimestampRef.current = older[0].timestamp.toISOString();
+            setHasMore(older.length >= 50);
+            setMessages(prev => [...older, ...prev]);
+
+            requestAnimationFrame(() => {
+                if (container) {
+                    container.scrollTop = container.scrollHeight - scrollHeightBefore;
+                }
+            });
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+
+    // @Mention handlers
+    const insertMention = (member: { id: string; username: string }) => {
+        const cursorPos = mentionAnchor + member.username.length + 2;
+        const before = inputValue.slice(0, mentionAnchor);
+        const afterStart = mentionAnchor + (mentionQuery?.length || 0) + 1;
+        const after = inputValue.slice(afterStart);
+        const newValue = `${before}@${member.username} ${after}`.trimEnd() + ' ';
+        setInputValue(newValue);
+        setMentionQuery(null);
+        setMentionResults([]);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setInputValue(value);
+
+        // Debounced draft save
+        if (peer) {
+            if (draftSaveRef.current) clearTimeout(draftSaveRef.current);
+            draftSaveRef.current = setTimeout(() => {
+                if (value.trim()) {
+                    localStorage.setItem(`skloop:chat:draft:${peer.id}`, value);
+                } else {
+                    localStorage.removeItem(`skloop:chat:draft:${peer.id}`);
+                }
+            }, 500);
+        }
+
+        // @Mention detection (groups only)
+        if (!isGroup) return;
+        const cursorPos = e.target.selectionStart || 0;
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+        if (mentionMatch) {
+            const query = mentionMatch[1].toLowerCase();
+            setMentionQuery(query);
+            setMentionAnchor(cursorPos - mentionMatch[0].length);
+            setMentionResults(
+                groupMembers
+                    .filter(m => m.name.toLowerCase().includes(query) || m.username.toLowerCase().includes(query))
+                    .slice(0, 5)
+            );
+        } else {
+            setMentionQuery(null);
+            setMentionResults([]);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        // Dismiss or select in mention dropdown
+        if (mentionQuery !== null && mentionResults.length > 0) {
+            if (e.key === 'Escape') {
+                setMentionQuery(null);
+                setMentionResults([]);
+                e.preventDefault();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                insertMention(mentionResults[0]);
+                return;
+            }
+        }
+        // Normal Enter-to-send (when not in mention mode)
+        if (e.key === 'Enter' && !e.shiftKey && mentionQuery === null) {
+            e.preventDefault();
+            if (isRecording) { stopRecording(); return; }
+            if (recordedAudio) { handleSendVoice(); return; }
+            editingMsg ? handleEdit(editingMsg.id, inputValue) : handleSend();
+        }
+    };
+
     const handleSend = async (customText?: string, customType?: MessageRow['type'], customUrl?: string) => {
         if (!peer || !currentUserId) return;
         const text = customText || inputValue;
@@ -1101,6 +1260,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
         setMessages(prev => [...prev, optimisticMsg]);
         setInputValue("");
+        if (peer) localStorage.removeItem(`skloop:chat:draft:${peer.id}`);
         setReplyTo(null);
         setEditingMsg(null);
         if (isNearBottomRef.current) setTimeout(() => scrollToBottom("smooth"), 50);
@@ -1108,9 +1268,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         try {
             const uploadPromises = pendingFiles.map(async (pf) => {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', pf.file);
-                    const publicUrl = await uploadChatFile(formData);
+                    const publicUrl = await uploadAttachment(pf.file);
                     return publicUrl ? { url: publicUrl, type: pf.type, name: pf.file.name } : null;
                 } catch (uploadErr) {
                     console.error("Upload failed for file:", pf.file.name, uploadErr);
@@ -1352,6 +1510,27 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const oversized = files.filter(f => f.size > 50 * 1024 * 1024);
+        if (oversized.length > 0) {
+            alert(`"${oversized[0].name}" is too large. Max file size is 50MB.`);
+            if (docInputRef.current) docInputRef.current.value = '';
+            return;
+        }
+
+        const newPending = files.map(file => ({
+            file,
+            previewUrl: '',
+            type: 'file' as const
+        }));
+
+        setPendingFiles(prev => [...prev, ...newPending].slice(0, 10));
+        if (docInputRef.current) docInputRef.current.value = '';
+    };
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1421,15 +1600,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         setRecordedAudio(null);
 
         try {
-            const formData = new FormData();
-            formData.append('file', new File([recordedAudio.blob], 'voice-note.webm', { type: 'audio/webm' }));
-            const publicUrl = await uploadChatFile(formData);
-            if (publicUrl) {
-                const saved = await sendMessage(peer.id, currentUserId, "", "audio", undefined, [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }]);
-                if (saved) {
-                    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, attachments: [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }] } : m));
-                    sentMessageIds.current.add(saved.id);
-                }
+            const publicUrl = await uploadAttachment(new File([recordedAudio.blob], 'voice-note.webm', { type: 'audio/webm' }));
+            const saved = await sendMessage(peer.id, currentUserId, "", "audio", undefined, [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }]);
+            if (saved) {
+                setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: saved.id, attachments: [{ url: publicUrl, type: 'audio', name: 'voice-note.webm' }] } : m));
+                sentMessageIds.current.add(saved.id);
             }
         } catch (err) {
             console.error("Voice send failed:", err);
@@ -1476,7 +1651,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     return (
         <div className={`flex flex-col h-full min-w-0 relative overflow-hidden ${chatTheme === 'grasslands' ? 'bg-gradient-to-br from-lime-50 via-lime-20 to-emerald-50' : chatTheme === 'mystic' ? 'bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50' : chatTheme === 'crystal' ? 'bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-50' : 'bg-zinc-50'}`}>
             {/* Header */}
-            <header className={`h-20 flex items-center justify-between px-4 md:px-6 border-b border-zinc-200 sticky top-0 z-40 transition-colors duration-500 ${chatTheme === 'grasslands' ? 'bg-lime-50/90' : chatTheme === 'mystic' ? 'bg-purple-50/90' : chatTheme === 'crystal' ? 'bg-cyan-50/90' : 'bg-white/80'} backdrop-blur-xl`}>
+            <header className={`shrink-0 h-20 flex items-center justify-between px-4 md:px-6 border-b border-zinc-200 sticky top-0 z-40 transition-colors duration-500 ${chatTheme === 'grasslands' ? 'bg-lime-50/90' : chatTheme === 'mystic' ? 'bg-purple-50/90' : chatTheme === 'crystal' ? 'bg-cyan-50/90' : 'bg-white/80'} backdrop-blur-xl`}>
                 <div className="flex items-center gap-3">
                     {onBack && (
                         <Button variant="ghost" size="icon" className="md:hidden" onClick={onBack}>
@@ -1638,6 +1813,22 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             className="flex-1 overflow-y-auto p-4 md:p-8 space-y-2 relative scroll-smooth custom-scrollbar"
                         >
                             <div ref={scrollContentRef} className="space-y-2">
+                                {/* Pagination indicators at the top */}
+                                {isLoadingMore && (
+                                    <div className="flex justify-center py-4">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Loading older messages...
+                                        </div>
+                                    </div>
+                                )}
+                                {!hasMore && messages.length >= 50 && !isLoadingMore && (
+                                    <div className="flex justify-center py-4">
+                                        <div className="text-[10px] font-bold text-zinc-300 uppercase tracking-widest">
+                                            Beginning of conversation
+                                        </div>
+                                    </div>
+                                )}
                                 {groupMessagesByDate(filteredMessages).map((group, groupIdx) => (
                                     <div key={`group-${String(group.date)}-${groupIdx}`} className="space-y-2 pb-8">
                                         <div className="flex justify-center my-8 sticky top-2 z-20">
@@ -1774,7 +1965,13 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                 {msg.text && msg.type === 'text' && (
                                                                                     <div className="relative">
                                                                                         {msg.text.includes('https://') && <LinkPreview url={msg.text.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />}
-                                                                                        <p className="font-semibold leading-snug whitespace-pre-wrap text-sm">{msg.text}</p>
+                                                                                        <p className="font-semibold leading-snug whitespace-pre-wrap text-sm">
+                                                                                            {msg.text.split(/(@\w+)/).map((part, i) =>
+                                                                                                part.startsWith('@') ? (
+                                                                                                    <span key={i} className={`font-black px-0.5 rounded ${isMe ? 'text-black/70 bg-black/10' : 'text-[#4d7c0f] bg-lime-100'}`}>{part}</span>
+                                                                                                ) : part
+                                                                                            )}
+                                                                                        </p>
                                                                                         {msg.isEdited && (
                                                                                             <span className="text-[8px] font-bold uppercase tracking-tighter opacity-40 mt-0.5 block">Edited</span>
                                                                                         )}
@@ -1792,6 +1989,22 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                                 {att.type === 'image' && <img src={att.url} alt="" loading="lazy" className="w-full h-48 object-cover cursor-zoom-in" onClick={() => setLightboxUrl(att.url)} />}
                                                                                                 {att.type === 'video' && <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />}
                                                                                                 {att.type === 'audio' && <VoicePlayer url={att.url} />}
+                                                                                                {att.type === 'file' && (
+                                                                                                    <a href={att.url} download={att.name} target="_blank" rel="noopener noreferrer"
+                                                                                                        className={`flex items-center gap-3 p-3 rounded-xl border transition-colors hover:opacity-80 ${isMe ? 'bg-black/10 border-black/10' : 'bg-zinc-50 border-zinc-100'}`}
+                                                                                                    >
+                                                                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-black/10' : 'bg-zinc-100'}`}>
+                                                                                                            <FileText size={20} className={isMe ? 'text-black/60' : 'text-zinc-500'} />
+                                                                                                        </div>
+                                                                                                        <div className="min-w-0 flex-1">
+                                                                                                            <p className={`text-sm font-bold truncate ${isMe ? 'text-black/90' : 'text-zinc-900'}`}>{att.name || 'File'}</p>
+                                                                                                            <p className={`text-[10px] uppercase tracking-widest font-bold ${isMe ? 'text-black/40' : 'text-zinc-400'}`}>
+                                                                                                                {att.name?.split('.').pop()?.toUpperCase() || 'FILE'} · Download
+                                                                                                            </p>
+                                                                                                        </div>
+                                                                                                        <Download size={16} className={isMe ? 'text-black/40 shrink-0' : 'text-zinc-400 shrink-0'} />
+                                                                                                    </a>
+                                                                                                )}
                                                                                             </div>
                                                                                         ))}
                                                                                     </div>
@@ -1889,8 +2102,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         Code Snippet
                                     </button>
                                     <button key="att-gif" type="button" onClick={() => { setShowGifPicker(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
-                                        <Gift size={18} className="text-purple-600 group-hover/att:scale-110 transition-transform" /> 
+                                        <Gift size={18} className="text-purple-600 group-hover/att:scale-110 transition-transform" />
                                         GIFs & Stickers
+                                    </button>
+                                    <button key="att-file" type="button" onClick={() => { if (docInputRef.current) docInputRef.current.click(); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
+                                        <FileText size={18} className="text-orange-500 group-hover/att:scale-110 transition-transform" />
+                                        File
                                     </button>
                                 </motion.div>
                             )}
@@ -1965,8 +2182,19 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             {pendingFiles.length > 0 && (
                                 <motion.div key="pending-files-container" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 mx-1 flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
                                     {pendingFiles.map((pf, i) => (
-                                        <div key={`pending-${i}-${pf.previewUrl}`} className="relative inline-block flex-shrink-0 group">
-                                            {pf.type === 'image' ? <img src={pf.previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover border-2 border-zinc-900" /> : pf.type === 'video' ? <video src={pf.previewUrl} className="h-24 w-24 rounded-lg object-cover border-2 border-zinc-900" /> : <div className="h-24 w-24 rounded-lg border-2 border-zinc-900 bg-zinc-50 flex items-center justify-center text-zinc-500"><FileText size={24} /></div>}
+                                        <div key={`pending-${i}-${pf.file.name}`} className="relative inline-block flex-shrink-0 group">
+                                            {pf.type === 'image' ? (
+                                                <img src={pf.previewUrl} alt="" className="h-24 w-24 rounded-lg object-cover border-2 border-zinc-900" />
+                                            ) : pf.type === 'video' ? (
+                                                <video src={pf.previewUrl} className="h-24 w-24 rounded-lg object-cover border-2 border-zinc-900" />
+                                            ) : pf.type === 'file' ? (
+                                                <div className="h-24 w-24 rounded-lg border-2 border-zinc-900 bg-zinc-50 flex flex-col items-center justify-center gap-1 px-2">
+                                                    <FileText size={22} className="text-zinc-500" />
+                                                    <p className="text-[9px] font-bold text-zinc-500 text-center truncate w-full">{pf.file.name}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="h-24 w-24 rounded-lg border-2 border-zinc-900 bg-zinc-50 flex items-center justify-center text-zinc-500"><FileText size={24} /></div>
+                                            )}
                                             <button type="button" onClick={() => setPendingFiles(prev => prev.filter((_, idx) => idx !== i))} className="absolute -top-2 -right-2 w-6 h-6 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg"><X size={12} /></button>
                                         </div>
                                     ))}
@@ -2013,8 +2241,44 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             ) : (
                                 <>
                                     <input type="file" multiple ref={fileInputRef} className="hidden" accept="image/*,video/*,audio/*" onChange={handleFileUpload} />
+                                    <input type="file" multiple ref={docInputRef} className="hidden" accept="*/*" onChange={handleDocUpload} />
                                     <Button size="icon" type="button" variant="ghost" className={`rounded-full w-10 h-10 shrink-0 transition-transform ${showAttachments ? "rotate-45 bg-zinc-200/50 text-zinc-900" : "text-zinc-500"}`} onClick={() => setShowAttachments(!showAttachments)} aria-label="Attachments"><Plus size={22} /></Button>
-                                    <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder={editingMsg ? "Edit message..." : "Message..."} className="flex-1 bg-transparent border-0 py-3 outline-none font-semibold text-zinc-900 placeholder:text-zinc-400" />
+                                    <div className="flex-1 relative">
+                                        {isGroup && mentionQuery !== null && mentionResults.length > 0 && (
+                                            <AnimatePresence>
+                                                <motion.div
+                                                    key="mention-dropdown"
+                                                    initial={{ opacity: 0, y: 8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: 8 }}
+                                                    className="absolute bottom-full left-0 mb-2 z-50 bg-white border border-zinc-200 rounded-2xl shadow-xl overflow-hidden min-w-[220px]"
+                                                >
+                                                    {mentionResults.map(member => (
+                                                        <button
+                                                            key={member.id}
+                                                            type="button"
+                                                            onMouseDown={(e) => { e.preventDefault(); insertMention(member); }}
+                                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors text-left"
+                                                        >
+                                                            <Avatar src={member.avatarUrl} fallback={member.name[0]} className="w-8 h-8 rounded-full" />
+                                                            <div>
+                                                                <div className="text-sm font-bold text-zinc-900">{member.name}</div>
+                                                                <div className="text-xs text-zinc-400">@{member.username}</div>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            </AnimatePresence>
+                                        )}
+                                        <input
+                                            type="text"
+                                            value={inputValue}
+                                            onChange={handleInputChange}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder={editingMsg ? "Edit message..." : isGroup ? "Message... (@ to mention)" : "Message..."}
+                                            className="w-full bg-transparent border-0 py-3 outline-none font-semibold text-zinc-900 placeholder:text-zinc-400"
+                                        />
+                                    </div>
                                     <Button size="icon" type="button" variant="ghost" className="text-zinc-400 hover:text-zinc-600 transition-colors" onClick={() => setShowEmojiPicker(!showEmojiPicker)} aria-label="Emoji Picker"><Smile size={24} /></Button>
                                     {(inputValue.trim() || pendingFiles.length > 0) ? (
                                         <Button

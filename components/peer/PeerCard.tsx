@@ -23,6 +23,7 @@ export interface PeerProfile {
     // Last message preview for sidebar
     lastMessage?: string;
     lastMessageAt?: string;
+    unreadCount?: number;
 }
 
 export interface PeerCardProps {

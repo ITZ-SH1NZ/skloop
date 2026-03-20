@@ -224,6 +224,9 @@ function ChatPageContent() {
     const initialUserId = searchParams.get("userId");
     const initialCircleId = searchParams.get("circleId");
 
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(initialCircleId || null);
     const [searchTerm, setSearchTerm] = useState("");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -254,7 +257,7 @@ function ChatPageContent() {
 
     const dms = convosData?.dms || [];
     const groups = convosData?.groups || [];
-    const isLoading = isConvosLoading || (currentUserId && !convosData);
+    const isLoading = !mounted || isConvosLoading || (currentUserId && !convosData);
 
     // ── Presence Tracking ──────────────────────────────────
 
@@ -376,6 +379,18 @@ function ChatPageContent() {
     const allChats = [...dms, ...groups];
     const selectedPeer = allChats.find(c => c.id === selectedPeerId) || null;
 
+    const totalUnread = allChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+
+    // Optimistically clear unread count when opening a conversation
+    const handleSelectConversation = (chatId: string) => {
+        setSelectedPeerId(chatId);
+        if (convosData) {
+            const clearUnread = (list: PeerProfile[]) =>
+                list.map(c => c.id === chatId ? { ...c, unreadCount: 0 } : c);
+            mutate({ dms: clearUnread(convosData.dms), groups: clearUnread(convosData.groups) }, false);
+        }
+    };
+
     const filteredDms = dms.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -416,7 +431,7 @@ function ChatPageContent() {
             <motion.div 
                 animate={{ width: isSidebarCollapsed ? "80px" : "380px" }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className={`flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full relative ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}
+                className={`shrink-0 flex flex-col border-r border-zinc-200/60 bg-white z-10 h-full relative ${selectedPeerId ? 'hidden md:flex' : 'flex'}`}
             >
                 {/* Collapse/Expand Toggle Button (Desktop only) */}
                 <button
@@ -434,7 +449,16 @@ function ChatPageContent() {
                     {/* Header */}
                     <div className="pt-6 pb-4 px-5 shrink-0 bg-white overflow-hidden">
                         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between xl:justify-start xl:gap-4'} mb-5`}>
-                            {!isSidebarCollapsed && <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Chats</h2>}
+                            {!isSidebarCollapsed && (
+                            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+                                Chats
+                                {mounted && totalUnread > 0 && (
+                                    <span className="text-sm font-black bg-[#D4F268] text-black px-2 py-0.5 rounded-full">
+                                        {totalUnread > 99 ? '99+' : totalUnread}
+                                    </span>
+                                )}
+                            </h2>
+                        )}
                             <div className="xl:ml-auto">
                                 <NewChatPicker
                                     onSelect={async (friend) => {
@@ -513,7 +537,7 @@ function ChatPageContent() {
                                                             exit={{ opacity: 0, scale: 0.95 }}
                                                             transition={{ delay: index * 0.03 }}
                                                             key={chat.id}
-                                                            onClick={() => setSelectedPeerId(chat.id)}
+                                                            onClick={() => handleSelectConversation(chat.id)}
                                                             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 p-2.5'} rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
                                                         >
                                                             {isActive && (
@@ -533,13 +557,28 @@ function ChatPageContent() {
                                                                 <div className="flex-1 min-w-0 pr-1">
                                                                     <div className="flex justify-between items-baseline mb-0.5">
                                                                         <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
-                                                                        <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-600" : "text-zinc-400"}`}>
-                                                                            {formatTime(chat.lastMessageAt)}
-                                                                        </span>
+                                                                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                                            <span className={`text-[11px] font-medium ${isActive ? "text-lime-600" : "text-zinc-400"}`}>
+                                                                                {formatTime(chat.lastMessageAt)}
+                                                                            </span>
+                                                                            {(chat.unreadCount || 0) > 0 && (
+                                                                                <motion.span
+                                                                                    initial={{ scale: 0 }}
+                                                                                    animate={{ scale: 1 }}
+                                                                                    className="min-w-[20px] h-5 bg-[#D4F268] text-black text-[10px] font-black rounded-full flex items-center justify-center px-1.5 shadow-sm"
+                                                                                >
+                                                                                    {chat.unreadCount! > 99 ? '99+' : chat.unreadCount}
+                                                                                </motion.span>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                     <div className="flex justify-between items-center gap-2">
                                                                         {getTypingSummary(chat.id) ? (
                                                                             <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
+                                                                        ) : mounted && localStorage.getItem(`skloop:chat:draft:${chat.id}`) ? (
+                                                                            <span className="text-[13px] truncate text-amber-600 font-bold">
+                                                                                Draft: {localStorage.getItem(`skloop:chat:draft:${chat.id}`)?.slice(0, 25)}...
+                                                                            </span>
                                                                         ) : (
                                                                             <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
                                                                                 {chat.lastMessage || 'No messages yet'}
@@ -575,7 +614,7 @@ function ChatPageContent() {
                                                             exit={{ opacity: 0, scale: 0.95 }}
                                                             transition={{ delay: index * 0.03 }}
                                                             key={chat.id}
-                                                            onClick={() => setSelectedPeerId(chat.id)}
+                                                            onClick={() => handleSelectConversation(chat.id)}
                                                             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-2' : 'gap-3 p-2.5'} rounded-xl transition-all duration-200 text-left relative overflow-hidden ${isActive ? "bg-lime-50" : "hover:bg-zinc-100/60"}`}
                                                         >
                                                             {isActive && (
@@ -596,13 +635,28 @@ function ChatPageContent() {
                                                                 <div className="flex-1 min-w-0 pr-1">
                                                                     <div className="flex justify-between items-baseline mb-0.5">
                                                                         <span className={`text-[15px] font-semibold truncate ${isActive ? "text-lime-950" : "text-zinc-900"}`}>{chat.name}</span>
-                                                                        <span className={`text-[11px] font-medium shrink-0 ml-2 ${isActive ? "text-lime-700" : "text-zinc-400"}`}>
-                                                                            {formatTime(chat.lastMessageAt)}
-                                                                        </span>
+                                                                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                                            <span className={`text-[11px] font-medium ${isActive ? "text-lime-700" : "text-zinc-400"}`}>
+                                                                                {formatTime(chat.lastMessageAt)}
+                                                                            </span>
+                                                                            {(chat.unreadCount || 0) > 0 && (
+                                                                                <motion.span
+                                                                                    initial={{ scale: 0 }}
+                                                                                    animate={{ scale: 1 }}
+                                                                                    className="min-w-[20px] h-5 bg-[#D4F268] text-black text-[10px] font-black rounded-full flex items-center justify-center px-1.5 shadow-sm"
+                                                                                >
+                                                                                    {chat.unreadCount! > 99 ? '99+' : chat.unreadCount}
+                                                                                </motion.span>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                     <div className="flex justify-between items-center gap-2">
                                                                         {getTypingSummary(chat.id) ? (
                                                                             <span className="text-[13px] text-lime-600 font-bold animate-pulse truncate">{getTypingSummary(chat.id)}</span>
+                                                                        ) : mounted && localStorage.getItem(`skloop:chat:draft:${chat.id}`) ? (
+                                                                            <span className="text-[13px] truncate text-amber-600 font-bold">
+                                                                                Draft: {localStorage.getItem(`skloop:chat:draft:${chat.id}`)?.slice(0, 25)}...
+                                                                            </span>
                                                                         ) : (
                                                                             <span className={`text-[13px] truncate ${isActive ? "text-lime-800/80 font-medium" : "text-zinc-500"}`}>
                                                                                 {chat.lastMessage || 'No messages yet'}

@@ -91,34 +91,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     initial={hasLoadedRef.current ? false : { opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4 }}
-                    className="flex-1 h-full overflow-hidden flex flex-col md:pt-0"
-                    style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))' }}
+                    className="flex-1 h-full overflow-hidden flex flex-col pt-[calc(4rem+env(safe-area-inset-top,0px))] md:pt-0"
                 >
-                    {/* PERF 6: ReactLenis always rendered — LenisController pauses it for full-height pages */}
-                    <ReactLenis
-                        root={false}
-                        autoRaf={true}
-                        id="app-scroll-container"
-                        options={{
-                            lerp: 0.08,
-                            duration: 1.5,
-                            smoothWheel: true,
-                            syncTouch: true,
-                            touchMultiplier: 2 // More responsive on mobile
-                        }}
-                        className="flex-1 overflow-y-auto no-scrollbar h-full"
-                    >
-                        <LenisController isFullHeight={isFullHeight} />
-                        <AppScrollProvider>
-                            {isFullHeight ? (
-                                <div className="flex flex-col flex-1 h-full overflow-hidden">
-                                    {children}
-                                </div>
-                            ) : (
-                                children
-                            )}
-                        </AppScrollProvider>
-                    </ReactLenis>
+                    <AppScrollProvider>
+                        {isFullHeight ? (
+                            // Full-height pages (e.g. chat) bypass Lenis entirely so the
+                            // Lenis internal div doesn't cap height and cause a gap.
+                            <div className="flex flex-col flex-1 h-full overflow-hidden">
+                                {children}
+                            </div>
+                        ) : (
+                            // All other pages use Lenis smooth scroll.
+                            <ReactLenis
+                                root={false}
+                                autoRaf={true}
+                                id="app-scroll-container"
+                                options={{
+                                    lerp: 0.08,
+                                    duration: 1.5,
+                                    smoothWheel: true,
+                                    syncTouch: true,
+                                    touchMultiplier: 2
+                                }}
+                                className="flex-1 overflow-y-auto no-scrollbar h-full"
+                            >
+                                {children}
+                            </ReactLenis>
+                        )}
+                    </AppScrollProvider>
                 </motion.div>
             </main>
         </div>

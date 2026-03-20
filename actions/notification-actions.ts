@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 export interface NotificationPayload {
     user_id: string;
     actor_id?: string;
-    type: 'message' | 'achievement' | 'system';
+    type: 'message' | 'achievement' | 'system' | 'mention';
     title: string;
     content?: string;
     metadata?: any;

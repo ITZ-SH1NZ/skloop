@@ -32,11 +32,15 @@ export interface MessageRow {
 
 /**
  * Fetches message history for a specific conversation with sender profiles joined.
+ * Supports cursor-based pagination via `options.before` (ISO timestamp) and `options.limit`.
  */
-export async function getConversationMessages(conversationId: string): Promise<MessageRow[]> {
+export async function getConversationMessages(
+    conversationId: string,
+    options?: { before?: string; limit?: number }
+): Promise<MessageRow[]> {
     const supabase = await createClient();
 
-    const { data: dbMessages, error } = await supabase
+    let query = supabase
         .from('messages')
         .select(`
             id,
@@ -71,7 +75,13 @@ export async function getConversationMessages(conversationId: string): Promise<M
         `)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(options?.limit ?? 50);
+
+    if (options?.before) {
+        query = query.lt('created_at', options.before);
+    }
+
+    const { data: dbMessages, error } = await query;
 
     if (error) {
         console.error("Error fetching messages:", error);
@@ -184,7 +194,7 @@ export async function sendMessage(
             // 3. Create notifications for each participant
             const { createNotification } = await import("./notification-actions");
             
-            const results = await Promise.all(participants.map(p => 
+            const results = await Promise.all(participants.map(p =>
                 createNotification({
                     user_id: p.user_id,
                     actor_id: senderId,
@@ -198,6 +208,30 @@ export async function sendMessage(
                 })
             ));
             console.log(`[Chat Action] Notifications creation results:`, results.map(r => r ? "Success" : "Failed"));
+
+            // Detect @mentions and send priority notifications
+            const mentionMatches = content.match(/@(\w+)/g);
+            if (mentionMatches && type === 'text') {
+                for (const mention of mentionMatches) {
+                    const username = mention.slice(1);
+                    const { data: mentionedProfile } = await supabase
+                        .from('profiles')
+                        .select('id')
+                        .eq('username', username)
+                        .single();
+
+                    if (mentionedProfile && mentionedProfile.id !== senderId) {
+                        await createNotification({
+                            user_id: mentionedProfile.id,
+                            actor_id: senderId,
+                            type: 'mention',
+                            title: `${senderName} mentioned you`,
+                            content: content.slice(0, 100),
+                            metadata: { conversation_id: conversationId, message_id: data.id }
+                        });
+                    }
+                }
+            }
         } else {
             console.log("[Chat Action] No participants found for notification (other than sender).");
         }
@@ -280,6 +314,20 @@ export async function getUserConversations() {
 
     const convoIds = myConvos.map((mc: any) => mc.conversation_id);
 
+    // Compute unread counts for all conversations in one query
+    const { data: unreadRows } = await supabase
+        .from('messages')
+        .select('conversation_id')
+        .in('conversation_id', convoIds)
+        .neq('sender_id', user.id)
+        .neq('status', 'read')
+        .eq('is_deleted', false);
+
+    const unreadMap = new Map<string, number>();
+    for (const row of (unreadRows ?? [])) {
+        unreadMap.set(row.conversation_id, (unreadMap.get(row.conversation_id) || 0) + 1);
+    }
+
     // Pull all participants for these convos (to find the 'other' person in DMs)
     const { data: allParticipants } = await supabase
         .from('conversation_participants')
@@ -331,6 +379,7 @@ export async function getUserConversations() {
                 level: 0, xp: 0, streak: 0, status: 'none',
                 lastMessage,
                 lastMessageAt,
+                unreadCount: unreadMap.get(convo.id) || 0,
             });
         } else if (convo.type === 'direct') {
             const peer = allParticipants?.find((p: any) => p.conversation_id === convo.id);
@@ -348,6 +397,7 @@ export async function getUserConversations() {
                     level: 0, xp: 0, streak: 0, status: 'none',
                     lastMessage,
                     lastMessageAt,
+                    unreadCount: unreadMap.get(convo.id) || 0,
                 });
             }
         }
