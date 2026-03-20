@@ -62,21 +62,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
             <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh]">
-                <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-zinc-100 flex items-center justify-between px-4 z-[80] safe-top">
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setMobileOpen(true)}
-                            className="flex items-center gap-2 hover:opacity-80 transition-opacity active:scale-95"
-                        >
-                            <Logo className="w-8 h-8" />
-                            <span className="font-black text-lg tracking-tight text-zinc-900">skloop</span>
-                        </button>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                        <button className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden shadow-sm active:scale-90 transition-transform">
-                            <div className="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 opacity-20" />
-                        </button>
+                {/* Mobile header — expands to sit below notch/Dynamic Island */}
+                <div
+                    className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 z-[80]"
+                    style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+                >
+                    <div className="h-16 flex items-center justify-between px-4">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setMobileOpen(true)}
+                                className="flex items-center gap-2 hover:opacity-80 transition-opacity active:scale-95"
+                            >
+                                <Logo className="w-8 h-8" />
+                                <span className="font-black text-lg tracking-tight text-zinc-900">skloop</span>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <button className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden shadow-sm active:scale-90 transition-transform">
+                                <div className="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 opacity-20" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -85,7 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     initial={hasLoadedRef.current ? false : { opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4 }}
-                    className="flex-1 h-full overflow-hidden flex flex-col pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0"
+                    className="flex-1 h-full overflow-hidden flex flex-col md:pt-0"
+                    style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))' }}
                 >
                     {/* PERF 6: ReactLenis always rendered — LenisController pauses it for full-height pages */}
                     <ReactLenis

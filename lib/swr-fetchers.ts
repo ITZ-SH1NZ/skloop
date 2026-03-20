@@ -645,6 +645,16 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
 
     const cycleKeyFor = { daily: dailyKey, weekly: weeklyKey, monthly: monthlyKey } as const;
 
+    // Target amounts per quest key (mirrors QUEST_TARGETS in quest-actions.ts)
+    const QUEST_TARGETS: Record<string, number> = {
+        'login': 1, 'codele': 1, 'type_race': 1, 'quiz_attempt': 1, 'lesson': 1,
+        'streak_7': 7, 'streak_20m': 20,
+        'codele_3w': 3, 'codele_15m': 15,
+        'type_race_3w': 3, 'type_race_10m': 10,
+        'lessons_5w': 5, 'lessons_20m': 20,
+        'quiz_3w': 3, 'quiz_10m': 10,
+    };
+
     // Group and merge in-memory — zero extra DB calls
     const grouped: Record<'daily' | 'weekly' | 'monthly', any[]> = { daily: [], weekly: [], monthly: [] };
     for (const q of quests) {
@@ -655,6 +665,7 @@ export const fetchDailyQuests = async ([key, userId]: [string, string]) => {
             ...q,
             is_completed: progress === -1,
             auto_progress: Math.max(0, progress),
+            target_amount: QUEST_TARGETS[q.key] ?? 1,
         });
     }
 

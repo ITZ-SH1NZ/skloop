@@ -273,6 +273,21 @@ export function QuestsModule() {
                                                         </motion.h4>
                                                         <p className="text-sm font-medium text-slate-500 line-clamp-1">{quest.description}</p>
 
+                                                        {/* Partial progress bar for multi-step quests */}
+                                                        {!isDone && quest.target_amount > 1 && (
+                                                            <div className="mt-2 flex items-center gap-2">
+                                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[120px]">
+                                                                    <div
+                                                                        className="h-full bg-[#D4F268] rounded-full transition-all duration-500"
+                                                                        style={{ width: `${Math.min((quest.auto_progress / quest.target_amount) * 100, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-[10px] font-black text-slate-400 tabular-nums">
+                                                                    {quest.auto_progress}/{quest.target_amount}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
                                                         <div className="flex items-center gap-3 mt-3">
                                                             <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">
                                                                 <Sparkles size={12} className="fill-blue-600" /> {quest.xp_reward} XP
