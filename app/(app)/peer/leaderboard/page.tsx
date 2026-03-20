@@ -17,6 +17,8 @@ import { useUser } from "@/context/UserContext";
 export default function LeaderboardPage() {
     const [activeTab, setActiveTab] = useState<"global" | "friends">("global");
     const [metric, setMetric] = useState<"xp" | "coins">("xp");
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
 
     const { user } = useUser();
     const currentUserId = user?.id || null;
@@ -114,7 +116,7 @@ export default function LeaderboardPage() {
             {/* Content Area */}
             <div className="flex-1 px-6 py-8 md:px-10">
                 <div className="max-w-4xl mx-auto pb-20 md:pb-6 relative">
-                    {isLoading ? (
+                    {!mounted || isLoading ? (
                         <div className="flex justify-center items-center py-20">
                             <Loader2 className="w-8 h-8 animate-spin text-zinc-900" />
                         </div>
