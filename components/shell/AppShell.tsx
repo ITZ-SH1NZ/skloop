@@ -15,7 +15,7 @@ import Logo from "@/components/Logo";
 import { useUser } from "@/context/UserContext";
 
 // Pages that need fixed full-height layout (no scroll)
-const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages"];
+const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages", "/loopy/chat"];
 
 // Settings routes — skip the main sidebar entirely; settings has its own layout
 const SETTINGS_ROUTES = ["/settings"];
