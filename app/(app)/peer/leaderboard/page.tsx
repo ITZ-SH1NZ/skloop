@@ -11,8 +11,16 @@ import { createClient } from "@/utils/supabase/client";
 import useSWR from "swr";
 import { fetchGlobalLeaderboard, fetchFriendsLeaderboard, fetchUserRank, type LeaderboardUser } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
+import { TopSlimeBorder } from "@/components/ui/TopSlimeBorder";
+import { SlimePillBackground } from "@/components/ui/SlimePillBackground";
+import { SlimeWaterfall } from "@/components/ui/SlimeWaterfall";
+import localFont from "next/font/local";
 
-
+const meltedMonster = localFont({
+    src: "../../../../public/MeltedMonster.woff2",
+    display: "swap",
+    variable: "--font-melted-monster"
+});
 
 export default function LeaderboardPage() {
     const [activeTab, setActiveTab] = useState<"global" | "friends">("global");
@@ -55,59 +63,75 @@ export default function LeaderboardPage() {
     const currentUserRank = data.find((u: LeaderboardUser) => u.id === currentUserId);
 
     return (
-        <div className="flex flex-col bg-zinc-50/50">
+        <div className={`flex flex-col bg-[#0a0f0a] min-h-screen relative text-white ${meltedMonster.variable}`}>
+            {/* Gamified Texture Overlay and Slime Waterfall */}
+            <div className="absolute inset-0 z-0 opacity-10 mix-blend-overlay pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+            <SlimeWaterfall />
+            
             {/* Header with Totals */}
-            <div className="bg-white border-b border-zinc-100 px-6 py-8 md:px-10 md:py-10">
+            <div className="relative z-10 px-6 pt-16 pb-8 md:px-10 md:pt-24 md:pb-10">
                 <div className="max-w-4xl mx-auto text-center">
-                    <h1 className="text-3xl font-black text-zinc-900 tracking-tight mb-2 flex items-center justify-center gap-3">
-                        <Trophy className="text-amber-500" fill="currentColor" />
-                        Leaderboard
+                    <h1 className="flex flex-col items-center justify-center mb-6">
+                        <motion.span 
+                            animate={{ y: [0, -3, 0] }}
+                            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                            className="font-melted tracking-widest text-[#D4F268] text-5xl md:text-6xl lg:text-[5.5rem] pb-2 uppercase" 
+                            style={{ 
+                                fontFamily: 'var(--font-melted-monster)',
+                                textShadow: '0px 2px 0px #A3E635, 0px 4px 0px #65A30D, 0px 6px 0px #3F6212, 0px 8px 0px #14532D, 0px 15px 20px rgba(0,0,0,0.8)',
+                                WebkitTextStroke: '1.5px #0a0f0a'
+                            }}
+                        >
+                            Leaderboards
+                        </motion.span>
                     </h1>
-                    <p className="text-zinc-500 font-medium mb-8">Compete with the best. Rise to the top.</p>
+                    <p className="text-zinc-400 font-medium mb-8">Compete with the best. Rise to the top.</p>
 
                     <div className="flex flex-col items-center gap-4">
                         {/* Metric Switcher */}
-                        <div className="inline-flex bg-zinc-50 p-1 rounded-xl border border-zinc-100 mb-2">
+                        <div className="inline-flex bg-white/5 p-1 rounded-full border border-white/10 shadow-2xl backdrop-blur-md mb-2 relative">
                             <button
                                 onClick={() => setMetric("xp")}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${metric === "xp" ? "bg-white shadow-sm text-amber-600" : "text-zinc-400 hover:text-zinc-600"}`}
+                                className={`relative px-5 py-2 text-xs font-bold transition-all rounded-full z-10 flex items-center gap-2 ${metric === "xp" ? "text-zinc-950" : "text-zinc-400 hover:text-white"}`}
                             >
-                                <Zap size={14} /> XP
+                                {metric === "xp" && (
+                                    <SlimePillBackground layoutId="metricTargetLeaderboard" />
+                                )}
+                                <Zap size={14} className={`relative z-10 ${metric === "xp" ? "text-zinc-950" : ""}`} />
+                                <span className="relative z-10">XP</span>
                             </button>
                             <button
                                 onClick={() => setMetric("coins")}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${metric === "coins" ? "bg-white shadow-sm text-yellow-600" : "text-zinc-400 hover:text-zinc-600"}`}
+                                className={`relative px-5 py-2 text-xs font-bold transition-all rounded-full z-10 flex items-center gap-2 ${metric === "coins" ? "text-zinc-950" : "text-zinc-400 hover:text-white"}`}
                             >
-                                <Coins size={14} /> Coins
+                                {metric === "coins" && (
+                                    <SlimePillBackground layoutId="metricTargetLeaderboard" />
+                                )}
+                                <Coins size={14} className={`relative z-10 ${metric === "coins" ? "text-zinc-950" : ""}`} />
+                                <span className="relative z-10">Coins</span>
                             </button>
                         </div>
 
                         {/* Tab Switcher */}
-                        <div className="inline-flex bg-zinc-100 p-1.5 rounded-full relative">
+                        <div className="inline-flex bg-white/5 p-1.5 rounded-full border border-white/10 shadow-2xl backdrop-blur-md relative">
                             <button
                                 onClick={() => setActiveTab("global")}
-                                className={`relative z-10 px-6 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === "global" ? "text-zinc-900" : "text-zinc-500 hover:text-zinc-700"}`}
+                                className={`relative z-10 px-6 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === "global" ? "text-zinc-950" : "text-zinc-400 hover:text-white"}`}
                             >
-                                <span className="flex items-center gap-2"><Globe size={16} /> Global</span>
+                                {activeTab === "global" && (
+                                    <SlimePillBackground layoutId="tabTargetLeaderboard" />
+                                )}
+                                <span className="flex items-center gap-2 relative z-10"><Globe size={16} /> Global</span>
                             </button>
                             <button
                                 onClick={() => setActiveTab("friends")}
-                                className={`relative z-10 px-6 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === "friends" ? "text-zinc-900" : "text-zinc-500 hover:text-zinc-700"}`}
+                                className={`relative z-10 px-6 py-2 rounded-full text-sm font-bold transition-colors ${activeTab === "friends" ? "text-zinc-950" : "text-zinc-400 hover:text-white"}`}
                             >
-                                <span className="flex items-center gap-2"><Users size={16} /> Friends</span>
+                                {activeTab === "friends" && (
+                                    <SlimePillBackground layoutId="tabTargetLeaderboard" />
+                                )}
+                                <span className="flex items-center gap-2 relative z-10"><Users size={16} /> Friends</span>
                             </button>
-
-                            {/* Sliding Background */}
-                            <motion.div
-                                layoutId="tabTarget"
-                                className="absolute top-1.5 bottom-1.5 left-1.5 rounded-full bg-white shadow-sm"
-                                initial={false}
-                                animate={{
-                                    x: activeTab === "global" ? 0 : "100%",
-                                    width: "50%"
-                                }}
-                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                            />
                         </div>
                     </div>
                 </div>
@@ -121,45 +145,57 @@ export default function LeaderboardPage() {
                             <Loader2 className="w-8 h-8 animate-spin text-zinc-900" />
                         </div>
                     ) : data.length > 0 ? (
-                        <>
-                            {/* Podium */}
-                            <PodiumDisplay users={topThree} metric={metric} />
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={`${activeTab}-${metric}`}
+                                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+                                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
+                            >
+                                {/* Podium */}
+                                <PodiumDisplay users={topThree} metric={metric} />
 
-                            {/* Table */}
-                            <div className="mt-8">
-                                <h3 className="text-lg font-bold text-zinc-900 mb-4 px-2">Rankings</h3>
-                                <LeaderboardTable users={rest} metric={metric} currentUserId={currentUserId} />
-                            </div>
-                        </>
+                                {/* Table */}
+                                <div className="mt-8 relative z-10">
+                                    <LeaderboardTable users={rest} metric={metric} currentUserId={currentUserId} />
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
                     ) : (
-                        <div className="text-center py-20">
-                            <div className="bg-zinc-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Trophy className="text-zinc-400" size={32} />
+                        <div className="text-center py-20 relative z-10">
+                            <div className="bg-white/5 border border-white/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Trophy className="text-zinc-500" size={32} />
                             </div>
-                            <h3 className="text-lg font-bold text-zinc-900">No rankings yet</h3>
+                            <h3 className="text-lg font-bold text-white">No rankings yet</h3>
                             <p className="text-zinc-500">Be the first to climb the leaderboard!</p>
                         </div>
                     )}
 
                     {/* Sticky Rank Bar — shows for in-list AND out-of-top-50 users */}
-                    {(currentUserRank || myFallbackRank) && (() => {
+                    {mounted && (currentUserRank || myFallbackRank) && (() => {
                         const bar = currentUserRank ?? myFallbackRank!;
                         return (
-                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 hidden md:block">
-                                <div className="bg-zinc-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between border border-zinc-700/50">
+                            <div className="sticky bottom-6 mt-8 mx-auto w-full max-w-2xl px-4 hidden md:block z-50">
+                                <div className="bg-[#D4F268] text-zinc-950 p-4 rounded-2xl shadow-[0_10px_30px_rgba(212,242,104,0.4)] flex items-center justify-between border border-[#b1f142]">
                                     <div className="flex items-center gap-4">
-                                        <span className={`font-bold ${metric === "xp" ? "text-amber-500" : "text-yellow-400"}`}>#{bar.rank}</span>
+                                        <span className={`font-black text-3xl text-zinc-900 drop-shadow-sm`}>#{bar.rank}</span>
                                         <div className="flex items-center gap-3">
-                                            <Avatar src={bar.avatarUrl} className="w-10 h-10 border-2 border-zinc-700" fallback={bar.name.charAt(0)} />
+                                            <Avatar src={bar.avatarUrl} className="w-12 h-12 border-2 border-zinc-950 shadow-md" fallback={bar.name.charAt(0)} />
                                             <div>
-                                                <div className="font-bold text-sm">You</div>
-                                                <div className="text-xs text-zinc-400">
+                                                <div className="font-black text-base text-zinc-950 flex items-center gap-2">
+                                                    You
+                                                    <span className="text-[9px] font-black bg-zinc-950 text-[#D4F268] px-1.5 py-0.5 rounded-md uppercase tracking-widest">
+                                                        YOU
+                                                    </span>
+                                                </div>
+                                                <div className="text-sm text-zinc-800 font-bold">
                                                     {metric === "xp" ? `${bar.xp} XP` : `${bar.coins} Coins`}
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <span className="text-xs font-bold bg-zinc-800 px-3 py-1 rounded-full text-zinc-300">
+                                    <span className="text-xs font-black leading-none bg-zinc-900/10 border border-zinc-900/10 px-3 py-1.5 rounded-full text-zinc-900">
                                         {currentUserRank ? "Active" : `Rank #${bar.rank}`}
                                     </span>
                                 </div>
