@@ -5,6 +5,7 @@ import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, 
 import { motion, AnimatePresence } from "framer-motion";
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import { createClient } from "@/utils/supabase/client";
+import { logValidationProgress } from "@/actions/validation-actions";
 
 // Register Emmet for Monaco
 import { emmetHTML, emmetCSS } from "emmet-monaco-es";
@@ -526,11 +527,18 @@ export default function ChallengeView({
         setValidationStatus("idle");
         setErrorMessage("");
 
+        const logs: string[] = [];
+        logs.push(`Starting verification for mode: ${mode}`);
+
         if (!validationRules || validationRules.length === 0) {
+            logs.push("No validation rules found. Passing automatically.");
             setValidationStatus("success");
             if (onComplete) onComplete();
+            await logValidationProgress(logs);
             return;
         }
+
+        logs.push(`Found ${validationRules.length} rule(s) to check.`);
 
         // Local save is now handled autonomously, we just need to verify
 
@@ -544,41 +552,79 @@ export default function ChallengeView({
             if (doc) {
                 validationRules.forEach((rule, index) => {
                     let passed = false;
+                    let expectedStr = "";
+                    let actualStr = "";
+
                     try {
                         if (rule.type === 'dom-selector' && rule.selector) {
-                            passed = !!doc.querySelector(rule.selector);
+                            expectedStr = `Element matching '${rule.selector}' exists`;
+                            const matches = doc.querySelectorAll(rule.selector);
+                            passed = matches.length > 0;
+                            actualStr = passed ? `Found ${matches.length} matching element(s)` : `Element not found`;
+                            logs.push(`Rule ${index + 1} (dom-selector: ${rule.selector}): -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
                         } else if (rule.type === 'css-prop' && rule.selector && rule.property && rule.value) {
+                            expectedStr = `${rule.property} contains '${rule.value}' on ${rule.selector}`;
                             const el = doc.querySelector(rule.selector);
                             if (el) {
                                 const style = win.getComputedStyle(el);
                                 const currentVal = style.getPropertyValue(rule.property).toLowerCase();
                                 const targetVal = rule.value.toLowerCase();
                                 passed = currentVal.includes(targetVal) || targetVal.includes(currentVal);
+                                actualStr = currentVal || 'Not set';
+                                logs.push(`Rule ${index + 1} (css-prop: ${rule.property} on ${rule.selector}): Target '${targetVal}', Got '${currentVal}' -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
+                            } else {
+                                actualStr = "Target element not found in DOM";
+                                logs.push(`Rule ${index + 1} (css-prop): Failed to find element '${rule.selector}'`);
                             }
                         } else if (rule.type === 'text-match' && rule.text) {
-                            const combinedCode = files.map(f => f.content || '').join(' ');
-                            passed = combinedCode.toLowerCase().includes(rule.text.toLowerCase());
+                            const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
+                            const combinedCode = normalize(files.map(f => f.content || '').join(' '));
+                            const targetText = normalize(rule.text);
+                            expectedStr = `Code contains text: "${rule.text}"`;
+                            passed = combinedCode.toLowerCase().includes(targetText.toLowerCase());
+                            actualStr = passed ? "Match found in source code" : "Mismatch logic detected";
+                            logs.push(`Rule ${index + 1} (text-match: "${targetText}"): -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
                         } else if (rule.type === 'regex' && rule.text) {
+                            expectedStr = `Code matches regex: /${rule.text}/i`;
                             const combinedCode = files.map(f => f.content || '').join(' ');
                             passed = new RegExp(rule.text, 'i').test(combinedCode);
+                            actualStr = passed ? "Match found in source code" : "No regex match";
+                            logs.push(`Rule ${index + 1} (regex: /${rule.text}/): -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
                         }
-                    } catch (e) {
-                        console.error("Validation error for rule:", rule, e);
+                    } catch (e: any) {
+                        logs.push(`Validation exception for rule ${index + 1}: ${e.message}`);
                     }
 
                     newRuleStatuses[index] = passed ? "success" : "error";
                     if (!passed) allPassed = false;
                 });
+            } else {
+                logs.push("Could not access iframe content document.");
+                allPassed = false;
             }
         } else {
             // Fallback for non-web modes
-            const combinedCode = mode === 'web' ? files.map(f => f.content).join(' ') : textCode;
+            const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
+            const combinedCode = mode === 'web' 
+                ? files.map(f => f.content).join(' ') 
+                : textCode;
+            
+            const normalizedCode = normalize(combinedCode);
+
             validationRules.forEach((rule, index) => {
                 let passed = false;
-                if (rule.type === 'text-match') {
-                    passed = combinedCode.toLowerCase().includes(rule.text.toLowerCase());
-                } else if (rule.type === 'regex') {
+                let expectedStr = "";
+                let actualStr = "";
+
+                if (rule.type === 'text-match' && rule.text) {
+                    const targetText = normalize(rule.text);
+                    expectedStr = `Code contains text: "${rule.text}"`;
+                    passed = normalizedCode.toLowerCase().includes(targetText.toLowerCase());
+                    actualStr = passed ? "Match found" : "Mismatch logic detected";
+                    logs.push(`Rule ${index + 1} (text-match: "${targetText}"): -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
+                } else if (rule.type === 'regex' && rule.text) {
                     passed = new RegExp(rule.text, 'i').test(combinedCode);
+                    logs.push(`Rule ${index + 1} (regex: /${rule.text}/): -> ${passed ? '✅ PASS' : '❌ FAIL'}`);
                 }
                 newRuleStatuses[index] = passed ? "success" : "error";
                 if (!passed) allPassed = false;
@@ -588,12 +634,16 @@ export default function ChallengeView({
         setRuleStatuses(newRuleStatuses);
 
         if (allPassed) {
+            logs.push("Result: ALL RULES PASSED!");
             setValidationStatus("success");
             const timer = setTimeout(() => {
                 if (onComplete) onComplete();
             }, 1500);
+            
+            await logValidationProgress(logs);
             return () => clearTimeout(timer);
         } else {
+            logs.push("Result: SOME RULES FAILED.");
             // Failure! Deduct heart
             if (onHeartLost) onHeartLost();
             
@@ -601,6 +651,9 @@ export default function ChallengeView({
             setErrorMessage("Some requirements are not met. Open 'Details' to see what's missing!");
             setShowInfo(true); // Proactively show details if they fail
         }
+        
+        // Ensure logs are sent even on failure
+        await logValidationProgress(logs);
     };
 
     const handleEditorWillMount = (monaco: any) => {
@@ -1206,8 +1259,6 @@ export default function ChallengeView({
                     </button>
                 </div>
             )}
-
-
         </div>
     );
 }
