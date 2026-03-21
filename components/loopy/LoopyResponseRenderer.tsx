@@ -212,7 +212,7 @@ export function LoopyResponseRenderer({ content }: { content: string }) {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.28, ease: [0.34, 1.1, 0.64, 1] }}
-            className="text-white/95 text-[15px] leading-relaxed"
+            className="text-white/95 text-[15px] leading-relaxed break-words overflow-hidden"
         >
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}

@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Terminal, Copy, Sparkles, AlertCircle } from "lucide-react";
+import { Send, Terminal, Sparkles } from "lucide-react";
 import { LoopyMascot } from "@/components/loopy/LoopyMascot";
 import { LoopyResponseRenderer } from "@/components/loopy/LoopyResponseRenderer";
-import { useRouter } from "next/navigation";
+
 
 type Message = {
     id: string;
@@ -16,7 +16,6 @@ type Message = {
 
 export default function LoopyChatPage({ params }: { params: Promise<{ id: string }> }) {
     const { id: rawId } = React.use(params);
-    const router = useRouter();
     // Use a ref for the actual chat ID so we can swap it from 'new' → real ID mid-session
     const [chatId, setChatId] = useState(rawId);
     
@@ -107,8 +106,8 @@ export default function LoopyChatPage({ params }: { params: Promise<{ id: string
                 localStorage.setItem("loopy_chats_list", JSON.stringify(updated));
                 window.dispatchEvent(new Event("loopy_chats_updated"));
             } catch (e) {}
-            // Update URL silently (no history push, so Back button still works)
-            router.replace(`/loopy/chat/${activeChatId}`);
+            // Update URL silently without triggering a Next.js navigation/remount
+            window.history.replaceState(null, '', `/loopy/chat/${activeChatId}`);
         }
         
         const userMsg: Message = { id: Date.now().toString(), role: "user", content: input };
@@ -167,7 +166,7 @@ export default function LoopyChatPage({ params }: { params: Promise<{ id: string
             </header>
 
             {/* Messages Area */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-8 md:py-12 space-y-12 no-scrollbar bg-[#FAFAF8]">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-8 md:py-12 space-y-12 no-scrollbar bg-[#FAFAF8]">
                 
                 {isNew && !isLoading && (
                     <div className="h-full flex flex-col items-center justify-center text-center">
@@ -209,7 +208,7 @@ export default function LoopyChatPage({ params }: { params: Promise<{ id: string
                                 </div>
 
                                 {/* Content Bubble */}
-                                <div className={`flex flex-col max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start w-full"}`}>
+                                <div className={`flex flex-col min-w-0 max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start w-full"}`}>
                                     <div className={`
                                         text-[16px] py-4 px-6 rounded-3xl border-2
                                         ${msg.role === "user" 
