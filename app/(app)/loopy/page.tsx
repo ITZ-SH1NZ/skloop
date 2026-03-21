@@ -2,16 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Sparkles, Send, Terminal, Gamepad2, BrainCircuit, Flame } from "lucide-react";
-import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { Send, Terminal, Sparkles, Flame, BrainCircuit, Gamepad2, ChevronRight, Swords } from "lucide-react";
 import { LoopyHeader } from "@/components/loopy/LoopyHeader";
 import { LoopyMascot } from "@/components/loopy/LoopyMascot";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useLoading } from "@/components/LoadingProvider";
 
-// API Route handles Python integration
-// API Route handles Python integration (Vercel Function)
 const API_ENDPOINT = "/api/loopy";
 
 type Mode = "select" | "helpful" | "story";
@@ -23,16 +19,23 @@ interface Message {
 
 export default function LoopyPage() {
     const { isLoading: isGlobalLoading } = useLoading();
-    const isMobile = !useMediaQuery("(min-width: 768px)");
+    const isDesktop = useMediaQuery("(min-width: 768px)");
     const [mode, setMode] = useState<Mode>("select");
+    const [selectedCard, setSelectedCard] = useState<"helpful" | "story" | null>(null);
+    const [hoveredCard, setHoveredCard] = useState<"helpful" | "story" | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [xp, setXp] = useState(120);
-    const [rank, setRank] = useState("Script Wizard");
+    const [rank] = useState("Script Wizard");
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom
+    // Priority: hover > selected > null (center)
+    const activeSide = hoveredCard ?? selectedCard;
+    const mascotOffset = isDesktop ? 185 : 88;
+
+    const isWarriorMode = activeSide === "story";
+
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -42,48 +45,29 @@ export default function LoopyPage() {
     const handleModeSelect = (selectedMode: "helpful" | "story") => {
         setMode(selectedMode);
         setMessages([]);
-
         if (selectedMode === "helpful") {
-            setMessages([
-                { role: "assistant", content: "Hi! I'm Loopy, your Helpful Coding Guide! 🦉 I'm here to help you think through problems. What's on your mind?" }
-            ]);
+            setMessages([{ role: "assistant", content: "Hi! I'm Loopy, your Helpful Coding Guide! 🦉 I'm here to help you think through problems. What's on your mind?" }]);
         } else {
-            setMessages([
-                { role: "assistant", content: "🔥 **GLITCH KINGDOM ENTERED** 🔥\n\nA `NullPointer` Dragon blocks the gate! Its eyes glow with undefined values.\n\n**MISSION**: Cast a spell to define its existence! (Hint: What checks for nulls?)" }
-            ]);
+            setMessages([{ role: "assistant", content: "🔥 **GLITCH KINGDOM ENTERED** 🔥\n\nA `NullPointer` Dragon blocks the gate! Its eyes glow with undefined values.\n\n**MISSION**: Cast a spell to define its existence! (Hint: What checks for nulls?)" }]);
         }
     };
 
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
-
         const userMsg: Message = { role: "user", content: input };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
-
         try {
-            // Call Python-backed API
             const response = await fetch(API_ENDPOINT, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: input,
-                    mode: mode,
-                    history: messages.map(m => ({ role: m.role, content: m.content }))
-                })
+                body: JSON.stringify({ message: input, mode, history: messages.map(m => ({ role: m.role, content: m.content })) })
             });
-
             if (!response.ok) throw new Error("API call failed");
-
             const data = await response.json();
-
             setMessages(prev => [...prev, { role: "assistant", content: data.content }]);
-
-            if (mode === "story" && data.xp_gain > 0) {
-                setXp(prev => prev + data.xp_gain);
-            }
-
+            if (mode === "story" && data.xp_gain > 0) setXp(prev => prev + data.xp_gain);
         } catch (error) {
             console.error(error);
             setMessages(prev => [...prev, { role: "assistant", content: "Error: Failed to cast spell. (Connection Error)" }]);
@@ -93,14 +77,13 @@ export default function LoopyPage() {
     };
 
     return (
-        <motion.div 
+        <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
             transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
             className="flex flex-col bg-[#FDFCF8] font-sans relative overflow-hidden h-[100dvh] selection:bg-[#D4F268] selection:text-black"
         >
-
-            {/* Background Texture & Blobs */}
+            {/* Background */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 pointer-events-none" />
             <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(#E4E4E7 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
 
@@ -115,12 +98,10 @@ export default function LoopyPage() {
                 className="absolute bottom-[-100px] right-[-100px] w-[500px] h-[500px] bg-amber-200/40 rounded-full blur-[100px] pointer-events-none"
             />
 
-            {/* Sticky Header */}
             <LoopyHeader mode={mode} setMode={setMode} rank={rank} xp={xp} />
 
-            {/* Content Area - Adjusted padding: pt-24 only on mobile select mode, pb-4 for chat mode to keep input low */}
-            <main className={`flex-1 relative flex flex-col z-10 min-h-0 
-                ${mode === "select" ? "overflow-y-auto pt-24 pb-24 md:pt-0" : "pt-20 pb-2 md:pt-0 overflow-hidden"}
+            <main className={`flex-1 relative flex flex-col z-10 min-h-0
+                ${mode === "select" ? "overflow-y-auto pt-24 pb-10 md:pt-0" : "pt-20 pb-2 md:pt-0 overflow-hidden"}
             `}>
                 <AnimatePresence mode="wait">
                     {mode === "select" ? (
@@ -129,70 +110,203 @@ export default function LoopyPage() {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 1.05 }}
-                            className="w-full min-h-full flex flex-col items-center justify-center p-6 md:p-12 gap-8"
+                            className="w-full min-h-full flex flex-col items-center justify-center px-4 py-6 md:p-12 gap-6"
                         >
-                            <div className="text-center max-w-lg mb-4 relative">
-                                <motion.div
-                                    animate={{ y: [0, -10, 0] }}
-                                    transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                                    className="inline-block mb-6 relative"
-                                >
-                                    {/* Mascot - Scaled down for mobile */}
-                                    <div className="absolute inset-0 bg-lime-400/40 blur-[40px] rounded-full" />
-                                    <div className="w-24 h-24 md:w-48 md:h-48 relative z-10 filter drop-shadow-[0_10px_20px_rgba(0,0,0,0.15)] mx-auto flex items-center justify-center">
-                                        <LoopyMascot size={isMobile ? 120 : 200} mood="happy" />
-                                    </div>
-                                </motion.div>
-                                <h2 className="text-2xl md:text-4xl font-black text-slate-900 mb-2 md:mb-3 tracking-tight">I'm Loopy!</h2>
-                                <p className="text-slate-500 text-xs md:text-lg font-medium leading-relaxed max-w-sm mx-auto">
-                                    Your coding companion. Choose your path!
-                                </p>
+                            {/* Heading */}
+                            <div className="text-center">
+                                <h2 className="text-2xl md:text-4xl font-black text-slate-900 mb-1 tracking-tight">Meet Loopy</h2>
+                                <p className="text-slate-400 text-sm md:text-base font-medium">Your AI coding companion — choose a mode to begin</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 md:gap-6 w-full max-w-3xl">
-                                {/* CARD 1: HELPFUL (LIME THEME) */}
-                                {/* CARD 1: HELPFUL (LIME THEME) */}
-                                <button
-                                    onClick={() => handleModeSelect("helpful")}
-                                    className="group relative bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border-[3px] border-zinc-100 hover:border-[#D4F268] text-left transition-all hover:shadow-[0_20px_40px_-10px_rgba(212,242,104,0.3)] hover:-translate-y-2 overflow-hidden h-full flex flex-col justify-between"
-                                >
-                                    <div className="relative z-10">
-                                        <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-3xl bg-lime-50 text-lime-600 flex items-center justify-center mb-3 md:mb-6 group-hover:scale-110 transition-transform duration-500 shadow-sm border border-lime-100">
-                                            <BrainCircuit className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} />
-                                        </div>
-                                        <h3 className="text-base md:text-2xl font-black text-slate-900 mb-1 md:mb-2">Helpful Guide</h3>
-                                        <p className="text-slate-500 text-[10px] md:text-base font-medium leading-relaxed">
-                                            Clear, Socratic debugging. <br className="hidden md:block" /> "Fresh Lime" Mode.
-                                        </p>
-                                    </div>
-                                    <div className="mt-4 md:mt-8">
-                                        <span className="inline-flex items-center justify-center px-4 py-2 md:px-6 md:py-3 bg-[#D4F268] text-[#1A1A1A] font-bold rounded-xl md:rounded-2xl shadow-[0_4px_0_0_#a3e635] text-[10px] md:text-sm group-hover:bg-[#bef264] transition-all w-full md:w-auto">
-                                            Start Chatting
-                                        </span>
-                                    </div>
-                                </button>
+                            {/* Cards + Sliding Mascot */}
+                            <div className="relative w-full max-w-3xl">
 
-                                {/* CARD 2: STORY MODE (AMBER THEME) */}
-                                {/* CARD 2: STORY MODE (AMBER THEME) */}
-                                <button
-                                    onClick={() => handleModeSelect("story")}
-                                    className="group relative bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border-[3px] border-zinc-100 hover:border-amber-300 text-left transition-all hover:shadow-[0_20px_40px_-10px_rgba(245,158,11,0.3)] hover:-translate-y-2 overflow-hidden h-full flex flex-col justify-between"
-                                >
-                                    <div className="relative z-10">
-                                        <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 md:mb-6 group-hover:scale-110 transition-transform duration-500 shadow-sm border border-amber-100 group-hover:rotate-3">
-                                            <Gamepad2 className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} />
+                                {/* Mascot Stage — sits above the cards */}
+                                <div className="relative flex justify-center items-end h-36 md:h-52 mb-0">
+                                    {/* Ground shadow */}
+                                    <motion.div
+                                        className="absolute bottom-0 rounded-full blur-xl h-5 w-24 md:w-36 opacity-60"
+                                        animate={{
+                                            background: isWarriorMode ? "rgba(251,146,60,0.35)" : "rgba(163,230,53,0.35)",
+                                            x: activeSide === "helpful" ? -mascotOffset
+                                                : activeSide === "story" ? mascotOffset
+                                                : 0,
+                                            scaleX: activeSide ? 1.1 : 1
+                                        }}
+                                        transition={{ type: "spring", stiffness: 280, damping: 28 }}
+                                    />
+
+                                    {/* The sliding mascot */}
+                                    <motion.div
+                                        animate={{
+                                            x: activeSide === "helpful" ? -mascotOffset
+                                                : activeSide === "story" ? mascotOffset
+                                                : 0,
+                                        }}
+                                        transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                                        className="relative z-10"
+                                    >
+                                        {/* Ring pulse when selected */}
+                                        <AnimatePresence>
+                                            {selectedCard && !hoveredCard && (
+                                                <motion.div
+                                                    key={selectedCard}
+                                                    initial={{ scale: 0.6, opacity: 0.8 }}
+                                                    animate={{ scale: 1.6, opacity: 0 }}
+                                                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeOut" }}
+                                                    className={`absolute inset-0 rounded-full ${selectedCard === "story" ? "bg-orange-400" : "bg-lime-400"}`}
+                                                />
+                                            )}
+                                        </AnimatePresence>
+
+                                        <LoopyMascot
+                                            size={isDesktop ? 160 : 110}
+                                            mood={isWarriorMode ? "warrior" : "happy"}
+                                            hasCrown={isWarriorMode}
+                                            hasSword={isWarriorMode}
+                                        />
+                                    </motion.div>
+                                </div>
+
+                                {/* Mode Cards */}
+                                <div className="grid grid-cols-2 gap-3 md:gap-5">
+
+                                    {/* Helpful Card */}
+                                    <motion.button
+                                        onClick={() => setSelectedCard("helpful")}
+                                        onMouseEnter={() => setHoveredCard("helpful")}
+                                        onMouseLeave={() => setHoveredCard(null)}
+                                        animate={{
+                                            scale: selectedCard === "helpful" ? 1.025 : 1,
+                                            y: selectedCard === "helpful" ? -4 : 0,
+                                        }}
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        className={`group relative bg-white p-4 md:p-7 rounded-[1.75rem] border-[3px] text-left transition-shadow overflow-hidden flex flex-col ${
+                                            selectedCard === "helpful"
+                                                ? "border-[#D4F268] shadow-[0_20px_40px_-10px_rgba(163,230,53,0.4)]"
+                                                : "border-zinc-100 hover:border-[#D4F268]/60 hover:shadow-[0_8px_20px_-5px_rgba(163,230,53,0.2)]"
+                                        }`}
+                                    >
+                                        {/* Selected checkmark */}
+                                        <AnimatePresence>
+                                            {selectedCard === "helpful" && (
+                                                <motion.div
+                                                    initial={{ scale: 0, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 500 }}
+                                                    className="absolute top-3 right-3 md:top-4 md:right-4 w-6 h-6 bg-[#D4F268] rounded-full flex items-center justify-center shadow-sm"
+                                                >
+                                                    <svg viewBox="0 0 12 10" className="w-3 h-3">
+                                                        <polyline points="1,5 4,9 11,1" fill="none" stroke="#1a1a1a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+
+                                        {/* Icon */}
+                                        <div className={`w-10 h-10 md:w-13 md:h-13 rounded-2xl bg-lime-50 border border-lime-100 text-lime-600 flex items-center justify-center mb-3 md:mb-5 transition-transform duration-300 ${selectedCard === "helpful" ? "scale-110" : "group-hover:scale-110"}`}>
+                                            <BrainCircuit className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2} />
                                         </div>
-                                        <h3 className="text-base md:text-2xl font-black text-slate-900 mb-1 md:mb-2">Story Mode</h3>
-                                        <p className="text-slate-500 text-[10px] md:text-base font-medium leading-relaxed">
-                                            Epic RPG Adventure. <br className="hidden md:block" /> "Golden Glitch" Mode.
+
+                                        <h3 className="text-sm md:text-xl font-black text-slate-900 mb-1">Helpful Guide</h3>
+                                        <p className="text-slate-400 text-[11px] md:text-sm font-medium leading-relaxed mb-3 md:mb-5">
+                                            Socratic coaching.<br className="hidden md:block" /> Learn by thinking.
                                         </p>
-                                    </div>
-                                    <div className="mt-4 md:mt-8">
-                                        <span className="inline-flex items-center justify-center px-4 py-2 md:px-6 md:py-3 bg-amber-400 text-[#1A1A1A] font-bold rounded-xl md:rounded-2xl shadow-[0_4px_0_0_#d97706] text-[10px] md:text-sm group-hover:bg-amber-300 transition-all w-full md:w-auto">
-                                            Play Now
-                                        </span>
-                                    </div>
-                                </button>
+
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {["Debug", "Concepts", "Review"].map(tag => (
+                                                <span key={tag} className="px-2 py-0.5 bg-lime-50 text-lime-700 rounded-lg text-[10px] md:text-xs font-bold border border-lime-100">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </motion.button>
+
+                                    {/* Story Card */}
+                                    <motion.button
+                                        onClick={() => setSelectedCard("story")}
+                                        onMouseEnter={() => setHoveredCard("story")}
+                                        onMouseLeave={() => setHoveredCard(null)}
+                                        animate={{
+                                            scale: selectedCard === "story" ? 1.025 : 1,
+                                            y: selectedCard === "story" ? -4 : 0,
+                                        }}
+                                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        className={`group relative bg-white p-4 md:p-7 rounded-[1.75rem] border-[3px] text-left transition-shadow overflow-hidden flex flex-col ${
+                                            selectedCard === "story"
+                                                ? "border-amber-400 shadow-[0_20px_40px_-10px_rgba(251,146,60,0.45)]"
+                                                : "border-zinc-100 hover:border-amber-300/60 hover:shadow-[0_8px_20px_-5px_rgba(251,146,60,0.2)]"
+                                        }`}
+                                    >
+                                        <AnimatePresence>
+                                            {selectedCard === "story" && (
+                                                <motion.div
+                                                    initial={{ scale: 0, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 500 }}
+                                                    className="absolute top-3 right-3 md:top-4 md:right-4 w-6 h-6 bg-amber-400 rounded-full flex items-center justify-center shadow-sm"
+                                                >
+                                                    <svg viewBox="0 0 12 10" className="w-3 h-3">
+                                                        <polyline points="1,5 4,9 11,1" fill="none" stroke="#1a1a1a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+
+                                        <div className={`w-10 h-10 md:w-13 md:h-13 rounded-2xl bg-amber-50 border border-amber-100 text-amber-500 flex items-center justify-center mb-3 md:mb-5 transition-transform duration-300 ${selectedCard === "story" ? "scale-110" : "group-hover:scale-110"}`}>
+                                            <Gamepad2 className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2} />
+                                        </div>
+
+                                        <h3 className="text-sm md:text-xl font-black text-slate-900 mb-1">Story Mode</h3>
+                                        <p className="text-slate-400 text-[11px] md:text-sm font-medium leading-relaxed mb-3 md:mb-5">
+                                            RPG adventure.<br className="hidden md:block" /> Earn XP and glory.
+                                        </p>
+
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {["XP & Ranks", "Quests", "Glory"].map(tag => (
+                                                <span key={tag} className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-lg text-[10px] md:text-xs font-bold border border-amber-100">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </motion.button>
+                                </div>
+
+                                {/* CTA — reveals after selecting a card */}
+                                <AnimatePresence>
+                                    {selectedCard && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                            className="mt-5 flex justify-center"
+                                        >
+                                            <button
+                                                onClick={() => handleModeSelect(selectedCard)}
+                                                className={`group flex items-center gap-2.5 px-7 py-3.5 md:px-10 md:py-4 rounded-2xl font-black text-[#1A1A1A] text-sm md:text-base transition-all hover:-translate-y-1 active:translate-y-0 ${
+                                                    selectedCard === "story"
+                                                        ? "bg-amber-400 shadow-[0_6px_0_0_#d97706] hover:shadow-[0_8px_0_0_#d97706] active:shadow-none"
+                                                        : "bg-[#D4F268] shadow-[0_6px_0_0_#a3e635] hover:shadow-[0_8px_0_0_#a3e635] active:shadow-none"
+                                                }`}
+                                            >
+                                                {selectedCard === "story" ? (
+                                                    <>
+                                                        Enter the Glitch Kingdom
+                                                        <Swords className="w-4 h-4 md:w-5 md:h-5 group-hover:rotate-12 transition-transform duration-300" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Start Chatting
+                                                        <ChevronRight className="w-4 h-4 md:w-5 md:h-5 group-hover:translate-x-1 transition-transform duration-300" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </motion.div>
                     ) : (
@@ -214,10 +328,13 @@ export default function LoopyPage() {
                                     >
                                         {msg.role === "assistant" && (
                                             <div className="w-12 h-12 shrink-0 relative -bottom-4 filter drop-shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
-                                                <LoopyMascot size={48} mood={mode === "story" ? "surprised" : "happy"} />
+                                                <LoopyMascot
+                                                    size={48}
+                                                    mood={mode === "story" ? "warrior" : "happy"}
+                                                    hasCrown={mode === "story"}
+                                                />
                                             </div>
                                         )}
-
                                         <div className={`
                                             max-w-[85%] md:max-w-[70%] p-5 text-sm md:text-base font-medium leading-relaxed relative
                                             ${msg.role === "user"
@@ -267,7 +384,6 @@ export default function LoopyPage() {
                                             autoFocus
                                         />
                                     </div>
-
                                     <button
                                         type="submit"
                                         disabled={!input.trim() || isLoading}
