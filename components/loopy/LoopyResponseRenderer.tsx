@@ -3,29 +3,71 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Play, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
 const ExpandableList = ({ items }: { items: React.ReactNode[] }) => {
     const [expanded, setExpanded] = useState(false);
     const visible = expanded ? items : items.slice(0, 4);
+    const hiddenCount = items.length - 4;
 
     return (
-        <div className="mb-4 bg-white/10 rounded-xl border border-white/10 overflow-hidden">
-            <ul className="divide-y divide-white/5">
+        <div className="mb-4 rounded-xl border border-white/10 overflow-hidden divide-y divide-white/5">
+            <AnimatePresence initial={false}>
                 {visible.map((item, i) => (
-                    <li key={i} className="px-4 py-2.5 text-white/90 font-medium text-sm leading-relaxed flex items-start gap-2">
-                        <span className="text-[#D4F268] shrink-0 mt-0.5 font-black">•</span>
-                        <span>{item}</span>
-                    </li>
+                    <motion.div
+                        key={i}
+                        initial={{ opacity: 0, height: 0, y: -6 }}
+                        animate={{ opacity: 1, height: 'auto', y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -4 }}
+                        transition={{
+                            duration: 0.22,
+                            delay: expanded && i >= 4 ? (i - 4) * 0.055 : 0,
+                            ease: [0.34, 1.2, 0.64, 1],
+                        }}
+                        className="px-4 py-3 text-white/90 font-medium text-sm leading-relaxed flex items-start gap-3 hover:bg-white/5 transition-colors"
+                    >
+                        <motion.span
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: expanded && i >= 4 ? (i - 4) * 0.055 + 0.08 : 0.06 * Math.min(i, 3), type: 'spring', stiffness: 400, damping: 20 }}
+                            className="text-[#D4F268] shrink-0 font-black mt-0.5 text-base leading-none"
+                        >
+                            ▸
+                        </motion.span>
+                        <span className="flex-1 [&_ul]:mt-1 [&_ul]:space-y-1 [&_li]:text-white/70 [&_li]:text-xs [&_strong]:text-white [&_strong]:font-black">
+                            {item}
+                        </span>
+                    </motion.div>
                 ))}
-            </ul>
+            </AnimatePresence>
+
             {items.length > 4 && (
-                <button
+                <motion.button
                     onClick={() => setExpanded(!expanded)}
-                    className="w-full px-4 py-2.5 text-xs font-black uppercase tracking-widest text-[#D4F268] hover:bg-white/5 flex items-center justify-center gap-2 transition-colors border-t border-white/10"
+                    whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                    whileTap={{ scale: 0.97 }}
+                    className="w-full px-4 py-2.5 text-xs font-black uppercase tracking-widest text-[#D4F268] flex items-center justify-center gap-2 bg-white/[0.02] transition-colors"
                 >
-                    {expanded ? <><ChevronUp size={14} /> Show Less</> : <><ChevronDown size={14} /> Show {items.length - 4} More</>}
-                </button>
+                    <motion.span
+                        animate={{ rotate: expanded ? 180 : 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                        className="inline-flex"
+                    >
+                        <ChevronDown size={14} />
+                    </motion.span>
+                    <AnimatePresence mode="wait">
+                        <motion.span
+                            key={expanded ? 'less' : 'more'}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.15 }}
+                        >
+                            {expanded ? 'Show Less' : `Show ${hiddenCount} More`}
+                        </motion.span>
+                    </AnimatePresence>
+                </motion.button>
             )}
         </div>
     );
@@ -33,6 +75,7 @@ const ExpandableList = ({ items }: { items: React.ReactNode[] }) => {
 
 const CodeBlock = ({ language, code }: { language: string; code: string }) => {
     const [copied, setCopied] = useState(false);
+    const [output, setOutput] = useState<{ lines: string[]; isError: boolean } | null>(null);
     const isRunnable = language === 'js' || language === 'javascript';
 
     const handleCopy = () => {
@@ -42,13 +85,32 @@ const CodeBlock = ({ language, code }: { language: string; code: string }) => {
     };
 
     const handleRun = () => {
+        const lines: string[] = [];
+        let isError = false;
+
+        // Intercept console.log so output shows inline
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        console.log = (...args: any[]) => lines.push(args.map(String).join(' '));
+        console.warn = (...args: any[]) => lines.push('⚠ ' + args.map(String).join(' '));
+        console.error = (...args: any[]) => { lines.push('✖ ' + args.map(String).join(' ')); isError = true; };
+
         try {
             // eslint-disable-next-line no-new-func
             const result = new Function(code)();
-            alert(result !== undefined ? `Output:\n${result}` : 'Ran successfully (no return value).');
-        } catch (e) {
-            alert(`Error:\n${e}`);
+            if (result !== undefined) lines.push('→ ' + String(result));
+            if (lines.length === 0) lines.push('✓ Ran with no output');
+        } catch (e: any) {
+            lines.push('✖ ' + (e?.message || String(e)));
+            isError = true;
+        } finally {
+            console.log = originalLog;
+            console.warn = originalWarn;
+            console.error = originalError;
         }
+
+        setOutput({ lines, isError });
     };
 
     return (
@@ -74,6 +136,56 @@ const CodeBlock = ({ language, code }: { language: string; code: string }) => {
             <pre className="p-5 text-sm font-mono text-[#e8e6e3] overflow-x-auto leading-relaxed">
                 <code>{code}</code>
             </pre>
+
+            {/* Inline output panel — animated */}
+            <AnimatePresence>
+                {output && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: [0.34, 1.1, 0.64, 1] }}
+                        className={`border-t ${output.isError ? 'border-red-500/30 bg-red-950/40' : 'border-[#D4F268]/20 bg-[#0a1a00]/60'} overflow-hidden`}
+                    >
+                        <div className="px-5 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <motion.span
+                                    initial={{ opacity: 0, x: -6 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.08 }}
+                                    className={`text-[10px] font-black uppercase tracking-widest ${output.isError ? 'text-red-400' : 'text-[#D4F268]'}`}
+                                >
+                                    {output.isError ? '✖ Error' : '▶ Output'}
+                                </motion.span>
+                                <button
+                                    onClick={() => setOutput(null)}
+                                    className="text-[10px] text-slate-600 hover:text-slate-400 font-bold transition-colors"
+                                >
+                                    clear
+                                </button>
+                            </div>
+                            <div className="space-y-0.5">
+                                {output.lines.map((line, i) => (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0, x: -8 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.05 + i * 0.04, duration: 0.18 }}
+                                        className={`font-mono text-[13px] leading-relaxed ${line.startsWith('✖') ? 'text-red-400' :
+                                                line.startsWith('⚠') ? 'text-amber-400' :
+                                                    line.startsWith('→') ? 'text-[#D4F268]' :
+                                                        line.startsWith('✓') ? 'text-emerald-400' :
+                                                            'text-slate-300'
+                                            }`}
+                                    >
+                                        {line}
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
@@ -81,31 +193,86 @@ const CodeBlock = ({ language, code }: { language: string; code: string }) => {
 export function LoopyResponseRenderer({ content }: { content: string }) {
     if (!content) return null;
 
+    // Guard: if the AI accidentally leaked raw JSON instead of just markdown,
+    // try to extract the content field rather than rendering the JSON blob.
+    let safeContent = content;
+    if (content.trimStart().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed.content && typeof parsed.content === 'string') {
+                safeContent = parsed.content;
+            }
+        } catch {
+            // Not valid JSON — render as-is
+        }
+    }
+
     return (
-        <div className="text-white/95 text-[15px] leading-relaxed">
+        <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.34, 1.1, 0.64, 1] }}
+            className="text-white/95 text-[15px] leading-relaxed"
+        >
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                children={safeContent}
                 components={{
                     // --- Block elements ---
-                    h1: ({ children }) => <h1 className="text-xl font-black text-white mb-3 mt-6 pb-2 border-b border-white/10">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-lg font-black text-white mb-2 mt-5">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-base font-black text-white/90 mb-2 mt-4">{children}</h3>,
+                    h1: ({ children }) => (
+                        <motion.h1
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.22, ease: 'easeOut' }}
+                            className="text-xl font-black text-white mb-3 mt-6 pb-2 border-b border-white/10"
+                        >
+                            {children}
+                        </motion.h1>
+                    ),
+                    h2: ({ children }) => (
+                        <motion.h2
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="text-lg font-black text-white mb-2 mt-5"
+                        >
+                            {children}
+                        </motion.h2>
+                    ),
+                    h3: ({ children }) => (
+                        <motion.h3
+                            initial={{ opacity: 0, x: -6 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.18, ease: 'easeOut' }}
+                            className="text-base font-black text-white/90 mb-2 mt-4"
+                        >
+                            {children}
+                        </motion.h3>
+                    ),
 
                     p: ({ children }) => {
-                        // Only do warning detection on flat text content (no nested elements)
-                        const isWarning = typeof children === 'string' && (
-                            children.toLowerCase().includes('watch out') ||
-                            children.toLowerCase().includes('common mistake') ||
-                            children.toLowerCase().includes('warning:') ||
-                            children.toLowerCase().includes('caution:')
-                        );
+                        const flat = React.Children.toArray(children)
+                            .map(c => (typeof c === 'string' ? c : ''))
+                            .join('')
+                            .toLowerCase();
+
+                        const isWarning =
+                            flat.includes('watch out') ||
+                            flat.includes('common mistake') ||
+                            flat.includes('warning:') ||
+                            flat.includes('caution:');
 
                         if (isWarning) {
                             return (
-                                <div className="my-4 bg-amber-500/15 border border-amber-400/30 rounded-xl p-4 flex gap-3">
+                                <motion.div
+                                    initial={{ opacity: 0, x: -8, scale: 0.98 }}
+                                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                                    className="my-4 bg-amber-500/15 border border-amber-400/30 rounded-xl p-4 flex gap-3"
+                                >
                                     <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
                                     <span className="text-amber-200 font-medium leading-relaxed">{children}</span>
-                                </div>
+                                </motion.div>
                             );
                         }
 
@@ -144,46 +311,70 @@ export function LoopyResponseRenderer({ content }: { content: string }) {
                     // --- Lists ---
                     ul: ({ children }) => {
                         const items = React.Children.toArray(children).filter(
-                            (child) => React.isValidElement(child) && child.type === 'li'
+                            (child) => React.isValidElement(child)
                         );
+                        if (items.length === 0) {
+                            return <ul className="list-disc list-inside space-y-1 my-3 text-white/90">{children}</ul>;
+                        }
                         const itemContents = items.map((item) => {
-                            if (React.isValidElement(item)) {
-                                return (item.props as any).children;
-                            }
-                            return item;
+                            if (!React.isValidElement(item)) return item;
+                            const liChildren = (item.props as any).children;
+                            return <>{liChildren}</>;
                         });
                         return <ExpandableList items={itemContents} />;
                     },
-                    ol: ({ children }) => (
-                        <ol className="space-y-3 my-4 counter-reset-[step]">
-                            {React.Children.map(children, (child, i) => {
-                                if (!React.isValidElement(child)) return null;
-                                return (
-                                    <li key={i} className="flex gap-3 items-start">
-                                        <span className="shrink-0 w-6 h-6 rounded-full bg-[#D4F268] text-black text-xs font-black flex items-center justify-center mt-0.5">
+                    ol: ({ children }) => {
+                        const items = React.Children.toArray(children).filter(
+                            (child) => React.isValidElement(child)
+                        );
+                        return (
+                            <ol className="space-y-3 my-4">
+                                {items.map((child, i) => (
+                                    <motion.li
+                                        key={i}
+                                        initial={{ opacity: 0, x: -12 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{
+                                            delay: i * 0.07,
+                                            type: 'spring',
+                                            stiffness: 320,
+                                            damping: 26,
+                                        }}
+                                        className="flex gap-3 items-start"
+                                    >
+                                        <motion.span
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            transition={{ delay: i * 0.07 + 0.06, type: 'spring', stiffness: 400, damping: 18 }}
+                                            className="shrink-0 w-6 h-6 rounded-full bg-[#D4F268] text-black text-xs font-black flex items-center justify-center mt-0.5"
+                                        >
                                             {i + 1}
+                                        </motion.span>
+                                        <span className="text-white/90 leading-relaxed font-medium flex-1">
+                                            {React.isValidElement(child) ? (child.props as any).children : child}
                                         </span>
-                                        <span className="text-white/90 leading-relaxed font-medium">
-                                            {(child.props as any).children}
-                                        </span>
-                                    </li>
-                                );
-                            })}
-                        </ol>
-                    ),
-                    li: ({ children }) => <>{children}</>,
+                                    </motion.li>
+                                ))}
+                            </ol>
+                        );
+                    },
 
                     // --- Blockquote ---
                     blockquote: ({ children }) => (
-                        <blockquote className="border-l-4 border-[#D4F268]/50 pl-4 my-4 text-white/60 italic">
+                        <motion.blockquote
+                            initial={{ opacity: 0, borderLeftWidth: 0 }}
+                            animate={{ opacity: 1, borderLeftWidth: 4 }}
+                            transition={{ duration: 0.3 }}
+                            className="border-l-4 border-[#D4F268]/50 pl-4 my-4 text-white/60 italic"
+                        >
                             {children}
-                        </blockquote>
+                        </motion.blockquote>
                     ),
 
                     // --- HR ---
                     hr: () => <hr className="border-white/10 my-6" />,
                 }}
             />
-        </div>
+        </motion.div>
     );
 }

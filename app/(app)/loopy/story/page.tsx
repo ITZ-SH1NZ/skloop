@@ -153,7 +153,7 @@ export default function LoopyStoryPage() {
                         <div className="scale-[1.2] md:scale-[1.5] origin-bottom mb-4">
                             <LoopyMascot 
                                 size={140} 
-                                mood={chapter.loopyMood} 
+                                mood={chapter.loopyMood as any} 
                                 hasCrown={true} 
                                 hasSword={chapter.loopyMood === 'warrior'} 
                             />

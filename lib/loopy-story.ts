@@ -14,7 +14,7 @@ export interface StoryChapter {
     id: string;
     title: string;
     description: string;
-    loopyMood: "warrior" | "happy" | "thinking" | "sad";
+    loopyMood: "warrior" | "happy" | "thinking" | "huddled";
     svgBackground: "forest_dusk" | "neon_cave" | "cyber_castle" | "void_abyss";
     enemySvg?: "slime" | "dragon" | "king" | "tree";
     choices: StoryChoice[];
@@ -37,7 +37,7 @@ export const STORY_CHAPTERS: Record<string, StoryChapter> = {
         id: "chap_1_fail",
         title: "FATAL EXCEPTION: TYPE ERROR",
         description: "The slime absorbs your mutable array and grows twice its size! It engulfs you completely. Your codebase has crashed.",
-        loopyMood: "sad",
+        loopyMood: "huddled",
         svgBackground: "void_abyss",
         choices: [
             { id: "c1", label: "Restart Checkpoint (-20 XP)", widgetType: "button", nextChapterId: "chap_1", xpReward: -20 }
@@ -59,7 +59,7 @@ export const STORY_CHAPTERS: Record<string, StoryChapter> = {
         id: "chap_2_fail",
         title: "FATAL EXCEPTION: BRANCH DELETED",
         description: "Your forced push overwrites the ancient history of the Syntax Tree. The timeline collapses in on itself! You are erased from the commit history.",
-        loopyMood: "sad",
+        loopyMood: "huddled",
         svgBackground: "void_abyss",
         choices: [
             { id: "c1", label: "Restore Backup (-30 XP)", widgetType: "button", nextChapterId: "chap_2", xpReward: -30 }
@@ -91,7 +91,7 @@ export const STORY_CHAPTERS: Record<string, StoryChapter> = {
         id: "chap_4_fail",
         title: "FATAL EXCEPTION: UNHANDLED REJECTION",
         description: "Because you ignored the Promise, the Dragon's fire resolves asynchronously right into your face. You are burned to a crisp.",
-        loopyMood: "sad",
+        loopyMood: "huddled",
         svgBackground: "void_abyss",
         choices: [
             { id: "c1", label: "Catch the Error (-50 XP)", widgetType: "button", nextChapterId: "chap_4", xpReward: -50 }
@@ -112,7 +112,7 @@ export const STORY_CHAPTERS: Record<string, StoryChapter> = {
         id: "chap_5_fail",
         title: "FATAL EXCEPTION: UNAUTHORIZED",
         description: "The Cyber Castle's middleware detects your missing token. The sentinels banish you to the 401 Outer Rim.",
-        loopyMood: "sad",
+        loopyMood: "huddled",
         svgBackground: "void_abyss",
         choices: [
             { id: "c1", label: "Acquire Valid Token (-40 XP)", widgetType: "button", nextChapterId: "chap_5", xpReward: -40 }
@@ -134,7 +134,7 @@ export const STORY_CHAPTERS: Record<string, StoryChapter> = {
         id: "chap_6_fail",
         title: "FATAL EXCEPTION: OUT OF MEMORY",
         description: "Your global variables fill the last remaining megabytes of RAM. The entire browser tab crashes. White screen of death.",
-        loopyMood: "sad",
+        loopyMood: "huddled",
         svgBackground: "void_abyss",
         choices: [
             { id: "c1", label: "Hard Refresh (-100 XP)", widgetType: "button", nextChapterId: "chap_6", xpReward: -100 }
