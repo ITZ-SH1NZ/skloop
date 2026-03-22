@@ -334,6 +334,8 @@ export async function publishMentorVideo(input: {
     });
 
     if (error) throw new Error(error.message);
+    revalidatePath("/mentorship/find");
+    revalidatePath("/mentorship/dashboard");
 }
 
 export async function deleteMentorVideo(sessionId: string): Promise<{ success: boolean; error?: string }> {

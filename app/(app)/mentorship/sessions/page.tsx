@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo, memo } from "react";
-import { Video, Loader2 } from "lucide-react";
+import { Video, Loader2, Clock, Calendar, MessageSquare, PlayCircle, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { submitReview, markSessionCompletedByMentee } from "@/actions/mentorship-actions";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
@@ -14,31 +14,67 @@ import { useLoading } from "@/components/LoadingProvider";
 // Dynamically import heavy components
 const SessionVideoCard = dynamic(() => import("@/components/mentorship/SessionVideoCard").then(m => m.SessionVideoCard), {
     ssr: false,
-    loading: () => <div className="h-64 bg-white animate-pulse rounded-[2rem] border border-zinc-100" />
+    loading: () => <div className="h-72 bg-white animate-pulse rounded-[2rem] border-2 border-zinc-100" />
 });
+
+// Stagger variants for the lists
+const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: { staggerChildren: 0.1 }
+    }
+};
+
+const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 30, scale: 0.95 },
+    show: { 
+        opacity: 1, 
+        y: 0, 
+        scale: 1, 
+        transition: { type: "spring", stiffness: 350, damping: 25 }
+    }
+};
 
 const PendingSessionCard = memo(({ session }: { session: any }) => {
     return (
-        <div className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-100 shadow-sm hover:shadow-lg transition-all group relative overflow-hidden">
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-[2rem] ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-100"}`} />
-            <div className="flex flex-col md:flex-row gap-6 pl-4">
-                <div className="flex items-center gap-4 shrink-0">
-                    <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-14 h-14 rounded-2xl border-4 border-white shadow-md" />
-                    <div>
-                        <div className="font-bold text-zinc-900 text-sm">{session.mentorName}</div>
-                        <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${session.status === "accepted" ? "text-amber-600" : "text-zinc-400"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${session.status === "accepted" ? "bg-amber-500 animate-pulse" : "bg-zinc-300"}`} />
-                            {session.status === "accepted" ? "In Progress" : "Pending"}
-                        </div>
+        <motion.div 
+            variants={itemVariants}
+            whileHover={{ scale: 1.01, y: -4 }}
+            className="bg-white rounded-[2rem] p-6 border-2 border-transparent shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:border-zinc-200 transition-all duration-300 group relative overflow-hidden flex flex-col md:flex-row gap-6 md:items-center"
+        >
+            {/* Left Status Bar */}
+            <div className={`absolute left-0 top-0 bottom-0 w-2 transition-colors duration-500 ${session.status === "accepted" ? "bg-[#D4F268]" : "bg-zinc-200 group-hover:bg-zinc-300"}`} />
+            
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-zinc-100 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            <div className="flex items-center gap-5 shrink-0 pl-4 relative z-10">
+                <Avatar src={session.mentorAvatar} fallback={session.mentorName.slice(0, 2).toUpperCase()} className="w-16 h-16 rounded-2xl border-4 border-zinc-50 shadow-md group-hover:shadow-lg transition-shadow" />
+                <div>
+                    <div className="font-extrabold text-xl text-zinc-900 leading-tight mb-1">{session.mentorName}</div>
+                    <div className={`text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 ${session.status === "accepted" ? "text-[#5a6d1a] bg-[#D4F268]/20 px-2 py-0.5 rounded-md" : "text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${session.status === "accepted" ? "bg-[#D4F268] animate-pulse shadow-[0_0_8px_#D4F268]" : "bg-zinc-400"}`} />
+                        {session.status === "accepted" ? "In Progress" : "Pending Approval"}
                     </div>
                 </div>
-                <div className="flex-1 border-l border-dashed border-zinc-100 pl-0 md:pl-6">
-                    <h3 className="text-xl font-black text-zinc-900 mb-2">{session.title}</h3>
-                    {session.message && <p className="text-zinc-500 text-sm leading-relaxed font-medium">{session.message}</p>}
-                    <div className="text-xs font-medium text-zinc-400 mt-3">Sent {new Date(session.createdAt).toLocaleDateString()}</div>
+            </div>
+
+            <div className="flex-1 bg-zinc-50/80 group-hover:bg-zinc-50 rounded-2xl p-5 border border-zinc-100 transition-colors relative z-10">
+                <h3 className="text-base font-extrabold text-zinc-900 mb-1.5 leading-snug">{session.title}</h3>
+                {session.message ? (
+                    <p className="text-zinc-500 text-sm leading-relaxed font-medium line-clamp-2">{session.message}</p>
+                ) : (
+                    <p className="text-zinc-400 italic text-sm">No additional message provided.</p>
+                )}
+            </div>
+
+            <div className="flex flex-col items-end shrink-0 text-right min-w-[120px] relative z-10 border-t md:border-t-0 border-zinc-100 pt-4 md:pt-0">
+                <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1.5">Requested</div>
+                <div className="text-xs font-bold text-zinc-900 bg-zinc-100 px-3 py-1.5 rounded-xl border border-zinc-200">
+                    {new Date(session.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 });
 PendingSessionCard.displayName = "PendingSessionCard";
@@ -82,93 +118,154 @@ export default function MySessionsPage() {
 
     return (
         <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={isGlobalLoading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }}
-            transition={{ type: "spring", bounce: 0.4, duration: 0.8 }}
-            className="bg-[#FAFAFA] min-h-full"
+            initial={{ opacity: 0 }}
+            animate={isGlobalLoading ? { opacity: 0 } : { opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-[#FAFAFA] min-h-screen font-sans"
         >
-            {/* Header */}
-            <div className="bg-zinc-900 px-6 py-10 md:px-10 md:py-14 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#D4F268]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                <div className="max-w-5xl mx-auto relative z-10">
-                    <span className="px-3 py-1 bg-[#D4F268] text-black text-xs font-black uppercase tracking-wider rounded-full">Member Pass</span>
-                    <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mt-3 mb-3">
-                        My <span className="text-[#D4F268]">Sessions</span>
-                    </h1>
-                    <p className="text-zinc-400 font-medium text-base max-w-xl">
-                        Track your mentorship requests and watch video responses from your mentors.
-                    </p>
-
-                    {/* Stats */}
-                    <div className="flex gap-4 mt-8">
-                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl min-w-[130px]">
-                            <div className="text-zinc-400 text-xs font-bold uppercase mb-1">Requests</div>
-                            <div className="text-3xl font-black text-white">{pending.length}</div>
-                        </div>
-                        <div className="bg-[#D4F268] p-4 rounded-2xl min-w-[130px] shadow-[0_0_20px_rgba(212,242,104,0.3)]">
-                            <div className="text-black/60 text-xs font-bold uppercase mb-1">Completed</div>
-                            <div className="text-3xl font-black text-black">{library.length}</div>
-                        </div>
+            {/* Header Area */}
+            <div className="px-6 md:px-10 pt-10 pb-8 max-w-[1200px] mx-auto">
+                <motion.div 
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ type: "spring", bounce: 0.4 }}
+                    className="bg-zinc-900 rounded-[3rem] p-10 md:p-14 relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-10 shadow-2xl"
+                >
+                    {/* Background Gamified Animations */}
+                    <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-[#D4F268]/30 to-transparent rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3 pointer-events-none" />
+                    <motion.div 
+                        animate={{ scale: [1, 1.1, 1], opacity: [0.1, 0.2, 0.1] }}
+                        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                        className="absolute bottom-[-100px] left-[-100px] w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" 
+                    />
+                    
+                    <div className="relative z-10 text-white max-w-xl w-full">
+                        <motion.span 
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="px-4 py-1.5 bg-white/10 text-white border border-white/20 text-[10px] font-black uppercase tracking-widest rounded-full mb-6 inline-block"
+                        >
+                            Mentee Workspace
+                        </motion.span>
+                        <h1 className="text-4xl md:text-6xl font-black mb-4 tracking-tighter leading-none drop-shadow-md">
+                            My Mentorship
+                        </h1>
+                        <p className="text-zinc-400 font-medium text-base md:text-lg leading-relaxed max-w-md">
+                            A centralized hub to track active session requests and build your permanent video library.
+                        </p>
                     </div>
-                </div>
+
+                    <div className="relative z-10 flex gap-4 shrink-0 w-full md:w-auto">
+                        <motion.div 
+                            whileHover={{ scale: 1.05 }}
+                            className="bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-[2rem] flex-1 md:w-[160px] flex flex-col items-center justify-center text-center shadow-lg"
+                        >
+                            <div className="text-zinc-400 text-[11px] font-black uppercase tracking-widest mb-1.5">Active</div>
+                            <div className="text-5xl font-black text-white">{pending.length}</div>
+                        </motion.div>
+                        <motion.div 
+                            whileHover={{ scale: 1.05 }}
+                            className="bg-[#D4F268] p-6 rounded-[2rem] flex-1 md:w-[160px] flex flex-col items-center justify-center text-center shadow-[0_10px_40px_rgba(212,242,104,0.3)]"
+                        >
+                            <div className="text-[#5a6d1a] text-[11px] font-black uppercase tracking-widest mb-1.5">Videos</div>
+                            <div className="text-5xl font-black text-zinc-900">{library.length}</div>
+                        </motion.div>
+                    </div>
+                </motion.div>
             </div>
 
-            <div className="px-6 py-8 md:px-10 pb-32 max-w-5xl mx-auto">
-                {/* Tabs */}
-                <div className="flex items-center justify-center mb-8">
-                    <div className="flex items-center p-1.5 bg-white rounded-full border border-zinc-200 shadow-sm">
+            <div className="px-6 md:px-10 pb-32 max-w-[1200px] mx-auto">
+                
+                {/* Clean Animated Segmented Control */}
+                <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-6">
+                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight hidden md:block">
+                        {activeTab === "pending" ? "In Progress" : "Video Library"}
+                    </h2>
+                    
+                    <div className="flex bg-white p-2 rounded-full border border-zinc-200 shadow-sm w-full md:w-auto relative">
                         {(["pending", "library"] as const).map(t => (
                             <button key={t} onClick={() => setActiveTab(t)}
-                                className={`px-8 py-3 rounded-full text-sm font-bold transition-all relative ${activeTab === t ? "text-black" : "text-zinc-500 hover:text-zinc-800"}`}>
-                                {activeTab === t && (
-                                    <motion.div layoutId="sessionPill" className="absolute inset-0 bg-[#D4F268] rounded-full shadow-sm" transition={{ type: "spring", bounce: 0.2 }} />
-                                )}
-                                <span className="relative z-10 flex items-center gap-2">
-                                    {t === "pending" ? "In Progress" : "Video Library"}
-                                    {t === "pending" && pending.length > 0 && (
-                                        <span className="bg-black text-[#D4F268] text-[10px] px-1.5 py-0.5 rounded-full">{pending.length}</span>
-                                    )}
+                                className={`flex-1 md:flex-none px-8 py-3.5 rounded-full text-sm font-black uppercase tracking-widest transition-colors relative z-10 ${activeTab === t ? "text-zinc-900" : "text-zinc-400 hover:text-zinc-700"}`}
+                            >
+                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                    {t === "pending" ? <Clock size={18}/> : <PlayCircle size={18}/>}
+                                    {t === "pending" ? "Active Requests" : "Video Library"}
                                 </span>
                             </button>
                         ))}
+                        <motion.div 
+                            layoutId="sessionTabBgPill" 
+                            className="absolute inset-y-2 bg-zinc-100 rounded-full"
+                            style={{ width: "calc(50% - 16px)" }}
+                            animate={{ left: activeTab === "pending" ? "8px" : "calc(50% + 8px)" }}
+                            transition={{ type: "spring", bounce: 0.3, stiffness: 300, damping: 25 }}
+                        />
                     </div>
                 </div>
 
                 <AnimatePresence mode="wait">
-                    <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                    <motion.div 
+                        key={activeTab} 
+                        initial={{ opacity: 0, y: 20 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        exit={{ opacity: 0, y: -20 }} 
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    >
                         {isLoading ? (
-                            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-zinc-400" /></div>
+                            <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin text-[#D4F268]" /></div>
                         ) : displayed.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-[2rem] border border-zinc-100">
-                                <Video size={40} className="mx-auto text-zinc-200 mb-4" />
-                                <p className="text-zinc-500 font-medium">
-                                    {activeTab === "pending" ? "No active requests." : "No videos in your library yet."}
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0 }} 
+                                animate={{ scale: 1, opacity: 1 }} 
+                                className="flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border-2 border-zinc-100/80 border-dashed shadow-sm text-center"
+                            >
+                                <motion.div 
+                                    animate={{ y: [0, -10, 0] }} 
+                                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                    className="w-24 h-24 bg-zinc-50 rounded-3xl flex items-center justify-center mb-8 border border-zinc-100 shadow-inner"
+                                >
+                                    {activeTab === "pending" ? <MessageSquare className="text-zinc-300 w-10 h-10" /> : <Video className="text-zinc-300 w-10 h-10" />}
+                                </motion.div>
+                                <h3 className="text-2xl font-black text-zinc-900 mb-2">
+                                    {activeTab === "pending" ? "No active requests" : "Library is empty"}
+                                </h3>
+                                <p className="text-base font-medium text-zinc-500 max-w-sm">
+                                    {activeTab === "pending" ? "When you request a session with a mentor, you can track it here." : "Completed sessions and videos shared with you will appear here."}
                                 </p>
-                            </div>
+                            </motion.div>
                         ) : activeTab === "pending" ? (
-                            <div className="space-y-4">
+                            <motion.div 
+                                variants={containerVariants}
+                                initial="hidden"
+                                animate="show"
+                                className="space-y-6"
+                            >
                                 {displayed.map((session: any) => (
                                     <PendingSessionCard key={session.id} session={session} />
                                 ))}
-                            </div>
+                            </motion.div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <motion.div 
+                                variants={containerVariants}
+                                initial="hidden"
+                                animate="show"
+                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+                            >
                                 {displayed.map((session: any) => (
-                                    <div key={session.id}>
+                                    <motion.div variants={itemVariants} key={session.id} className="relative z-10">
                                         <SessionVideoCard
                                             session={session}
                                             onRate={() => setReviewingId(session.id)}
                                             onComplete={async () => {
                                                 const res = await markSessionCompletedByMentee(session.id);
-                                                if (res.success) {
-                                                    mutate();
-                                                }
+                                                if (res.success) mutate();
                                             }}
                                             isActive={false}
                                         />
-                                    </div>
+                                    </motion.div>
                                 ))}
-                            </div>
+                            </motion.div>
                         )}
                     </motion.div>
                 </AnimatePresence>
@@ -179,36 +276,51 @@ export default function MySessionsPage() {
                 {reviewingId && (
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-                            onClick={() => setReviewingId(null)} />
-                        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-                            <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-                                className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl">
-                                <h3 className="text-2xl font-black text-zinc-900 mb-2">Rate this session</h3>
-                                <p className="text-zinc-500 text-sm mb-6">Your feedback helps mentors improve</p>
+                            className="fixed inset-0 bg-zinc-950/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-4"
+                            onClick={() => setReviewingId(null)}>
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.9, y: 40 }} 
+                                animate={{ opacity: 1, scale: 1, y: 0 }} 
+                                exit={{ opacity: 0, scale: 0.9, y: 40 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                onClick={e => e.stopPropagation()}
+                                className="bg-white rounded-[3rem] p-10 w-full max-w-md shadow-2xl relative border border-zinc-100"
+                            >
+                                
+                                <div className="w-16 h-16 bg-[#D4F268]/20 rounded-3xl flex items-center justify-center mb-6 text-[#5a6d1a] border border-[#D4F268]/50 shadow-inner">
+                                    <Star size={32} className="fill-[#D4F268]" />
+                                </div>
+                                
+                                <h3 className="text-3xl font-black text-zinc-900 mb-2 tracking-tight">Rate session</h3>
+                                <p className="text-zinc-500 text-sm font-medium mb-8">Your feedback directly helps mentors rank up and improve their curriculum.</p>
 
-                                <div className="flex gap-2 mb-6 justify-center">
+                                <div className="flex gap-2 mb-8 justify-between px-2">
                                     {[1, 2, 3, 4, 5].map(s => (
-                                        <button key={s} onClick={() => setRating(s)}
-                                            className={`w-12 h-12 rounded-2xl text-2xl transition-all ${s <= rating ? "bg-[#D4F268] scale-110" : "bg-zinc-50 hover:bg-zinc-100"}`}>
+                                        <motion.button 
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            key={s} 
+                                            onClick={() => setRating(s)}
+                                            className={`w-12 h-12 rounded-2xl text-2xl transition-all flex items-center justify-center ${s <= rating ? "bg-[#D4F268] text-zinc-900 shadow-[0_5px_15px_rgba(212,242,104,0.4)] border border-[#D4F268]" : "bg-zinc-50 text-zinc-300 hover:bg-zinc-100 border border-zinc-200"}`}
+                                        >
                                             ★
-                                        </button>
+                                        </motion.button>
                                     ))}
                                 </div>
 
                                 <textarea value={comment} onChange={e => setComment(e.target.value)}
-                                    placeholder="Share your thoughts... (optional)"
-                                    className="w-full border border-zinc-200 rounded-2xl p-4 text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-[#D4F268] mb-4 h-24" />
+                                    placeholder="Leave a comment... (optional)"
+                                    className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-[#D4F268] focus:border-transparent mb-8 h-32 transition-all shadow-inner" />
 
-                                <div className="flex gap-3">
-                                    <Button onClick={() => setReviewingId(null)} variant="ghost" className="flex-1 rounded-xl font-bold text-zinc-500">Cancel</Button>
+                                <div className="flex gap-4 mt-2">
+                                    <Button onClick={() => setReviewingId(null)} variant="ghost" className="flex-1 rounded-2xl font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 h-14">Cancel</Button>
                                     <Button onClick={() => handleSubmitReview(reviewingId)} disabled={!rating || isSubmittingReview}
-                                        className="flex-1 rounded-xl bg-zinc-900 text-white font-bold hover:bg-[#D4F268] hover:text-black transition-colors">
-                                        {isSubmittingReview ? <Loader2 size={16} className="animate-spin" /> : "Submit"}
+                                        className="flex-[2] rounded-2xl bg-zinc-900 text-white font-black uppercase tracking-widest hover:bg-[#D4F268] hover:text-zinc-900 transition-all h-14 shadow-lg disabled:opacity-50">
+                                        {isSubmittingReview ? <Loader2 size={16} className="animate-spin" /> : "Submit Review"}
                                     </Button>
                                 </div>
                             </motion.div>
-                        </div>
+                        </motion.div>
                     </>
                 )}
             </AnimatePresence>
