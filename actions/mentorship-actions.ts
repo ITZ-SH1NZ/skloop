@@ -64,6 +64,49 @@ export interface VouchCode {
     createdAt: string;
 }
 
+export interface VideoComment {
+    id: string;
+    sessionId: string;
+    parentId?: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar?: string;
+    authorLevel: number;
+    content: string;
+    likesCount: number;
+    dislikesCount: number;
+    replyCount: number;
+    userVote: "like" | "dislike" | null;
+    createdAt: string;
+}
+
+export interface VideoReview {
+    rating: number;
+    comment?: string;
+    createdAt: string;
+    reviewerName: string;
+    reviewerAvatar?: string;
+}
+
+export interface VideoDetailData {
+    session: MentorSession & { viewCount: number; avgRating: number | null; reviewCount: number };
+    mentor: {
+        id: string;
+        name: string;
+        username: string;
+        avatarUrl?: string;
+        headline?: string;
+        bio?: string;
+        skills: string[];
+        avgRating: number | null;
+        reviewCount: number;
+    };
+    userReview: { rating: number; comment?: string } | null;
+    ratingDistribution: { 1: number; 2: number; 3: number; 4: number; 5: number };
+    recentReviews: VideoReview[];
+    totalComments: number;
+}
+
 // ─────────────────────────────────────────────
 // PUBLIC: Find Mentor Directory
 // ─────────────────────────────────────────────
@@ -375,7 +418,7 @@ export async function generateVouchCode(): Promise<string> {
 
     // Rate limit: max 2 codes per 24h
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await supabase
+    await supabase
         .from("mentor_vouch_codes")
         .select("id", { count: "exact", head: true })
         .eq("issued_by", user.id)
@@ -575,6 +618,330 @@ export async function getMyMentorStatus(userId?: string): Promise<{
     };
 }
 
+// ─────────────────────────────────────────────
+// VIDEO DETAIL PAGE
+// ─────────────────────────────────────────────
+
+export async function getVideoDetails(sessionId: string): Promise<VideoDetailData | null> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: session } = await supabase
+        .from("mentor_sessions")
+        .select(`
+            id, title, topic, description, video_url, thumbnail_url,
+            premiere_at, created_at, is_public, status, mentor_id, view_count,
+            mentor:profiles!mentor_sessions_mentor_id_fkey (
+                id, full_name, username, avatar_url, skills, bio,
+                mentor_profiles!mentor_profiles_id_fkey (headline, specialties)
+            )
+        `)
+        .eq("id", sessionId)
+        .eq("is_public", true)
+        .eq("status", "published")
+        .single();
+
+    if (!session) return null;
+
+    const mentorRaw = Array.isArray((session as any).mentor) ? (session as any).mentor[0] : (session as any).mentor;
+    const mp = Array.isArray(mentorRaw?.mentor_profiles) ? mentorRaw?.mentor_profiles[0] : mentorRaw?.mentor_profiles;
+
+    // Reviews for this session
+    const { data: sessionReviews } = await supabase
+        .from("session_reviews")
+        .select("id, rating, comment, created_at, reviewer_id, reviewer:profiles(full_name, username, avatar_url)")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false });
+
+    // Current user's review
+    let userReview: { rating: number; comment?: string } | null = null;
+    if (user) {
+        const mine = (sessionReviews || []).find((r: any) => r.reviewer_id === user.id);
+        if (mine) userReview = { rating: mine.rating, comment: mine.comment || undefined };
+    }
+
+    // Rating distribution
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let ratingSum = 0;
+    for (const r of (sessionReviews || []) as any[]) {
+        if (r.rating >= 1 && r.rating <= 5) {
+            ratingDistribution[r.rating as keyof typeof ratingDistribution]++;
+            ratingSum += r.rating;
+        }
+    }
+    const reviewCount = sessionReviews?.length ?? 0;
+    const avgRating = reviewCount > 0 ? Math.round((ratingSum / reviewCount) * 10) / 10 : null;
+
+    const recentReviews: VideoReview[] = (sessionReviews || []).slice(0, 8).map((r: any) => {
+        const rev = Array.isArray(r.reviewer) ? r.reviewer[0] : r.reviewer;
+        return {
+            rating: r.rating,
+            comment: r.comment || undefined,
+            createdAt: r.created_at,
+            reviewerName: rev?.full_name || rev?.username || "Anonymous",
+            reviewerAvatar: rev?.avatar_url,
+        };
+    });
+
+    // Mentor avg rating across all their sessions
+    const { data: allMentorSessions } = await supabase
+        .from("mentor_sessions")
+        .select("id")
+        .eq("mentor_id", (session as any).mentor_id);
+
+    const mentorSessionIds = (allMentorSessions || []).map((s: any) => s.id);
+    const { data: allMentorReviews } = mentorSessionIds.length > 0
+        ? await supabase.from("session_reviews").select("rating").in("session_id", mentorSessionIds)
+        : { data: [] };
+
+    const mentorAvgRating = allMentorReviews && allMentorReviews.length > 0
+        ? Math.round((allMentorReviews.reduce((a, r) => a + r.rating, 0) / allMentorReviews.length) * 10) / 10
+        : null;
+
+    // Total comment count
+    const { count: totalComments } = await supabase
+        .from("video_comments")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId);
+
+    return {
+        session: {
+            id: (session as any).id,
+            mentorId: (session as any).mentor_id,
+            mentorName: mentorRaw?.full_name || mentorRaw?.username || "Mentor",
+            mentorAvatar: mentorRaw?.avatar_url,
+            title: (session as any).title,
+            topic: (session as any).topic,
+            description: (session as any).description,
+            status: (session as any).status,
+            videoUrl: (session as any).video_url,
+            thumbnailUrl: (session as any).thumbnail_url,
+            premiereAt: (session as any).premiere_at,
+            isPublic: (session as any).is_public,
+            createdAt: (session as any).created_at,
+            viewCount: (session as any).view_count || 0,
+            avgRating,
+            reviewCount,
+        },
+        mentor: {
+            id: mentorRaw?.id || (session as any).mentor_id,
+            name: mentorRaw?.full_name || mentorRaw?.username || "Mentor",
+            username: mentorRaw?.username || "",
+            avatarUrl: mentorRaw?.avatar_url,
+            headline: mp?.headline,
+            bio: mp?.bio || mentorRaw?.bio,
+            skills: mentorRaw?.skills || [],
+            avgRating: mentorAvgRating,
+            reviewCount: allMentorReviews?.length ?? 0,
+        },
+        userReview,
+        ratingDistribution,
+        recentReviews,
+        totalComments: totalComments ?? 0,
+    };
+}
+
+export async function incrementVideoView(sessionId: string): Promise<void> {
+    const supabase = await createClient();
+    // Try RPC first (requires SQL function + GRANT from mentor_reports_schema.sql)
+    const { error } = await supabase.rpc("increment_video_view", { session_id_input: sessionId });
+    if (error) {
+        // Fallback: fetch current count and increment directly
+        const { data } = await supabase
+            .from("mentor_sessions")
+            .select("view_count")
+            .eq("id", sessionId)
+            .single();
+        if (data) {
+            await supabase
+                .from("mentor_sessions")
+                .update({ view_count: (data.view_count || 0) + 1 })
+                .eq("id", sessionId);
+        }
+    }
+}
+
+export async function getVideoComments(sessionId: string, page = 0, pageSize = 20): Promise<VideoComment[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: comments } = await supabase
+        .from("video_comments")
+        .select(`
+            id, session_id, author_id, content, likes_count, dislikes_count, reply_count, created_at,
+            author:profiles!video_comments_author_id_fkey (full_name, username, avatar_url, level)
+        `)
+        .eq("session_id", sessionId)
+        .is("parent_id", null)
+        .order("created_at", { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (!comments || comments.length === 0) return [];
+
+    return formatComments(supabase, comments as any[], user?.id);
+}
+
+export async function getCommentReplies(parentId: string): Promise<VideoComment[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: comments } = await supabase
+        .from("video_comments")
+        .select(`
+            id, session_id, author_id, content, likes_count, dislikes_count, reply_count, created_at,
+            author:profiles!video_comments_author_id_fkey (full_name, username, avatar_url, level)
+        `)
+        .eq("parent_id", parentId)
+        .order("created_at", { ascending: true });
+
+    if (!comments || comments.length === 0) return [];
+
+    return formatComments(supabase, comments as any[], user?.id);
+}
+
+async function formatComments(supabase: any, comments: any[], userId?: string): Promise<VideoComment[]> {
+    const ids = comments.map(c => c.id);
+    let userVotes = new Map<string, "like" | "dislike">();
+
+    if (userId && ids.length > 0) {
+        const { data: votes } = await supabase
+            .from("video_comment_votes")
+            .select("comment_id, vote_type")
+            .eq("user_id", userId)
+            .in("comment_id", ids);
+        if (votes) votes.forEach((v: any) => userVotes.set(v.comment_id, v.vote_type));
+    }
+
+    return comments.map(c => {
+        const author = Array.isArray(c.author) ? c.author[0] : c.author;
+        return {
+            id: c.id,
+            sessionId: c.session_id,
+            authorId: c.author_id,
+            authorName: author?.full_name || author?.username || "User",
+            authorAvatar: author?.avatar_url,
+            authorLevel: author?.level || 1,
+            content: c.content,
+            likesCount: c.likes_count || 0,
+            dislikesCount: c.dislikes_count || 0,
+            replyCount: c.reply_count || 0,
+            userVote: userVotes.get(c.id) || null,
+            createdAt: c.created_at,
+        };
+    });
+}
+
+export async function submitVideoComment(sessionId: string, content: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const trimmed = content.trim();
+    if (!trimmed || trimmed.length > 2000) return { success: false, error: "Comment must be 1–2000 characters" };
+
+    const { data: sessionCheck } = await supabase
+        .from("mentor_sessions")
+        .select("id")
+        .eq("id", sessionId)
+        .eq("is_public", true)
+        .eq("status", "published")
+        .single();
+
+    if (!sessionCheck) return { success: false, error: "Video not found" };
+
+    const { error } = await supabase.from("video_comments").insert({
+        session_id: sessionId,
+        author_id: user.id,
+        content: trimmed,
+    });
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath(`/mentorship/video/${sessionId}`);
+    return { success: true };
+}
+
+export async function deleteVideoComment(commentId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase
+        .from("video_comments")
+        .delete()
+        .eq("id", commentId)
+        .eq("author_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
+export async function voteOnComment(commentId: string, voteType: "like" | "dislike"): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { data: existing } = await supabase
+        .from("video_comment_votes")
+        .select("id, vote_type")
+        .eq("comment_id", commentId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (!existing) {
+        const { error } = await supabase.from("video_comment_votes").insert({ comment_id: commentId, user_id: user.id, vote_type: voteType });
+        if (error) return { success: false, error: error.message };
+    } else if (existing.vote_type === voteType) {
+        // Same vote — toggle off
+        const { error } = await supabase.from("video_comment_votes").delete().eq("id", existing.id);
+        if (error) return { success: false, error: error.message };
+    } else {
+        // Switch vote type
+        const { error } = await supabase.from("video_comment_votes").update({ vote_type: voteType }).eq("id", existing.id);
+        if (error) return { success: false, error: error.message };
+    }
+
+    return { success: true };
+}
+
+export async function submitReply(sessionId: string, content: string, parentId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const trimmed = content.trim();
+    if (!trimmed || trimmed.length > 2000) return { success: false, error: "Reply must be 1–2000 characters" };
+
+    const { error } = await supabase.from("video_comments").insert({
+        session_id: sessionId,
+        author_id: user.id,
+        content: trimmed,
+        parent_id: parentId,
+    });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
+export async function submitVideoRating(sessionId: string, rating: number, comment?: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    if (rating < 1 || rating > 5) return { success: false, error: "Rating must be between 1 and 5" };
+
+    const { error } = await supabase.from("session_reviews").upsert({
+        session_id: sessionId,
+        reviewer_id: user.id,
+        rating,
+        comment: comment || null,
+    }, { onConflict: "session_id,reviewer_id" });
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath(`/mentorship/video/${sessionId}`);
+    revalidatePath("/mentorship/find");
+    return { success: true };
+}
+
 export async function submitReview(sessionId: string, rating: number, comment?: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -611,6 +978,48 @@ export async function getMyVouchCodes(): Promise<VouchCode[]> {
         expiresAt: c.expires_at,
         createdAt: c.created_at,
     }));
+}
+
+// ─────────────────────────────────────────────
+// MENTOR REPORTS
+// ─────────────────────────────────────────────
+
+export async function submitMentorReport(input: {
+    reportedMentorId: string;
+    sessionId?: string;
+    reason: string;
+    description: string;
+    evidenceUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const VALID_REASONS = [
+        "inappropriate_content", "misinformation", "harassment",
+        "spam", "misleading_credentials", "other",
+    ];
+    if (!VALID_REASONS.includes(input.reason)) return { success: false, error: "Invalid reason" };
+    if (input.description.length < 20 || input.description.length > 2000) {
+        return { success: false, error: "Description must be 20–2000 characters" };
+    }
+
+    const { error } = await supabase.from("mentor_reports").insert({
+        reporter_id: user.id,
+        reported_mentor_id: input.reportedMentorId,
+        session_id: input.sessionId || null,
+        reason: input.reason,
+        description: input.description,
+        evidence_url: input.evidenceUrl || null,
+    });
+
+    if (error) {
+        // Unique index violation = already reported
+        if (error.code === "23505") return { success: false, error: "You have already reported this mentor for this video." };
+        return { success: false, error: error.message };
+    }
+
+    return { success: true };
 }
 
 // ─────────────────────────────────────────────

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, memo } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Filter, Star, CheckCircle, X, Loader2, Play, Users, ArrowRight, Video as VideoIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
@@ -17,15 +18,6 @@ const UserProfileModal = dynamic(() => import("@/components/profile/UserProfileM
     loading: () => <div className="hidden" />
 });
 
-// Stagger variants for the grid
-const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    show: {
-        opacity: 1,
-        transition: { staggerChildren: 0.08 }
-    }
-};
-
 const itemVariants: Variants = {
     hidden: { opacity: 0, y: 40, scale: 0.95 },
     show: { 
@@ -36,7 +28,7 @@ const itemVariants: Variants = {
     }
 };
 
-const MentorCard = memo(({ mentor, index, onViewProfile }: { mentor: any, index: number, onViewProfile: (id: string) => void }) => {
+const MentorCard = memo(({ mentor, onViewProfile }: { mentor: any, onViewProfile: (id: string) => void }) => {
     return (
         <motion.div
             variants={itemVariants}
@@ -103,7 +95,7 @@ const MentorCard = memo(({ mentor, index, onViewProfile }: { mentor: any, index:
 });
 MentorCard.displayName = "MentorCard";
 
-const VideoCard = memo(({ video, index }: { video: MentorSession; index: number }) => {
+const VideoCard = memo(({ video, onViewDetails }: { video: MentorSession; onViewDetails: (id: string) => void }) => {
     const [showEmbed, setShowEmbed] = useState(false);
     const ytId = extractYouTubeId(video.videoUrl || "");
     const isPremiering = video.premiereAt && new Date(video.premiereAt) > new Date();
@@ -176,10 +168,18 @@ const VideoCard = memo(({ video, index }: { video: MentorSession; index: number 
 
                 <div className="flex items-center gap-3 mt-auto pt-4 border-t border-zinc-100">
                     <Avatar src={video.mentorAvatar} fallback={video.mentorName.slice(0, 2).toUpperCase()} className="w-10 h-10 rounded-[12px] border-2 border-zinc-100" />
-                    <div>
-                        <div className="text-sm font-extrabold text-zinc-900">{video.mentorName}</div>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-sm font-extrabold text-zinc-900 truncate">{video.mentorName}</div>
                         <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Mentor</div>
                     </div>
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => onViewDetails(video.id)}
+                        className="shrink-0 h-9 px-4 rounded-xl font-black text-xs bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-zinc-900 transition-all flex items-center gap-1.5"
+                    >
+                        Watch <ArrowRight size={13} />
+                    </motion.button>
                 </div>
             </div>
         </motion.div>
@@ -193,6 +193,7 @@ function extractYouTubeId(url: string): string | null {
 }
 
 export default function FindMentorPage() {
+    const router = useRouter();
     const { isLoading: isGlobalLoading } = useLoading();
     const [isMounted, setIsMounted] = useState(false);
     const [tab, setTab] = useState<"mentors" | "videos">("mentors");
@@ -405,11 +406,10 @@ export default function FindMentorPage() {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                        {filteredMentors.map((mentor: any, i: number) => (
+                                        {filteredMentors.map((mentor: any) => (
                                             <MentorCard
                                                 key={mentor.id}
                                                 mentor={mentor}
-                                                index={i}
                                                 onViewProfile={setSelectedUserId}
                                             />
                                         ))}
@@ -424,8 +424,8 @@ export default function FindMentorPage() {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                        {filteredVideos.map((video: any, i: number) => (
-                                            <VideoCard key={video.id} video={video} index={i} />
+                                        {filteredVideos.map((video: any) => (
+                                            <VideoCard key={video.id} video={video} onViewDetails={(id) => router.push(`/mentorship/video/${id}`)} />
                                         ))}
                                     </div>
                                 )
