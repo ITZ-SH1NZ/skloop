@@ -467,181 +467,319 @@ export const SVGRegexHydra = ({ variant = "normal" }: { variant?: string }) => {
     );
 };
 
+// ─── NEW BOSS ENEMIES ─────────────────────────────────────────────────────────
+
+export const SVGDOMCoreEntity = ({ variant = "normal" }: { variant?: string }) => {
+    const isCorrupted = variant === "corrupted";
+    const c1 = isCorrupted ? "#14b8a6" : "#22c55e"; // Teal vs Green
+    const c2 = isCorrupted ? "#042f2e" : "#052e16";
+    const glow = isCorrupted ? "rgba(20,184,166,0.6)" : "rgba(34,197,94,0.5)";
+    return (
+        <motion.svg viewBox="0 0 200 200" className="w-full h-full"
+            style={{ filter: `drop-shadow(0 0 25px ${glow})` }}
+            animate={{ rotate: [0, 90, 180, 270, 360] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}>
+            <defs>
+                <linearGradient id="domGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor={c1} /><stop offset="100%" stopColor={c2} />
+                </linearGradient>
+            </defs>
+            {[0, 1, 2, 3].map(i => (
+                <motion.g key={i} style={{ originX: "100px", originY: "100px", rotate: i * 90 }}
+                    animate={{ scale: [1, 1.1, 0.9, 1] }} transition={{ duration: 4, repeat: Infinity, delay: i }}>
+                    <path d="M 100 20 L 140 60 L 100 100 L 60 60 Z" fill="none" stroke="url(#domGrad)" strokeWidth="4" />
+                    <rect x="85" y="45" width="30" height="30" fill={c2} stroke={c1} strokeWidth="2" />
+                    <text x="100" y="65" textAnchor="middle" fill={c1} fontSize="14" fontFamily="monospace" fontWeight="bold">&lt;&gt;</text>
+                </motion.g>
+            ))}
+            <motion.circle cx="100" cy="100" r="25" fill={c2} stroke={c1} strokeWidth="3"
+                animate={{ r: [25, 30, 25] }} transition={{ duration: 2, repeat: Infinity }} />
+            <motion.circle cx="100" cy="100" r="10" fill={c1}
+                animate={{ scale: [1, 0.5, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+        </motion.svg>
+    );
+};
+
+export const SVGCascadeQueen = ({ variant = "normal" }: { variant?: string }) => {
+    const isCorrupted = variant === "corrupted";
+    const c1 = isCorrupted ? "#f43f5e" : "#ec4899"; // Rose vs Pink
+    const c2 = isCorrupted ? "#a855f7" : "#8b5cf6"; // Purple vs Violet
+    const glow = isCorrupted ? "rgba(244,63,94,0.6)" : "rgba(236,72,153,0.5)";
+    return (
+        <motion.svg viewBox="0 0 200 220" className="w-full h-full"
+            style={{ filter: `drop-shadow(0 0 30px ${glow})` }}
+            animate={{ y: [0, -15, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}>
+            <defs>
+                <linearGradient id="queenGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={c1} /><stop offset="100%" stopColor={c2} />
+                </linearGradient>
+            </defs>
+            {[0, 1, 2].map((i) => (
+                <motion.path key={i} d="M 50 160 L 100 40 L 150 160 Z"
+                    fill="none" stroke={`hsl(${320 + i * 20}, 80%, 60%)`} strokeWidth="3" opacity={0.4}
+                    animate={{ scale: [1 + i * 0.2, 1.2 + i * 0.2, 1 + i * 0.2], rotate: [0, i * 15, 0] }}
+                    style={{ originX: "100px", originY: "120px" }}
+                    transition={{ duration: 3 + i, repeat: Infinity }} />
+            ))}
+            <path d="M 60 150 Q 100 40 140 150 Q 100 180 60 150 Z" fill="url(#queenGrad)" />
+            <path d="M 80 50 L 100 20 L 120 50 Z" fill="#fff" />
+            <motion.circle cx="100" cy="90" r="6" fill="#000"
+                animate={{ scaleY: [1, 0.1, 1] }} transition={{ duration: 3, repeat: Infinity, repeatDelay: 2 }} />
+            <text x="100" y="140" textAnchor="middle" fill="#fff" fontSize="24" fontFamily="monospace" fontWeight="900">!important</text>
+        </motion.svg>
+    );
+};
+
+export const SVGEventLoopEngine = ({ variant = "normal" }: { variant?: string }) => {
+    const isCorrupted = variant === "corrupted";
+    const c1 = isCorrupted ? "#f59e0b" : "#eab308"; // Amber vs Yellow
+    const c2 = isCorrupted ? "#78350f" : "#713f12";
+    const glow = isCorrupted ? "rgba(245,158,11,0.6)" : "rgba(234,179,8,0.5)";
+    return (
+        <motion.svg viewBox="0 0 200 200" className="w-full h-full"
+            style={{ filter: `drop-shadow(0 0 25px ${glow})` }}>
+            <defs>
+                <radialGradient id="engineCore" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={c1} /><stop offset="100%" stopColor={c2} />
+                </radialGradient>
+            </defs>
+            <motion.g animate={{ rotate: 360 }} style={{ originX: "100px", originY: "100px" }}
+                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}>
+                {[0, 1, 2, 3, 4, 5].map(i => (
+                    <circle key={i} cx={100 + Math.cos(i * Math.PI / 3) * 60} cy={100 + Math.sin(i * Math.PI / 3) * 60} r="15"
+                        fill="none" stroke={c1} strokeWidth="3" opacity="0.6" />
+                ))}
+                <circle cx="100" cy="100" r="60" fill="none" stroke={c1} strokeWidth="1" strokeDasharray="5 5" />
+            </motion.g>
+            <motion.g animate={{ rotate: -360 }} style={{ originX: "100px", originY: "100px" }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}>
+                <circle cx="100" cy="100" r="40" fill="none" stroke={c1} strokeWidth="4" strokeDasharray="15 10" />
+            </motion.g>
+            <circle cx="100" cy="100" r="25" fill="url(#engineCore)" />
+            <motion.circle cx="100" cy="100" r="10" fill="#fff"
+                animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />
+            <text x="100" y="104" textAnchor="middle" fill="#000" fontSize="10" fontFamily="monospace" fontWeight="bold">tick</text>
+        </motion.svg>
+    );
+};
+
+export const SVGAsyncHydra = ({ variant = "normal" }: { variant?: string }) => {
+    const isCorrupted = variant === "corrupted";
+    const c1 = isCorrupted ? "#10b981" : "#0284c7"; // Emerald vs Sky
+    const c2 = isCorrupted ? "#064e3b" : "#0c4a6e";
+    const glow = isCorrupted ? "rgba(16,185,129,0.6)" : "rgba(2,132,199,0.5)";
+    
+    // 3 heads representing Pending, Fulfilled, Rejected
+    const heads = [
+        { cx: 50, cy: 60, r: -20, delay: 0, text: "resolve", color: "#34d399" },
+        { cx: 100, cy: 40, r: 0, delay: 0.5, text: "pending", color: "#94a3b8" },
+        { cx: 150, cy: 60, r: 20, delay: 1, text: "reject", color: "#f87171" }
+    ];
+
+    return (
+        <motion.svg viewBox="0 0 200 200" className="w-full h-full"
+            style={{ filter: `drop-shadow(0 0 25px ${glow})` }}>
+            <defs>
+                <linearGradient id="hydraBody" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={c1} /><stop offset="100%" stopColor={c2} />
+                </linearGradient>
+            </defs>
+            <path d="M 50 170 Q 100 120 150 170 Q 100 190 50 170 Z" fill="url(#hydraBody)" />
+            {heads.map((h, i) => (
+                <motion.g key={i} animate={{ y: [0, -15, 0] }} transition={{ duration: 2, repeat: Infinity, delay: h.delay }}>
+                    <path d={`M 100 150 Q ${100 + h.r * 2} 100 ${h.cx} ${h.cy + 15}`} fill="none" stroke={c2} strokeWidth="12" strokeLinecap="round" />
+                    <circle cx={h.cx} cy={h.cy} r="22" fill={h.color} />
+                    <circle cx={h.cx - 7} cy={h.cy - 5} r="3" fill="#000" />
+                    <circle cx={h.cx + 7} cy={h.cy - 5} r="3" fill="#000" />
+                    <text x={h.cx} y={h.cy + 10} textAnchor="middle" fill="#000" fontSize="8" fontFamily="monospace" fontWeight="bold">{h.text}</text>
+                </motion.g>
+            ))}
+        </motion.svg>
+    );
+};
+
+export const SVGComplexityEngine = ({ variant = "normal" }: { variant?: string }) => {
+    const isCorrupted = variant === "corrupted";
+    const c1 = isCorrupted ? "#ef4444" : "#64748b"; // Red vs Slate
+    const c2 = isCorrupted ? "#7f1d1d" : "#0f172a";
+    const glow = isCorrupted ? "rgba(239,68,68,0.7)" : "rgba(100,116,139,0.5)";
+    
+    return (
+        <motion.svg viewBox="0 0 200 200" className="w-full h-full"
+            style={{ filter: `drop-shadow(0 0 30px ${glow})` }}>
+            <motion.rect x="50" y="50" width="100" height="100" fill={c2} stroke={c1} strokeWidth="4" rx="10"
+                animate={{ rotate: [0, 90, 180, 270, 360] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                style={{ originX: "100px", originY: "100px" }} />
+            
+            <motion.rect x="65" y="65" width="70" height="70" fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="4 4"
+                animate={{ rotate: [0, -90, -180, -270, -360] }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                style={{ originX: "100px", originY: "100px" }} />
+
+            <circle cx="100" cy="100" r="20" fill={c1} />
+            <motion.text x="100" y="105" textAnchor="middle" fill="#fff" fontSize="16" fontFamily="monospace" fontWeight="bold"
+                animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }}>O(n²)</motion.text>
+            
+            {[0, 1, 2, 3].map(i => (
+                <motion.line key={i} x1="100" y1="100" x2={100 + Math.cos(i * Math.PI / 2) * 80} y2={100 + Math.sin(i * Math.PI / 2) * 80}
+                    stroke={c1} strokeWidth="2" opacity="0.5"
+                    animate={{ strokeDasharray: ["0 100", "100 0"] }} transition={{ duration: 2, repeat: Infinity, delay: i * 0.5 }} />
+            ))}
+        </motion.svg>
+    );
+};
+
 // ─── BACKGROUNDS ─────────────────────────────────────────────────────────────
 
 export const EnvironmentSVGs: Record<string, React.ComponentType<{ tint?: string }>> = {
-    forest_dusk: ({ tint = "#064e3b" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
+    corrupted_blank: ({ tint = "#ffffff" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover" preserveAspectRatio="xMidYMid slice">
+            <rect width="100%" height="100%" fill="#ffffff" />
+            <motion.rect width="100%" height="100%" fill="url(#glitchNoise)" opacity="0.1" />
+            <path d="M 0 0 L 1000 500 M 1000 0 L 0 500" stroke="#000" strokeWidth="0.5" opacity="0.1" />
+            {/* Random text artifacts */}
+            {[...Array(20)].map((_, i) => (
+                <motion.text key={i} x={Math.random() * 900} y={Math.random() * 450} fill="#000" fontSize="12" fontFamily="monospace" opacity="0.2"
+                    animate={{ opacity: [0.1, 0.4, 0.1], x: [Math.random() * 900, Math.random() * 900] }} transition={{ duration: 0.1, repeat: Infinity, repeatDelay: Math.random() * 2 }}>
+                    {["undefined", "NaN", "[object Object]", "null"][Math.floor(Math.random() * 4)]}
+                </motion.text>
+            ))}
+            {/* Infinite div simulation */}
+            <motion.rect x="0" y="200" height="100" fill="#000" opacity="0.05"
+                animate={{ width: ["0%", "200%"] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
+            <rect width="100%" height="100%" fill="url(#vignetteBlack)" />
             <defs>
-                <linearGradient id="forestSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0f172a" /><stop offset="60%" stopColor={tint} /><stop offset="100%" stopColor="#011a10" />
-                </linearGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#forestSky)" />
-            <path d="M 100 500 L 150 200 L 200 500 Z" fill="#042f2e" opacity="0.6" />
-            <path d="M 300 500 L 400 150 L 500 500 Z" fill="#042f2e" opacity="0.4" />
-            <path d="M 800 500 L 850 100 L 950 500 Z" fill="#042f2e" opacity="0.5" />
-            <path d="M 0 500 L 50 100 L 100 500 Z" fill="#020617" opacity="0.9" />
-            <path d="M 600 500 L 700 80 L 800 500 Z" fill="#020617" opacity="0.9" />
-            <circle cx="200" cy="300" r="4" fill="#6ee7b7" className="animate-ping" style={{ animationDuration: "3s" }} />
-            <circle cx="800" cy="250" r="5" fill="#34d399" className="animate-ping" style={{ animationDuration: "4s" }} />
-            <circle cx="500" cy="400" r="3" fill="#6ee7b7" className="animate-ping" style={{ animationDuration: "2s" }} />
-        </svg>
-    ),
-    neon_cave: ({ tint = "#1e1b4b" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
-            <rect width="100%" height="100%" fill={tint} />
-            <path d="M 0 0 L 200 150 L 300 50 L 400 200 L 700 0 Z" fill="#312e81" opacity="0.7" />
-            <path d="M 400 0 L 500 300 L 800 100 L 1000 200 L 1000 0 Z" fill="#2e1065" opacity="0.6" />
-            <path d="M 0 500 L 150 300 L 300 500 Z" fill="#0f172a" />
-            <path d="M 700 500 L 850 250 L 1000 500 Z" fill="#0f172a" />
-            <path d="M 150 300 L 170 200 L 200 350 Z" fill="#c084fc" opacity="0.8" />
-            <path d="M 850 250 L 870 150 L 900 300 Z" fill="#c084fc" opacity="0.8" />
-        </svg>
-    ),
-    cyber_castle: ({ tint = "#450a0a" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <linearGradient id="cyberSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={tint} /><stop offset="100%" stopColor="#000000" />
-                </linearGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#cyberSky)" />
-            <path d="M 0 500 L 400 300 L 600 300 L 1000 500 Z" fill="#7f1d1d" opacity="0.3" />
-            <rect x="200" y="100" width="80" height="400" fill="#2a0000" stroke="#ef4444" strokeWidth="2" opacity="0.8" />
-            <rect x="720" y="100" width="80" height="400" fill="#2a0000" stroke="#ef4444" strokeWidth="2" opacity="0.8" />
-            <rect x="400" y="50" width="200" height="250" fill="#1a0000" stroke="#fca5a5" strokeWidth="3" />
-            <circle cx="500" cy="150" r="40" fill="#000" stroke="#ef4444" strokeWidth="4" />
-        </svg>
-    ),
-    void_abyss: ({ tint = "#000000" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <radialGradient id="voidGrad" cx="50%" cy="50%" r="55%">
-                    <stop offset="0%" stopColor={tint} stopOpacity="0.4" /><stop offset="100%" stopColor="#000" />
+                <radialGradient id="vignetteBlack" cx="50%" cy="50%" r="70%">
+                    <stop offset="30%" stopColor="transparent" />
+                    <stop offset="100%" stopColor="#000" stopOpacity="0.9" />
                 </radialGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#voidGrad)" />
-            {[...Array(30)].map((_, i) => (
-                <circle key={i} cx={Math.sin(i * 137.5) * 450 + 500} cy={Math.cos(i * 137.5) * 200 + 250}
-                    r={1 + (i % 3)} fill="#ffffff" opacity={0.1 + (i % 4) * 0.06} />
-            ))}
         </svg>
     ),
-    memory_heap: ({ tint = "#1c1917" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    markup_ruins: ({ tint = "#042f2e" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
             <defs>
-                <linearGradient id="heapSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0c0a09" /><stop offset="100%" stopColor={tint} />
+                <linearGradient id="markupBg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#020617" /><stop offset="100%" stopColor={tint} />
                 </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#heapSky)" />
-            {[50, 180, 310, 520, 680, 820].map((x, i) => (
-                <g key={i}>{[0, 1, 2, 3, 4].map(j => (
-                    <rect key={j} x={x + j * 2} y={350 - j * 28 + i * 8} width={80 - j * 4} height={24}
-                        rx="3" fill={`hsl(${25 + i * 8}, 60%, ${15 + j * 4}%)`}
-                        stroke={`hsl(${25 + i * 8}, 80%, 40%)`} strokeWidth="0.5" opacity="0.85" />
-                ))}</g>
-            ))}
-            {[200, 400, 600, 750, 900].map((x, i) => (
-                <rect key={i} x={x} y={150 + i * 30} width="30" height="12" rx="2"
-                    fill="none" stroke="#f59e0b" strokeWidth="0.8" opacity="0.3" strokeDasharray="4 2" />
-            ))}
-            <line x1="0" y1="400" x2="1000" y2="400" stroke="#f59e0b" strokeWidth="0.5" opacity="0.2" />
-        </svg>
-    ),
-    api_desert: ({ tint = "#1c1400" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <linearGradient id="desertSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0c0700" /><stop offset="60%" stopColor={tint} /><stop offset="100%" stopColor="#2d1b00" />
-                </linearGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#desertSky)" />
-            <path d="M 0 400 Q 200 330 400 400 Q 600 330 800 400 Q 900 350 1000 400 L 1000 500 L 0 500 Z" fill="#3d2000" opacity="0.8" />
-            <path d="M 0 430 Q 250 380 500 430 Q 750 380 1000 430 L 1000 500 L 0 500 Z" fill="#2d1500" opacity="0.9" />
-            {[150, 400, 700, 920].map((x, i) => (
-                <g key={i}>
-                    <line x1={x} y1={330} x2={x} y2={395} stroke="#78350f" strokeWidth="3" />
-                    <rect x={x - 35} y={295} width="70" height="35" rx="4" fill="#1c0a00" stroke="#f59e0b" strokeWidth="1.5" />
-                    <text x={x} y={317} textAnchor="middle" fill="#f59e0b" fontSize="10" fontFamily="monospace">{["404", "500", "401", "408"][i]}</text>
-                </g>
-            ))}
-        </svg>
-    ),
-    dom_jungle: ({ tint = "#052e16" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <linearGradient id="domSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#020a02" /><stop offset="100%" stopColor={tint} />
-                </linearGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#domSky)" />
+            <rect width="100%" height="100%" fill="url(#markupBg)" />
+            {/* Collapsed wireframes */}
             {[0, 1, 2, 3, 4].map(i => (
-                <rect key={i} x={80 + i * 60} y={60 + i * 40} width={840 - i * 120} height={380 - i * 80}
-                    rx="6" fill="none" stroke={`hsl(${120 + i * 15}, 60%, ${20 + i * 5}%)`}
-                    strokeWidth={2 - i * 0.3} opacity={0.5 - i * 0.05} strokeDasharray={i > 2 ? "6 3" : undefined} />
+                <rect key={i} x={Math.random() * 800} y={Math.random() * 300 + 100} width={Math.random() * 300 + 100} height={Math.random() * 100 + 50}
+                    fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="4 4" opacity="0.3"
+                    transform={`rotate(${Math.random() * 30 - 15} ${Math.random() * 800} ${Math.random() * 300 + 100})`} />
             ))}
-            {[100, 250, 450, 650, 850].map((x, i) => (
-                <path key={i} d={`M ${x} 0 Q ${x + 20} 80 ${x + 10} 160 Q ${x - 10} 240 ${x + 15} 340`}
-                    fill="none" stroke="#16a34a" strokeWidth={1.5 + i % 2} opacity="0.35" strokeLinecap="round" />
+            {/* Orphan tags falling */}
+            {[...Array(15)].map((_, i) => (
+                <motion.text key={i} x={Math.random() * 900 + 50} y="-50" fill="#34d399" fontSize="24" fontFamily="monospace" opacity="0.4"
+                    animate={{ y: [0, 600], rotate: [0, 360] }} transition={{ duration: 10 + Math.random() * 10, repeat: Infinity, ease: "linear", delay: Math.random() * 5 }}>
+                    {["</div>", "</span>", "</a>", "<br>"][Math.floor(Math.random() * 4)]}
+                </motion.text>
             ))}
-            {[180, 400, 700].map((x, i) => (
-                <text key={i} x={x} y={120 + i * 80} fill="#22c55e" fontSize="18" fontFamily="monospace" opacity="0.3">&lt;div&gt;</text>
-            ))}
+            <path d="M 0 400 L 200 350 L 400 450 L 600 300 L 800 400 L 1000 350 L 1000 500 L 0 500 Z" fill="#022c22" opacity="0.8" />
         </svg>
     ),
-    database_dungeon: ({ tint = "#0c0f1a" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    style_chaos: ({ tint = "#3b0764" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
+            <rect width="100%" height="100%" fill="#0a0a0a" />
             <defs>
-                <linearGradient id="dbSky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={tint} /><stop offset="100%" stopColor="#05060f" />
+                <linearGradient id="neonPink" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#ec4899" /><stop offset="100%" stopColor="#8b5cf6" />
                 </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#dbSky)" />
-            {[0, 1, 2, 3, 4, 5].map(i => (
-                <line key={`v${i}`} x1={i * 200} y1={0} x2={i * 200} y2={500} stroke="#1e293b" strokeWidth="2" opacity="0.6" />
-            ))}
-            {[0, 1, 2, 3, 4].map(i => (
-                <line key={`h${i}`} x1={0} y1={i * 125} x2={1000} y2={i * 125} stroke="#1e293b" strokeWidth="1.5" opacity="0.5" />
-            ))}
-            {[100, 300, 500, 700, 900].map((x, i) => (
-                <g key={i}>
-                    <rect x={x - 80} y={155} width="160" height="90" rx="2"
-                        fill="#0f172a" stroke="#334155" strokeWidth="1" opacity="0.7" />
-                    <text x={x} y={195} textAnchor="middle" fill="#64748b" fontSize="8" fontFamily="monospace">{["id: 0xDEAD", "null", "∞ rows", "JOIN??", "LOCK"][i]}</text>
-                </g>
-            ))}
-            {[80, 920].map((x, i) => (
-                <g key={i}>
-                    <rect x={x - 4} y={60} width="8" height="30" rx="2" fill="#92400e" />
-                    <ellipse cx={x} cy={55} rx="12" ry="16" fill="#f59e0b" opacity="0.3" />
-                    <ellipse cx={x} cy={55} rx="6" ry="10" fill="#fbbf24" opacity="0.5" />
-                </g>
+            {/* Conflicting Z-index overlapping blocks */}
+            <motion.rect x="100" y="100" width="300" height="200" fill="url(#neonPink)" opacity="0.2" stroke="#ec4899" strokeWidth="2"
+                animate={{ x: [100, 120, 100], y: [100, 80, 100] }} transition={{ duration: 4, repeat: Infinity }} />
+            <motion.rect x="250" y="150" width="300" height="200" fill="#8b5cf6" opacity="0.2" stroke="#a855f7" strokeWidth="2"
+                animate={{ x: [250, 230, 250], y: [150, 170, 150] }} transition={{ duration: 5, repeat: Infinity }} />
+            <motion.rect x="500" y="50" width="400" height="300" fill="#3b0764" opacity="0.4" stroke="#d946ef" strokeWidth="2"
+                animate={{ opacity: [0.4, 0.6, 0.4] }} transition={{ duration: 3, repeat: Infinity }} />
+            
+            {/* Overflowing text */}
+            <text x="50" y="450" fill="#ec4899" fontSize="60" fontFamily="sans-serif" fontWeight="900" opacity="0.1" letterSpacing="-5">
+                OVERFLOW-X: VISIBLE
+            </text>
+            <text x="600" y="80" fill="#8b5cf6" fontSize="40" fontFamily="sans-serif" fontWeight="900" opacity="0.15">
+                Z-INDEX: 999999
+            </text>
+        </svg>
+    ),
+    logic_core: ({ tint = "#1e1b4b" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
+            <rect width="100%" height="100%" fill="#020617" />
+            {/* Spiral of infinite loops */}
+            <g transform="translate(500, 250)">
+                {[...Array(20)].map((_, i) => (
+                    <motion.circle key={i} cx="0" cy="0" r={i * 25} fill="none" stroke="#6366f1" strokeWidth={0.5 + i * 0.1} opacity={1 - (i * 0.04)}
+                        strokeDasharray={`${5 + i * 2} ${10 + i}`}
+                        animate={{ rotate: 360 }} transition={{ duration: 20 + i * 2, repeat: Infinity, ease: "linear" }} />
+                ))}
+            </g>
+            {/* Execution lines */}
+            <path d="M 0 250 Q 250 100 500 250 T 1000 250" fill="none" stroke="#818cf8" strokeWidth="2" opacity="0.3" />
+            <path d="M 0 250 Q 250 400 500 250 T 1000 250" fill="none" stroke="#4f46e5" strokeWidth="2" opacity="0.3" />
+            {/* Bits flowing */}
+            {[...Array(10)].map((_, i) => (
+                <motion.circle key={i} cx={Math.random() * 1000} cy={Math.random() * 500} r="2" fill="#c7d2fe"
+                    animate={{ scale: [1, 2, 1], opacity: [0.2, 0.8, 0.2] }} transition={{ duration: 1 + Math.random() * 2, repeat: Infinity }} />
             ))}
         </svg>
     ),
-    event_loop_arena: ({ tint = "#0a0514" }) => (
-        <svg viewBox="0 0 1000 500" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    async_wasteland: ({ tint = "#292524" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
             <defs>
-                <radialGradient id="arenaGrad" cx="50%" cy="50%" r="55%">
-                    <stop offset="0%" stopColor={tint} /><stop offset="100%" stopColor="#000" />
+                <linearGradient id="desertBg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0c0a09" /><stop offset="60%" stopColor="#1c1917" /><stop offset="100%" stopColor="#44403c" />
+                </linearGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#desertBg)" />
+            {/* Dead promises (tombstones) */}
+            {[100, 300, 550, 800].map((x, i) => (
+                <g key={i} transform={`translate(${x}, ${350 + (i % 2) * 40})`}>
+                    <rect x="-30" y="-50" width="60" height="50" rx="5" fill="#292524" stroke="#57534e" strokeWidth="1" />
+                    <text x="0" y="-30" textAnchor="middle" fill="#78716c" fontSize="10" fontFamily="monospace">Pending</text>
+                    <text x="0" y="-15" textAnchor="middle" fill="#a8a29e" fontSize="14" fontFamily="monospace">∞ms</text>
+                </g>
+            ))}
+            {/* Ground landscape */}
+            <path d="M 0 400 Q 200 350 500 420 T 1000 400 L 1000 500 L 0 500 Z" fill="#1c1917" />
+            {/* Abandoned connections */}
+            <path d="M 150 500 C 150 200 350 100 850 500" fill="none" stroke="#f59e0b" strokeWidth="1" strokeDasharray="10 10" opacity="0.3" />
+            <circle cx="850" cy="500" r="4" fill="#ef4444" />
+        </svg>
+    ),
+    algorithm_vault: ({ tint = "#0f172a" }) => (
+        <svg viewBox="0 0 1000 500" className="w-full h-full object-cover opacity-80" preserveAspectRatio="xMidYMid slice">
+            <rect width="100%" height="100%" fill="#020617" />
+            <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" strokeWidth="1" />
+                </pattern>
+                <radialGradient id="vaultGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#020617" stopOpacity="0" />
                 </radialGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#arenaGrad)" />
-            {[220, 160, 100, 50].map((r, i) => (
-                <ellipse key={i} cx="500" cy="280" rx={r * 2.2} ry={r}
-                    fill="none" stroke="#7c3aed" strokeWidth={1.5 - i * 0.2}
-                    opacity={0.15 + i * 0.08} strokeDasharray={i % 2 === 0 ? "8 4" : undefined} />
-            ))}
-            <ellipse cx="500" cy="290" rx="120" ry="50" fill="#4c1d95" opacity="0.2" />
-            <rect x="30" y="80" width="90" height="340" rx="4" fill="#1a0a2e" stroke="#7c3aed" strokeWidth="1.5" opacity="0.6" />
-            <text x="75" y="70" textAnchor="middle" fill="#a78bfa" fontSize="9" fontFamily="monospace">Call Stack</text>
-            {["fn()", "cb()", "main()"].map((t, i) => (
-                <rect key={i} x="40" y={380 - i * 45} width="70" height="38" rx="3" fill="#2e1065" stroke="#7c3aed" strokeWidth="1" opacity="0.8" />
-            ))}
-            <rect x="880" y="80" width="90" height="340" rx="4" fill="#1a0a2e" stroke="#7c3aed" strokeWidth="1.5" opacity="0.6" />
-            <text x="925" y="70" textAnchor="middle" fill="#a78bfa" fontSize="9" fontFamily="monospace">Queue</text>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+            {/* The Architect's central eye/core */}
+            <rect width="100%" height="100%" fill="url(#vaultGlow)" />
+            <motion.path d="M 400 250 L 500 150 L 600 250 L 500 350 Z" fill="none" stroke="#3b82f6" strokeWidth="2" opacity="0.6"
+                animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 4, repeat: Infinity }} />
+            <motion.path d="M 450 250 L 500 200 L 550 250 L 500 300 Z" fill="none" stroke="#60a5fa" strokeWidth="1"
+                animate={{ rotate: 180 }} style={{ originX: "500px", originY: "250px" }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} />
+            {/* Logic gates/nodes */}
+            {[...Array(8)].map((_, i) => {
+                const angle = (i / 8) * Math.PI * 2;
+                const x = 500 + Math.cos(angle) * 200;
+                const y = 250 + Math.sin(angle) * 150;
+                return (
+                    <g key={i}>
+                        <line x1="500" y1="250" x2={x} y2={y} stroke="#1e293b" strokeWidth="2" />
+                        <motion.circle cx={x} cy={y} r="8" fill="#0f172a" stroke="#3b82f6" strokeWidth="1"
+                            animate={{ fill: ["#0f172a", "#3b82f6", "#0f172a"] }} transition={{ duration: 2, repeat: Infinity, delay: i * 0.25 }} />
+                    </g>
+                );
+            })}
         </svg>
     ),
 };
@@ -661,4 +799,9 @@ export const EnemyComponentMap: Record<string, React.ComponentType<{ variant?: s
     morph: SVGTypeErrorMorph,
     twins: SVGRaceConditionTwins,
     hydra: SVGRegexHydra,
+    dom_core_entity: SVGDOMCoreEntity,
+    cascade_queen: SVGCascadeQueen,
+    event_loop_engine: SVGEventLoopEngine,
+    async_hydra: SVGAsyncHydra,
+    complexity_engine: SVGComplexityEngine,
 };

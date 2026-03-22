@@ -119,18 +119,22 @@ export const LoopyMascot = memo(({
             style={{ width: size, height: size }}
             className="relative"
             animate={{
-                x: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? [0, -config.shake, config.shake, -config.shake, config.shake, 0] : 0,
+                x: (!isStatic && (mood === "annoyed" || mood === "screaming")) ? [0, -config.shake, config.shake, -config.shake, config.shake, 0] : 0,
                 y: (!isStatic && mood === "thinking") ? [0, -6, 0]
                     : (!isStatic && mood === "celebrating") ? [0, -30, 0]
-                    : (!isStatic && mood === "huddled") ? [0, 8, 0]
+                    : (!isStatic && mood === "huddled") ? [0, 4, 0]
                     : (!isStatic && isWarrior) ? [0, -10, 0]
                     : 0,
                 rotate: rotation,
-                scaleX: (!isStatic && mood === "celebrating") ? [1, 1.25, 0.85, 1] : mood === "huddled" ? 0.8 : 1,
-                scaleY: (!isStatic && mood === "celebrating") ? [1, 0.75, 1.15, 1] : mood === "huddled" ? 0.8 : 1
+                scaleX: (!isStatic && mood === "celebrating") ? [1, 1.25, 0.85, 1] 
+                        : (!isStatic && mood === "huddled") ? [0.8, 0.83, 0.8] 
+                        : mood === "huddled" ? 0.8 : 1,
+                scaleY: (!isStatic && mood === "celebrating") ? [1, 0.75, 1.15, 1] 
+                        : (!isStatic && mood === "huddled") ? [0.8, 0.77, 0.8] 
+                        : mood === "huddled" ? 0.8 : 1
             }}
             transition={{
-                x: { duration: 0.1, repeat: (!isStatic && (mood === "annoyed" || mood === "screaming" || mood === "huddled")) ? Infinity : 0 },
+                x: { duration: 0.1, repeat: (!isStatic && (mood === "annoyed" || mood === "screaming")) ? Infinity : 0 },
                 y: {
                     duration: mood === "celebrating" ? 0.5 : isWarrior ? 3 : 2.5,
                     repeat: !isStatic ? Infinity : 0,
@@ -238,7 +242,11 @@ export const LoopyMascot = memo(({
                         stroke: config.colorBottom
                     }}
                     transition={{
-                        d: { duration: 3, repeat: !isStatic ? Infinity : 0, repeatType: "mirror", ease: "easeInOut" },
+                        d: { 
+                            duration: (mood === "surprised" || mood === "screaming" || mood === "huddled") ? 0.3 : 3, 
+                            repeat: (!isStatic && mood !== "surprised" && mood !== "screaming" && mood !== "huddled") ? Infinity : 0, 
+                            repeatType: "mirror", ease: "easeInOut" 
+                        },
                         stroke: { duration: 0.6 }
                     }}
                     strokeWidth="2"
@@ -289,12 +297,14 @@ export const LoopyMascot = memo(({
                         </motion.g>
 
                         <motion.g animate={{ opacity: (mood === "annoyed" || mood === "screaming" || mood === "huddled") ? 1 : 0 }} transition={{ duration: 0.3 }}>
-                            <path
-                                d={mood === "huddled" ? "M30 62 L46 64" : "M30 44 L46 48"}
+                            <motion.path
+                                animate={{ d: mood === "huddled" ? "M30 62 L46 64" : "M30 44 L46 48" }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                                 stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round"
                             />
-                            <path
-                                d={mood === "huddled" ? "M70 62 L54 64" : "M70 44 L54 48"}
+                            <motion.path
+                                animate={{ d: mood === "huddled" ? "M70 62 L54 64" : "M70 44 L54 48" }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                                 stroke={config.colorBottom} strokeWidth="3" strokeLinecap="round"
                             />
                         </motion.g>
