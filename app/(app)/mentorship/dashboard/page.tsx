@@ -23,6 +23,7 @@ import { MentorSettingsModal } from "@/components/mentorship/MentorSettingsModal
 import { MentorHandbookModal } from "@/components/mentorship/MentorHandbookModal";
 import useSWR from "swr";
 import { fetchMentorDashboardData } from "@/lib/swr-fetchers";
+import { XPLevelRing } from "@/components/mentorship/XPLevelRing";
 
 // Animation Variants
 const containerVariants: Variants = {
@@ -36,7 +37,7 @@ const itemVariants: Variants = {
 };
 
 export default function MentorDashboardPage() {
-    const { user } = useUser();
+    const { user, profile } = useUser();
 
     const { data: dashboardData, isLoading, mutate } = useSWR(
         user?.id ? ['mentorDashboard', user.id] : null,
@@ -117,6 +118,15 @@ export default function MentorDashboardPage() {
         setCopying(text);
         setTimeout(() => setCopying(null), 2000);
     };
+
+    const previewThumbnail = (() => {
+        if (newVideo.thumbnail) return newVideo.thumbnail;
+        const ytMatch = newVideo.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+        if (ytMatch && ytMatch[1]) {
+            return `https://img.youtube.com/vi/${ytMatch[1]}/maxresdefault.jpg`;
+        }
+        return "";
+    })();
 
     // Show nothing until client mount to avoid hydration mismatch
     if (!isMounted || isLoading) {
@@ -216,7 +226,8 @@ export default function MentorDashboardPage() {
                             </div>
                             <div className="flex flex-col">
                                 <div className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-2">XP Level</div>
-                                <div className="flex items-center h-[calc(1rem+28px)]">
+                                <div className="flex items-center gap-2 h-[calc(1rem+28px)]">
+                                    <XPLevelRing level={status?.level} xp={status?.xp} size="md" showLevelInside={false} />
                                     <span className="text-3xl font-black text-white leading-none">{status?.level ?? "?"}</span>
                                 </div>
                             </div>
@@ -273,6 +284,26 @@ export default function MentorDashboardPage() {
                                         </div>
                                         <textarea placeholder="Description..." value={newVideo.description} onChange={e => setNewVideo({ ...newVideo, description: e.target.value })}
                                             className="w-full bg-white border-2 border-zinc-200 rounded-2xl p-5 h-32 text-sm font-bold resize-none outline-none focus:border-[#D4F268] focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm" />
+                                        
+                                        {/* Live Preview Section */}
+                                        {(newVideo.title || newVideo.url) && (
+                                            <div className="pt-4 border-t-2 border-zinc-200">
+                                                <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-4">Preview Configuration</h4>
+                                                <div className="flex justify-center">
+                                                    <VideoItemCard 
+                                                        rec={{
+                                                            id: "preview",
+                                                            title: newVideo.title || "Untitled Video",
+                                                            topic: newVideo.topic || "General",
+                                                            videoUrl: newVideo.url,
+                                                            thumbnailUrl: previewThumbnail
+                                                        }} 
+                                                        isPreview
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <Button onClick={handlePublish} disabled={!newVideo.title || !newVideo.url || actionLoading === "publish"}
                                             className="w-full h-14 rounded-2xl bg-[#D4F268] text-zinc-900 font-black uppercase tracking-widest text-sm hover:bg-[#c4ec3e] transition-all shadow-lg hover:shadow-xl">
                                             {actionLoading === "publish" ? <Loader2 className="animate-spin" /> : "Publish to Library"}
@@ -304,22 +335,22 @@ export default function MentorDashboardPage() {
                                 <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Mentorship Sessions</h2>
                                 <p className="text-zinc-500 font-medium text-sm mt-1">Manage pipeline of incoming and active sessions.</p>
                             </div>
-                            <div className="flex bg-zinc-100 p-2 rounded-full border border-zinc-200/50 shadow-inner w-full md:w-auto overflow-hidden relative">
+                            <div className="grid grid-cols-3 bg-zinc-100 p-1.5 rounded-full border border-zinc-200/50 shadow-inner w-full md:w-80 overflow-hidden relative">
                                 {(["requests", "upcoming", "history"] as const).map((t) => (
                                     <button
                                         key={t}
                                         onClick={() => setActiveTab(t)}
-                                        className={`flex-1 md:flex-none px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors relative z-10 whitespace-nowrap ${activeTab === t ? "text-zinc-900" : "text-zinc-500 hover:text-zinc-700"}`}
+                                        className={`px-2 py-3 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors relative z-10 whitespace-nowrap ${activeTab === t ? "text-zinc-900" : "text-zinc-500 hover:text-zinc-700"}`}
                                     >
                                         {t === "requests" ? `Inbox (${sessions?.pending?.length ?? 0})` : t === "upcoming" ? "Live" : "History"}
                                     </button>
                                 ))}
                                 <motion.div 
                                     layoutId="mentorSessionTabBg" 
-                                    className="absolute inset-y-2 bg-white rounded-full shadow-md z-0" 
-                                    style={{ width: "calc(33.333% - 10px)" }}
-                                    animate={{ left: activeTab === "requests" ? "8px" : activeTab === "upcoming" ? "calc(33.333% + 4px)" : "calc(66.666% + 2px)" }}
-                                    transition={{ type: "spring", bounce: 0.3, stiffness: 300, damping: 25 }}
+                                    className="absolute inset-y-1.5 bg-white rounded-full shadow-md z-0" 
+                                    style={{ width: "calc(33.333% - 4px)" }}
+                                    animate={{ left: activeTab === "requests" ? "2px" : activeTab === "upcoming" ? "33.333%" : "66.666%" }}
+                                    transition={{ type: "spring", bounce: 0.25, stiffness: 350, damping: 30 }}
                                 />
                             </div>
                         </div>
@@ -375,9 +406,17 @@ export default function MentorDashboardPage() {
                     
                     {/* Compact Profile Card bouncing */}
                     <motion.div variants={itemVariants} className="bg-white rounded-[3rem] p-8 border-2 border-zinc-100 shadow-sm flex flex-col items-center text-center relative overflow-hidden group">
-                        <div className="absolute top-0 w-full h-24 bg-gradient-to-br from-zinc-100 to-zinc-50" />
-                        <Avatar fallback={user?.user_metadata?.name?.[0]} src={user?.user_metadata?.avatar_url} className="w-28 h-28 rounded-[2rem] border-8 border-white shadow-xl mb-5 relative z-10 group-hover:scale-105 transition-transform duration-500" />
-                        <h2 className="text-2xl font-black text-zinc-900 leading-tight z-10">{user?.user_metadata?.name || "Mentor"}</h2>
+                        <div className="absolute top-0 w-full h-24 overflow-hidden">
+                            {profile?.banner_url ? (
+                                <img src={profile.banner_url} className="w-full h-full object-cover opacity-80" alt="Banner" />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-50" />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-white/20 to-transparent" />
+                        </div>
+                        <Avatar fallback={profile?.full_name?.[0] || user?.user_metadata?.name?.[0]} src={profile?.avatar_url || user?.user_metadata?.avatar_url} className="w-28 h-28 rounded-[2rem] border-8 border-white shadow-xl mb-5 relative z-10 group-hover:scale-105 transition-transform duration-500" />
+                        <h2 className="text-2xl font-black text-zinc-900 leading-tight z-10">{profile?.full_name || user?.user_metadata?.name || "Mentor"}</h2>
+                        <p className="text-zinc-500 text-sm font-bold opacity-60 z-10">@{profile?.username || "mentor"}</p>
                         <div className="text-[#5a6d1a] text-xs font-black uppercase tracking-widest bg-[#D4F268]/20 px-4 py-1.5 mt-3 rounded-full flex items-center gap-2 z-10 shadow-sm">
                             <Award size={16} className="text-[#5a6d1a]" />
                             {status?.level! >= 30 ? "Elite Tier" : status?.level! >= 20 ? "Pro Tier" : status?.level! >= 10 ? "Silver Tier" : "Bronze Tier"}
@@ -478,7 +517,7 @@ function StatPanel({ label, value, icon, bg }: { label: string, value: string | 
     );
 }
 
-function VideoItemCard({ rec, onAction, actionLoading }: any) {
+function VideoItemCard({ rec, onAction, actionLoading, isPreview }: any) {
     return (
         <motion.div 
             whileHover={{ y: -6, scale: 1.02 }}
@@ -496,14 +535,16 @@ function VideoItemCard({ rec, onAction, actionLoading }: any) {
                 <div className="absolute top-3 left-3 bg-zinc-900/60 backdrop-blur-md text-[#D4F268] text-[9px] uppercase tracking-widest font-black px-3 py-1.5 rounded-lg flex items-center gap-2 border border-zinc-700">
                     <Video size={12} /> Published
                 </div>
-                <motion.button 
-                    whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                    onClick={() => onAction(rec.id, "delete")} 
-                    disabled={actionLoading === rec.id}
-                    className="absolute top-3 right-3 h-10 w-10 flex items-center justify-center bg-zinc-900/60 hover:bg-red-500 text-white hover:text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm shadow-lg border border-zinc-700 hover:border-red-500"
-                >
-                    {actionLoading === rec.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                </motion.button>
+                {!isPreview && (
+                    <motion.button 
+                        whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                        onClick={() => onAction(rec.id, "delete")} 
+                        disabled={actionLoading === rec.id}
+                        className="absolute top-3 right-3 h-10 w-10 flex items-center justify-center bg-zinc-900/60 hover:bg-red-500 text-white hover:text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm shadow-lg border border-zinc-700 hover:border-red-500"
+                    >
+                        {actionLoading === rec.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    </motion.button>
+                )}
             </div>
             <div className="p-6 flex flex-col flex-1">
                 <h4 className="font-black text-lg text-zinc-900 line-clamp-2 leading-snug mb-2 group-hover:text-[#5a6d1a] transition-colors">{rec.title}</h4>
