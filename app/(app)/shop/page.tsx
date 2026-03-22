@@ -19,6 +19,7 @@ import { useUser } from "@/context/UserContext";
 import { useLoading } from "@/components/LoadingProvider";
 import localFont from "next/font/local";
 import { TopSlimeBorder } from "@/components/ui/TopSlimeBorder";
+import { SlimePillBackground } from "@/components/ui/SlimePillBackground";
 
 const meltedMonster = localFont({
     src: "../../../public/MeltedMonster.woff2",
@@ -771,11 +772,7 @@ export default function ShopPage() {
                                     `}
                                 >
                                     {active && (
-                                        <motion.div
-                                            layoutId="shop-filter-bg-dark"
-                                            className="absolute inset-0 bg-[#D4F268] shadow-[0_0_15px_rgba(212,242,104,0.4)] rounded-full -z-10"
-                                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                        />
+                                        <SlimePillBackground layoutId="shop-category-pill" />
                                     )}
                                     <Icon size={14} className={active ? "text-zinc-950" : ""} />
                                     {label}
