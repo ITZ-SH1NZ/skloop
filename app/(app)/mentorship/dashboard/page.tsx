@@ -219,16 +219,15 @@ export default function MentorDashboardPage() {
                         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                             <div className="flex flex-col">
                                 <div className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-2">Your Rate</div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 h-14">
                                     <CurrencyCoin size="md" />
                                     <span className="text-3xl font-black text-white leading-none">{status.profile?.hourlyRate ?? 0}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col">
                                 <div className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mb-2">XP Level</div>
-                                <div className="flex items-center gap-2 h-[calc(1rem+28px)]">
-                                    <XPLevelRing level={status?.level} xp={status?.xp} size="md" showLevelInside={false} />
-                                    <span className="text-3xl font-black text-white leading-none">{status?.level ?? "?"}</span>
+                                <div className="flex items-center h-14">
+                                    <XPLevelRing level={status?.level} xp={status?.xp} size="md" showLevelInside={true} />
                                 </div>
                             </div>
                         </div>
