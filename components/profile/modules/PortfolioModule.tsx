@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Github, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2, MoreVertical, Edit2, UploadCloud, Crop } from "lucide-react";
+import { Plus, X, Github, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2, MoreVertical, Edit2, UploadCloud, Crop, Award } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -22,6 +22,7 @@ interface Project {
     thumbnail_url: string | null;
     github_url: string | null;
     website_url: string | null;
+    is_pinned: boolean;
     created_at: string;
 }
 
@@ -32,18 +33,18 @@ export function PortfolioModule() {
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-    
+
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [croppingImage, setCroppingImage] = useState<string | null>(null);
 
-    const [newProject, setNewProject] = useState({ 
-        title: "", 
-        description: "", 
-        website_url: "", 
-        github_url: "", 
-        thumbnail_url: "" 
+    const [newProject, setNewProject] = useState({
+        title: "",
+        description: "",
+        website_url: "",
+        github_url: "",
+        thumbnail_url: ""
     });
 
     const supabase = createClient();
@@ -76,7 +77,6 @@ export function PortfolioModule() {
     const onCropComplete = (croppedImage: string) => {
         setPreviewUrl(croppedImage);
         setCroppingImage(null);
-        // We set thumbnail_url to the base64 cropped image for preview
         setNewProject({ ...newProject, thumbnail_url: croppedImage });
     };
 
@@ -118,7 +118,6 @@ export function PortfolioModule() {
         try {
             let finalThumbnailUrl = newProject.thumbnail_url || null;
 
-            // Handle file upload if we have a new cropped image (blob or base64)
             if (previewUrl && (previewUrl.startsWith('blob:') || previewUrl.startsWith('data:'))) {
                 const fileName = `${user.id}/${Math.random()}.jpg`;
                 const filePath = `${fileName}`;
@@ -135,7 +134,7 @@ export function PortfolioModule() {
                 const { data: { publicUrl } } = supabase.storage
                     .from('project-thumbnails')
                     .getPublicUrl(filePath);
-                
+
                 finalThumbnailUrl = publicUrl;
             }
 
@@ -163,8 +162,7 @@ export function PortfolioModule() {
                     .insert([projectData]);
 
                 if (error) throw error;
-                
-                // Record milestone only for NEW projects
+
                 const { recordTimelineEvent } = await import('@/actions/quest-actions');
                 await recordTimelineEvent(
                     user.id,
@@ -176,7 +174,7 @@ export function PortfolioModule() {
                 );
                 toast("Project added to arsenal!", "success");
             }
-            
+
             mutate();
             resetModal();
         } catch (error: any) {
@@ -229,19 +227,41 @@ export function PortfolioModule() {
             toast("Failed to delete project.", "error");
         } finally {
             setIsDeleting(null);
-            setActiveMenuId(null);
+        }
+    };
+
+    const handleTogglePin = async (project: Project) => {
+        const currentlyPinned = projects.filter(p => p.is_pinned);
+        if (!project.is_pinned && currentlyPinned.length >= 3) {
+            toast("You can only pin up to 3 projects to your profile.", "error");
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from("user_projects")
+                .update({ is_pinned: !project.is_pinned })
+                .eq("id", project.id)
+                .eq("user_id", user?.id);
+
+            if (error) throw error;
+            mutate();
+            toast(project.is_pinned ? "Project unpinned." : "Project pinned to profile!", "success");
+        } catch (error: any) {
+            console.error("Pin error:", error);
+            toast("Failed to update pin.", "error");
         }
     };
 
     return (
-        <div className="space-y-8">
-            <div className="flex justify-between items-center mb-6">
+        <div>
+            <div className="flex justify-between items-center mb-8">
                 <div>
                     <h2 className="text-3xl font-black uppercase tracking-tighter">Arsenal <span className="text-lime-500">.</span></h2>
                     <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mt-1">Logged Projects & Tools</p>
                 </div>
-                <Button 
-                    onClick={() => setIsUploadingModalOpen(true)} 
+                <Button
+                    onClick={() => setIsUploadingModalOpen(true)}
                     className="bg-lime-400 hover:bg-lime-500 text-black font-black uppercase tracking-wider rounded-xl border-2 border-black shadow-[4px_4px_0_0_#000] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#000] active:translate-y-0 active:shadow-none transition-all gap-2 h-12 px-6"
                 >
                     <Plus size={18} strokeWidth={3} /> Add Loadout
@@ -263,14 +283,14 @@ export function PortfolioModule() {
                                     <div className="w-4 h-4 rounded-full bg-lime-400 animate-pulse border-2 border-black" />
                                     {editingProjectId ? 'Finalise Deployment' : 'Initialise Project'}
                                 </h3>
-                                <button 
-                                    onClick={resetModal} 
+                                <button
+                                    onClick={resetModal}
                                     className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors border-2 border-transparent hover:border-lime-400 text-zinc-400 hover:text-white"
                                 >
                                     <X size={20} />
                                 </button>
                             </div>
-                            
+
                             <div className="grid gap-6">
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Project Designation *</label>
@@ -281,7 +301,7 @@ export function PortfolioModule() {
                                         className="bg-black border-2 border-zinc-800 focus:border-lime-400 rounded-xl h-14 text-white placeholder:text-zinc-600 font-medium"
                                     />
                                 </div>
-                                
+
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Mission Briefing *</label>
                                     <Textarea
@@ -291,7 +311,7 @@ export function PortfolioModule() {
                                         className="bg-black border-2 border-zinc-800 focus:border-lime-400 rounded-xl min-h-[120px] text-white placeholder:text-zinc-600 font-medium resize-none px-4 py-4"
                                     />
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2 shadow-sm">
                                         <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -316,20 +336,20 @@ export function PortfolioModule() {
                                         />
                                     </div>
                                 </div>
-                                
+
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
                                         <ImageIcon size={14} /> Project Thumbnail
                                     </label>
                                     <div className="flex flex-col gap-4">
-                                        <div 
+                                        <div
                                             onDragOver={onDragOver}
                                             onDragLeave={onDragLeave}
                                             onDrop={onDrop}
                                             className={cn(
                                                 "relative w-full border-4 border-dashed rounded-2xl py-8 px-4 text-center transition-all cursor-pointer group",
-                                                isDragging 
-                                                    ? "bg-lime-500/10 border-lime-400 scale-[0.98]" 
+                                                isDragging
+                                                    ? "bg-lime-500/10 border-lime-400 scale-[0.98]"
                                                     : "bg-black border-zinc-800 hover:border-zinc-700"
                                             )}
                                         >
@@ -372,9 +392,9 @@ export function PortfolioModule() {
                                             {(previewUrl || newProject.thumbnail_url) && (
                                                 <div className="w-14 h-14 rounded-xl border-2 border-lime-400 overflow-hidden shrink-0 bg-black">
                                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img 
-                                                        src={previewUrl || newProject.thumbnail_url} 
-                                                        alt="Preview" 
+                                                    <img
+                                                        src={previewUrl || newProject.thumbnail_url}
+                                                        alt="Preview"
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                                     />
@@ -384,8 +404,8 @@ export function PortfolioModule() {
                                     </div>
                                 </div>
 
-                                <Button 
-                                    onClick={handleUpload} 
+                                <Button
+                                    onClick={handleUpload}
                                     disabled={isSubmitting}
                                     className="w-full h-16 bg-lime-400 hover:bg-lime-500 text-black font-black uppercase tracking-widest text-lg rounded-xl border-4 border-black mt-2 shadow-[0_4px_0_0_#000] active:translate-y-1 active:shadow-none transition-all disabled:opacity-70"
                                 >
@@ -421,7 +441,7 @@ export function PortfolioModule() {
                     </div>
                     <h3 className="font-black text-2xl text-zinc-800 mb-2 uppercase tracking-tight">Arsenal Empty</h3>
                     <p className="font-medium text-zinc-500 max-w-sm mb-8">Your portfolio is currently blank. Deploy your first project to start building your technical reputation.</p>
-                    <Button 
+                    <Button
                         onClick={() => setIsUploadingModalOpen(true)}
                         variant="outline"
                         className="rounded-xl border-2 border-zinc-300 hover:border-black hover:bg-zinc-100 font-bold px-8 h-12"
@@ -446,20 +466,25 @@ export function PortfolioModule() {
                             <div className="h-48 md:h-56 overflow-hidden relative border-b-4 border-black bg-zinc-100 shrink-0">
                                 {project.thumbnail_url ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img 
-                                        src={project.thumbnail_url} 
-                                        alt={project.title} 
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                    <img
+                                        src={project.thumbnail_url}
+                                        alt={project.title}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-zinc-900 group-hover:bg-zinc-800 transition-colors">
                                         <CodeBracketIcon />
                                     </div>
                                 )}
-                                
+
                                 {user?.id === project.user_id && (
-                                    <div className="absolute top-4 right-4 z-20">
-                                        <button 
+                                    <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                                        {project.is_pinned && (
+                                            <div className="w-10 h-10 bg-lime-400 border-2 border-black rounded-full flex items-center justify-center text-black shadow-[2px_2px_0_0_#000]" title="Pinned to Profile">
+                                                <Award size={18} className="fill-black" />
+                                            </div>
+                                        )}
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setActiveMenuId(activeMenuId === project.id ? null : project.id);
@@ -468,13 +493,13 @@ export function PortfolioModule() {
                                         >
                                             <MoreVertical size={20} />
                                         </button>
-                                        
+
                                         <AnimatePresence>
                                             {activeMenuId === project.id && (
                                                 <>
-                                                    <div 
-                                                        className="fixed inset-0 z-30" 
-                                                        onClick={() => setActiveMenuId(null)} 
+                                                    <div
+                                                        className="fixed inset-0 z-30"
+                                                        onClick={() => setActiveMenuId(null)}
                                                     />
                                                     <motion.div
                                                         initial={{ opacity: 0, scale: 0.9, y: 10 }}
@@ -482,18 +507,25 @@ export function PortfolioModule() {
                                                         exit={{ opacity: 0, scale: 0.9, y: 10 }}
                                                         className="absolute top-12 right-0 w-48 bg-white border-4 border-black rounded-2xl shadow-[8px_8px_0_0_#000] z-40 overflow-hidden"
                                                     >
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleEdit(project)}
                                                             className="w-full flex items-center gap-3 px-4 py-4 hover:bg-zinc-100 transition-colors font-bold text-sm border-b-2 border-zinc-100"
                                                         >
                                                             <Edit2 size={16} /> Edit Details
                                                         </button>
-                                                        <button 
+                                                        <button
+                                                            onClick={() => handleTogglePin(project)}
+                                                            className="w-full flex items-center gap-3 px-4 py-4 hover:bg-zinc-100 transition-colors font-bold text-sm border-b-2 border-zinc-100"
+                                                        >
+                                                            <Award size={16} className={project.is_pinned ? "text-lime-500 fill-lime-500" : ""} />
+                                                            {project.is_pinned ? "Unpin from Profile" : "Pin to Profile"}
+                                                        </button>
+                                                        <button
                                                             onClick={() => handleDelete(project.id)}
                                                             disabled={isDeleting === project.id}
                                                             className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-50 text-red-600 transition-colors font-bold text-sm disabled:opacity-50"
                                                         >
-                                                            {isDeleting === project.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} 
+                                                            {isDeleting === project.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                                                             Remove Loadout
                                                         </button>
                                                     </motion.div>
@@ -503,13 +535,13 @@ export function PortfolioModule() {
                                     </div>
                                 )}
                             </div>
-                            
+
                             <div className="p-6 md:p-8 flex flex-col flex-1 bg-white">
                                 <h3 className="font-black text-2xl mb-3 uppercase tracking-tight leading-tight">{project.title}</h3>
                                 <p className="text-zinc-600 font-medium mb-8 flex-1 leading-relaxed line-clamp-3">
                                     {project.description}
                                 </p>
-                                
+
                                 <div className="flex flex-wrap gap-3 mt-auto pt-4 border-t-2 border-zinc-100">
                                     {project.github_url && (
                                         <a href={project.github_url} target="_blank" rel="noopener noreferrer" className="flex-1">
@@ -535,7 +567,6 @@ export function PortfolioModule() {
     );
 }
 
-// Helper SVG for placeholder
 function CodeBracketIcon() {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-700">

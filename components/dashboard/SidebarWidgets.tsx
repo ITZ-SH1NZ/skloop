@@ -10,6 +10,7 @@ import confetti from "canvas-confetti";
 import useSWR from "swr";
 import { fetchActivityChart, fetchTopLearners, fetchNextWorkshop } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
+import UserProfileModal from "@/components/profile/UserProfileModal";
 
 export function ActivityChart() {
     const { user } = useUser();
@@ -138,7 +139,7 @@ export function ActivityChart() {
 }
 
 export function LeaderboardWidget() {
-    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const router = useRouter();
 
     const { data: users = [] } = useSWR(
@@ -160,7 +161,7 @@ export function LeaderboardWidget() {
                             transition={{ delay: 0.2 + (i * 0.1) }}
                             className="flex items-center gap-3 group cursor-pointer"
                             whileHover={{ x: 5 }}
-                            onClick={() => setSelectedUser(u)}
+                            onClick={() => u.id && setSelectedUserId(u.id)}
                         >
                             <div className="relative">
                                 <img src={u.avatar} alt={u.name} className="w-10 h-10 rounded-xl bg-slate-100" />
@@ -186,40 +187,11 @@ export function LeaderboardWidget() {
                 </button>
             </div>
 
-            <Modal
-                isOpen={!!selectedUser}
-                onClose={() => setSelectedUser(null)}
-                title="Learner Profile"
-            >
-                {selectedUser && (
-                    <div className="flex flex-col items-center pb-6">
-                        <img src={selectedUser.avatar} alt={selectedUser.name} className="w-24 h-24 rounded-3xl bg-slate-100 mb-4 shadow-lg" />
-                        <h2 className="text-2xl font-black text-slate-900">{selectedUser.name}</h2>
-                        <p className="text-slate-500 font-medium mb-4">{selectedUser.title}</p>
-
-                        <div className="flex gap-2 mb-6">
-                            {selectedUser.badges.map((b: string, i: number) => (
-                                <span key={i} className="text-2xl bg-slate-50 p-2 rounded-xl">{b}</span>
-                            ))}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 w-full mb-6">
-                            <div className="bg-[#F0FDF4] p-4 rounded-2xl flex flex-col items-center">
-                                <span className="text-[#166534] text-xs font-bold uppercase">Total XP</span>
-                                <span className="text-[#166534] text-xl font-black">{selectedUser.xp.toLocaleString()}</span>
-                            </div>
-                            <div className="bg-slate-50 p-4 rounded-2xl flex flex-col items-center">
-                                <span className="text-slate-500 text-xs font-bold uppercase">Rank</span>
-                                <span className="text-slate-800 text-xl font-black">#{selectedUser.rank}</span>
-                            </div>
-                        </div>
-
-                        <button className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-2">
-                            View Full Profile <ExternalLink size={14} />
-                        </button>
-                    </div>
-                )}
-            </Modal>
+            <UserProfileModal
+                userId={selectedUserId}
+                isOpen={!!selectedUserId}
+                onClose={() => setSelectedUserId(null)}
+            />
         </>
     );
 }

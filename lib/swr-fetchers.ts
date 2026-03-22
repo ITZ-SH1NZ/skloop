@@ -731,12 +731,13 @@ export const fetchTopLearners = async ([key]: [string]) => {
     const supabase = createClient();
     const { data, error } = await supabase
         .from('profiles')
-        .select('username, full_name, xp, avatar_url')
+        .select('id, username, full_name, xp, avatar_url')
         .order('xp', { ascending: false })
         .limit(5);
 
     if (!data || error) return [];
     return data.map((u: any, i: number) => ({
+        id: u.id,
         name: u.full_name || u.username || `Pilot_${i + 1}`,
         xp: u.xp || 0,
         rank: i + 1,

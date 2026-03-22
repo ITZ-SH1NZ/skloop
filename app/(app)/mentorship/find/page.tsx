@@ -12,7 +12,7 @@ import { fetchFindMentorData } from "@/lib/swr-fetchers";
 import { useLoading } from "@/components/LoadingProvider";
 
 // Dynamically import heavy modals
-const UserProfileModal = dynamic(() => import("@/components/profile/UserProfileModal").then(m => m.UserProfileModal), {
+const UserProfileModal = dynamic(() => import("@/components/profile/UserProfileModal"), {
     ssr: false,
     loading: () => <div className="hidden" />
 });
@@ -194,11 +194,16 @@ function extractYouTubeId(url: string): string | null {
 
 export default function FindMentorPage() {
     const { isLoading: isGlobalLoading } = useLoading();
+    const [isMounted, setIsMounted] = useState(false);
     const [tab, setTab] = useState<"mentors" | "videos">("mentors");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSkill, setSelectedSkill] = useState("All");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const { data: mentorData, isLoading } = useSWR(
         ['findMentorData'],
@@ -380,7 +385,7 @@ export default function FindMentorPage() {
                     />
                 </div>
 
-                {isLoading ? (
+                {(!isMounted || isLoading) ? (
                     <div className="flex justify-center py-32"><Loader2 className="w-12 h-12 animate-spin text-[#D4F268]" /></div>
                 ) : (
                     <AnimatePresence mode="wait">

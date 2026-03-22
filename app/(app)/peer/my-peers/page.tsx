@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, UserPlus, Users, Inbox, Sparkles, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PeerCard, PeerProfile } from "@/components/peer/PeerCard";
-import { UserProfileModal } from "@/components/profile/UserProfileModal";
+import UserProfileModal from "@/components/profile/UserProfileModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/utils/supabase/client";
