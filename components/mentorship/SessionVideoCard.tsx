@@ -26,8 +26,8 @@ export const SessionVideoCard = memo(({
     const ytId = extractYouTubeId(session.videoUrl || "");
 
     return (
-        <div className="bg-white rounded-[2rem] border border-zinc-100 shadow-sm hover:shadow-2xl transition-all group flex flex-col overflow-hidden">
-            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-[2rem] group/embed">
+        <div className="bg-white rounded-3xl border border-zinc-100 shadow-sm hover:shadow-2xl transition-all group flex flex-col overflow-hidden">
+            <div className="aspect-video bg-zinc-900 relative overflow-hidden rounded-t-3xl group/embed">
                 {showEmbed && ytId ? (
                     <>
                         {/* Top overlay to block "Watch later", "Share", and Title links */}

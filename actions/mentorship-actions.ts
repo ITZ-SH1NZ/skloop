@@ -351,10 +351,11 @@ export async function publishMentorVideo(input: {
     videoUrl: string;
     thumbnailUrl?: string;
     premiereAt?: string;
-}) {
+    playlistId?: string;
+}): Promise<{ success: boolean; error?: string; sessionId?: string }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Unauthorized");
+    if (!user) return { success: false, error: "Unauthorized" };
 
     const { data: profile } = await supabase
         .from("profiles")
@@ -362,9 +363,9 @@ export async function publishMentorVideo(input: {
         .eq("id", user.id)
         .single();
 
-    if (!profile?.is_mentor) throw new Error("Only mentors can publish sessions");
+    if (!profile?.is_mentor) return { success: false, error: "Only mentors can publish sessions" };
 
-    const { error } = await supabase.from("mentor_sessions").insert({
+    const { data: session, error } = await supabase.from("mentor_sessions").insert({
         mentor_id: user.id,
         title: input.title,
         topic: input.topic,
@@ -374,11 +375,20 @@ export async function publishMentorVideo(input: {
         premiere_at: input.premiereAt || null,
         status: "published",
         is_public: true,
-    });
+    }).select("id").single();
 
-    if (error) throw new Error(error.message);
+    if (error || !session) return { success: false, error: error?.message ?? "Failed to publish" };
+
+    if (input.playlistId) {
+        await supabase.from("playlist_videos").insert({
+            playlist_id: input.playlistId,
+            session_id: session.id,
+        });
+    }
+
     revalidatePath("/mentorship/find");
     revalidatePath("/mentorship/dashboard");
+    return { success: true, sessionId: session.id };
 }
 
 export async function deleteMentorVideo(sessionId: string): Promise<{ success: boolean; error?: string }> {
@@ -1045,4 +1055,418 @@ function formatSession(s: any): MentorSession {
         isPublic: s.is_public,
         createdAt: s.created_at,
     };
+}
+
+// ─────────────────────────────────────────────
+// MENTOR PLAYLIST TYPES
+// ─────────────────────────────────────────────
+
+export interface MentorPlaylist {
+    id: string;
+    mentorId: string;
+    mentorName: string;
+    mentorAvatar?: string;
+    title: string;
+    description?: string;
+    thumbnailUrl?: string;
+    isCustomThumbnail: boolean;
+    isPublic: boolean;
+    videoCount: number;
+    createdAt: string;
+}
+
+export interface PlaylistVideo {
+    sessionId: string;
+    title: string;
+    thumbnailUrl?: string;
+    topic?: string;
+    viewCount: number;
+    avgRating: number | null;
+    reviewCount: number;
+    position: number;
+}
+
+export interface UserPlaylistProgress {
+    playlistId: string;
+    lastSessionId: string;
+    updatedAt: string;
+}
+
+export interface PlaylistWithVideos extends MentorPlaylist {
+    videos: PlaylistVideo[];
+    userProgress?: UserPlaylistProgress;
+}
+
+// ─────────────────────────────────────────────
+// MENTOR PLAYLIST ACTIONS
+// ─────────────────────────────────────────────
+
+export async function getPublicPlaylists(mentorId?: string): Promise<MentorPlaylist[]> {
+    const supabase = await createClient();
+
+    let query = supabase
+        .from("mentor_playlists")
+        .select(`
+            id,
+            mentor_id,
+            title,
+            description,
+            thumbnail_url,
+            is_public,
+            video_count,
+            created_at,
+            mentor:profiles!mentor_playlists_mentor_id_fkey (
+                full_name,
+                username,
+                avatar_url
+            )
+        `)
+        .eq("is_public", true)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+    if (mentorId) {
+        query = query.eq("mentor_id", mentorId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return [];
+
+    return data.map((p: any) => formatPlaylist(p));
+}
+
+export async function getMyPlaylists(): Promise<MentorPlaylist[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from("mentor_playlists")
+        .select(`
+            id,
+            mentor_id,
+            title,
+            description,
+            thumbnail_url,
+            is_public,
+            video_count,
+            created_at,
+            mentor:profiles!mentor_playlists_mentor_id_fkey (
+                full_name,
+                username,
+                avatar_url
+            )
+        `)
+        .eq("mentor_id", user.id)
+        .order("created_at", { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((p: any) => formatPlaylist(p));
+}
+
+export async function getPlaylistDetails(playlistId: string): Promise<PlaylistWithVideos | null> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: playlist, error: playlistError } = await supabase
+        .from("mentor_playlists")
+        .select(`
+            id,
+            mentor_id,
+            title,
+            description,
+            thumbnail_url,
+            is_public,
+            video_count,
+            created_at,
+            mentor:profiles!mentor_playlists_mentor_id_fkey (
+                full_name,
+                username,
+                avatar_url
+            )
+        `)
+        .eq("id", playlistId)
+        .single();
+
+    if (playlistError || !playlist) return null;
+
+    const { data: videoRows, error: videosError } = await supabase
+        .from("playlist_videos")
+        .select(`
+            position,
+            session:mentor_sessions!playlist_videos_session_id_fkey (
+                id,
+                title,
+                thumbnail_url,
+                topic,
+                view_count,
+                session_reviews (
+                    rating
+                )
+            )
+        `)
+        .eq("playlist_id", playlistId)
+        .order("position", { ascending: true });
+
+    if (videosError || !videoRows) {
+        return { ...formatPlaylist(playlist), videos: [] };
+    }
+
+    const videos: PlaylistVideo[] = videoRows.map((row: any) => {
+        const s = Array.isArray(row.session) ? row.session[0] : row.session;
+        const reviews: { rating: number }[] = s?.session_reviews ?? [];
+        const reviewCount = reviews.length;
+        const avgRating =
+            reviewCount > 0
+                ? reviews.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) / reviewCount
+                : null;
+
+        return {
+            sessionId: s?.id ?? "",
+            title: s?.title ?? "",
+            thumbnailUrl: s?.thumbnail_url ?? undefined,
+            topic: s?.topic ?? undefined,
+            viewCount: s?.view_count ?? 0,
+            avgRating,
+            reviewCount,
+            position: row.position,
+        };
+    });
+
+    // Fetch user progress if logged in
+    let userProgress: UserPlaylistProgress | undefined;
+    if (user) {
+        const { data: progress } = await supabase
+            .from("user_playlist_progress")
+            .select("playlist_id, last_session_id, updated_at")
+            .eq("user_id", user.id)
+            .eq("playlist_id", playlistId)
+            .maybeSingle();
+        if (progress) {
+            userProgress = {
+                playlistId: progress.playlist_id,
+                lastSessionId: progress.last_session_id,
+                updatedAt: progress.updated_at,
+            };
+        }
+    }
+
+    return { ...formatPlaylist(playlist), videos, userProgress };
+}
+
+export async function createPlaylist(input: {
+    title: string;
+    description?: string;
+    thumbnailUrl?: string;
+    isCustomThumbnail?: boolean;
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    if (!input.title || input.title.trim().length === 0) {
+        return { success: false, error: "Title is required" };
+    }
+
+    const { data, error } = await supabase
+        .from("mentor_playlists")
+        .insert({
+            mentor_id: user.id,
+            title: input.title.trim(),
+            description: input.description?.trim() ?? null,
+            thumbnail_url: input.thumbnailUrl ?? null,
+            is_custom_thumbnail: input.isCustomThumbnail ?? false,
+        })
+        .select("id")
+        .single();
+
+    if (error || !data) {
+        return { success: false, error: error?.message ?? "Failed to create playlist" };
+    }
+
+    revalidatePath("/mentorship");
+    return { success: true, id: data.id };
+}
+
+export async function deletePlaylist(playlistId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase
+        .from("mentor_playlists")
+        .delete()
+        .eq("id", playlistId)
+        .eq("mentor_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/mentorship");
+    return { success: true };
+}
+
+export async function updatePlaylist(
+    playlistId: string,
+    input: { title?: string; description?: string }
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const updates: Record<string, string> = {};
+    if (input.title !== undefined) updates.title = input.title.trim();
+    if (input.description !== undefined) updates.description = input.description.trim();
+
+    if (Object.keys(updates).length === 0) {
+        return { success: false, error: "No fields to update" };
+    }
+
+    const { error } = await supabase
+        .from("mentor_playlists")
+        .update(updates)
+        .eq("id", playlistId)
+        .eq("mentor_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/mentorship");
+    return { success: true };
+}
+
+export async function addVideoToPlaylist(
+    playlistId: string,
+    sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { data: playlist, error: ownerError } = await supabase
+        .from("mentor_playlists")
+        .select("id")
+        .eq("id", playlistId)
+        .eq("mentor_id", user.id)
+        .single();
+
+    if (ownerError || !playlist) {
+        return { success: false, error: "Playlist not found or access denied" };
+    }
+
+    const { data: maxRow } = await supabase
+        .from("playlist_videos")
+        .select("position")
+        .eq("playlist_id", playlistId)
+        .order("position", { ascending: false })
+        .limit(1)
+        .single();
+
+    const nextPosition = maxRow ? maxRow.position + 1 : 0;
+
+    const { error } = await supabase
+        .from("playlist_videos")
+        .insert({ playlist_id: playlistId, session_id: sessionId, position: nextPosition });
+
+    if (error) {
+        if (error.code === "23505") return { success: false, error: "Already in playlist" };
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath("/mentorship");
+    return { success: true };
+}
+
+export async function removeVideoFromPlaylist(
+    playlistId: string,
+    sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { data: playlist, error: ownerError } = await supabase
+        .from("mentor_playlists")
+        .select("id")
+        .eq("id", playlistId)
+        .eq("mentor_id", user.id)
+        .single();
+
+    if (ownerError || !playlist) {
+        return { success: false, error: "Playlist not found or access denied" };
+    }
+
+    const { error } = await supabase
+        .from("playlist_videos")
+        .delete()
+        .eq("playlist_id", playlistId)
+        .eq("session_id", sessionId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/mentorship");
+    return { success: true };
+}
+
+// ─────────────────────────────────────────────
+// PLAYLIST HELPERS
+// ─────────────────────────────────────────────
+
+function formatPlaylist(p: any): MentorPlaylist {
+    const mentor = Array.isArray(p.mentor) ? p.mentor[0] : p.mentor;
+    return {
+        id: p.id,
+        mentorId: p.mentor_id,
+        mentorName: mentor?.full_name || mentor?.username || "Mentor",
+        mentorAvatar: mentor?.avatar_url ?? undefined,
+        title: p.title,
+        description: p.description ?? undefined,
+        thumbnailUrl: p.thumbnail_url ?? undefined,
+        isCustomThumbnail: p.is_custom_thumbnail ?? false,
+        isPublic: p.is_public,
+        videoCount: p.video_count,
+        createdAt: p.created_at,
+    };
+}
+
+export async function trackPlaylistProgress(
+    playlistId: string,
+    sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const { error } = await supabase.from("user_playlist_progress").upsert({
+        user_id: user.id,
+        playlist_id: playlistId,
+        last_session_id: sessionId,
+        updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,playlist_id" });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
+export async function updatePlaylistThumbnail(
+    playlistId: string,
+    input: { thumbnailUrl?: string; isCustom?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not logged in" };
+
+    const updates: any = {};
+    if (input.thumbnailUrl !== undefined) updates.thumbnail_url = input.thumbnailUrl;
+    if (input.isCustom !== undefined) updates.is_custom_thumbnail = input.isCustom;
+
+    const { error } = await supabase
+        .from("mentor_playlists")
+        .update(updates)
+        .eq("id", playlistId)
+        .eq("mentor_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath("/mentorship");
+    return { success: true };
 }

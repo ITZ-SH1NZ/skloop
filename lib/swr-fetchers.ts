@@ -581,12 +581,13 @@ export const fetchMentorDashboardData = async ([key, userId]: [string, string]) 
 };
 
 export const fetchFindMentorData = async ([key]: [string]) => {
-    const { getMentors, getPublicSessions } = await import("@/actions/mentorship-actions");
-    const [mentors, videos] = await Promise.all([
+    const { getMentors, getPublicSessions, getPublicPlaylists } = await import("@/actions/mentorship-actions");
+    const [mentors, videos, playlists] = await Promise.all([
         getMentors(),
-        getPublicSessions()
+        getPublicSessions(),
+        getPublicPlaylists(),
     ]);
-    return { mentors, videos };
+    return { mentors, videos, playlists };
 };
 
 export const fetchMySessionsAsMentee = async ([key]: [string]) => {

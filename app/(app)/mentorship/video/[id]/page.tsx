@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowLeft, Star, ThumbsUp, ThumbsDown, Trash2, Send, Loader2, Eye, Calendar,
     MessageSquare, Play, Video as VideoIcon, CheckCircle, ChevronDown, Sparkles, Flag, X, Upload, Link,
+    AlertTriangle, Shield, Mail, Award, HelpCircle, AlertCircle,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -317,13 +318,25 @@ function CommentItem({
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
 const REPORT_REASONS = [
-    { value: "inappropriate_content", label: "Inappropriate Content" },
-    { value: "misinformation",        label: "Misinformation" },
-    { value: "harassment",            label: "Harassment" },
-    { value: "spam",                  label: "Spam" },
-    { value: "misleading_credentials", label: "Misleading Credentials" },
-    { value: "other",                 label: "Other" },
+    { value: "inappropriate_content",  label: "Inappropriate",    sub: "Offensive or explicit content" },
+    { value: "misinformation",         label: "Misinformation",   sub: "False or misleading information" },
+    { value: "harassment",             label: "Harassment",       sub: "Hostile or threatening behaviour" },
+    { value: "spam",                   label: "Spam",             sub: "Repetitive or promotional content" },
+    { value: "misleading_credentials", label: "Fake Credentials", sub: "Misrepresented qualifications" },
+    { value: "other",                  label: "Something Else",   sub: "Another issue not listed above" },
 ] as const;
+
+function ReasonIcon({ value, size = 18, className = "" }: { value: string; size?: number; className?: string }) {
+    const props = { size, className };
+    switch (value) {
+        case "inappropriate_content":  return <AlertCircle  {...props} />;
+        case "misinformation":         return <AlertTriangle {...props} />;
+        case "harassment":             return <Shield       {...props} />;
+        case "spam":                   return <Mail         {...props} />;
+        case "misleading_credentials": return <Award        {...props} />;
+        default:                       return <HelpCircle   {...props} />;
+    }
+}
 
 function ReportModal({
     sessionId, mentorId, mentorName,
@@ -332,6 +345,7 @@ function ReportModal({
     sessionId: string; mentorId: string; mentorName: string;
     isOpen: boolean; onClose: () => void;
 }) {
+    const [step, setStep] = useState<1 | 2>(1);
     const [reason, setReason] = useState("");
     const [description, setDescription] = useState("");
     const [evidenceMode, setEvidenceMode] = useState<"url" | "file">("url");
@@ -343,6 +357,8 @@ function ReportModal({
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const selectedReason = REPORT_REASONS.find(r => r.value === reason);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -357,7 +373,6 @@ function ReportModal({
     };
 
     const handleSubmit = async () => {
-        if (!reason) { setError("Please select a reason"); return; }
         if (description.length < 20) { setError("Description must be at least 20 characters"); return; }
         setIsSubmitting(true);
         setError("");
@@ -401,8 +416,9 @@ function ReportModal({
     };
 
     const resetAndClose = () => {
-        setReason(""); setDescription(""); setEvidenceUrl(""); setEvidenceFile(null);
-        setEvidencePreview(null); setError(""); setSuccess(false); setEvidenceMode("url");
+        setStep(1); setReason(""); setDescription(""); setEvidenceUrl("");
+        setEvidenceFile(null); setEvidencePreview(null); setError("");
+        setSuccess(false); setEvidenceMode("url");
         onClose();
     };
 
@@ -416,176 +432,283 @@ function ReportModal({
                     className="fixed inset-0 z-[60] flex items-center justify-center p-4"
                     onClick={e => { if (e.target === e.currentTarget) resetAndClose(); }}
                 >
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                        initial={{ opacity: 0, scale: 0.92, y: 24 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 16 }}
-                        transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
-                        className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-                        data-lenis-prevent
+                        exit={{ opacity: 0, scale: 0.92, y: 24 }}
+                        transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                        className="relative bg-[#FAFAFA] rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden"
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between px-7 pt-7 pb-5 border-b border-zinc-100">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-[12px] bg-red-50 border border-red-100 flex items-center justify-center">
-                                    <Flag size={18} className="text-red-500" />
+                        {/* ── Dark header bar ── */}
+                        <div className="bg-zinc-900 px-7 pt-7 pb-6">
+                            <div className="flex items-start justify-between mb-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-[#D4F268] flex items-center justify-center shadow-[0_4px_12px_rgba(212,242,104,0.4)]">
+                                        <Flag size={20} className="text-zinc-900" />
+                                    </div>
+                                    <div>
+                                        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest leading-none mb-1">
+                                            {success ? "Done!" : step === 1 ? "Step 1 of 2" : "Step 2 of 2"}
+                                        </p>
+                                        <h2 className="font-black text-white text-lg leading-tight">
+                                            {success ? "Report received!" : step === 1 ? "What's the issue?" : "Tell us more"}
+                                        </h2>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="font-black text-zinc-900 text-lg leading-none">Report Mentor</h2>
-                                    <p className="text-zinc-400 text-xs font-medium mt-0.5">{mentorName}</p>
-                                </div>
+                                <button onClick={resetAndClose}
+                                    className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors mt-0.5">
+                                    <X size={16} className="text-zinc-400" />
+                                </button>
                             </div>
-                            <button onClick={resetAndClose} className="w-9 h-9 rounded-xl hover:bg-zinc-100 flex items-center justify-center transition-colors">
-                                <X size={18} className="text-zinc-400" />
-                            </button>
+
+                            {/* Progress bar */}
+                            {!success && (
+                                <div className="flex gap-2">
+                                    {[1, 2].map(s => (
+                                        <motion.div key={s}
+                                            className="h-1.5 rounded-full overflow-hidden bg-white/10 flex-1"
+                                        >
+                                            <motion.div
+                                                className="h-full bg-[#D4F268] rounded-full"
+                                                initial={{ width: 0 }}
+                                                animate={{ width: step >= s ? "100%" : "0%" }}
+                                                transition={{ duration: 0.4, ease: "easeOut" }}
+                                            />
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
-                        <div className="px-7 py-6 space-y-5">
-                            {success ? (
-                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
-                                    <div className="w-16 h-16 rounded-full bg-[#D4F268]/20 border-2 border-[#D4F268] flex items-center justify-center mx-auto mb-4">
-                                        <CheckCircle size={30} className="text-[#5a6d1a] fill-[#D4F268]" />
-                                    </div>
-                                    <h3 className="font-black text-zinc-900 text-xl mb-2">Report Submitted</h3>
-                                    <p className="text-zinc-500 text-sm font-medium leading-relaxed mb-6">
-                                        Our team will review your report and take appropriate action. Thank you for helping keep Skloop safe.
-                                    </p>
-                                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                        onClick={resetAndClose}
-                                        className="bg-zinc-900 text-white px-8 py-2.5 rounded-xl font-black text-sm hover:bg-[#D4F268] hover:text-zinc-900 transition-all"
+                        {/* ── Content ── */}
+                        <div className="px-6 py-6 max-h-[60vh] overflow-y-auto" data-lenis-prevent>
+                            <AnimatePresence mode="wait">
+
+                                {/* SUCCESS */}
+                                {success && (
+                                    <motion.div key="success"
+                                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                                        className="text-center py-4"
                                     >
-                                        Done
-                                    </motion.button>
-                                </motion.div>
-                            ) : (
-                                <>
-                                    {/* Reason */}
-                                    <div>
-                                        <label className="block text-xs font-black text-zinc-700 uppercase tracking-widest mb-2">
-                                            Reason <span className="text-red-500">*</span>
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {REPORT_REASONS.map(r => (
-                                                <button key={r.value} type="button"
-                                                    onClick={() => setReason(r.value)}
-                                                    className={`px-3 py-2.5 rounded-xl text-xs font-bold text-left border-2 transition-all ${
-                                                        reason === r.value
-                                                            ? "border-red-400 bg-red-50 text-red-700"
-                                                            : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-100"
-                                                    }`}
-                                                >
-                                                    {r.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Description */}
-                                    <div>
-                                        <label className="block text-xs font-black text-zinc-700 uppercase tracking-widest mb-2">
-                                            Description <span className="text-red-500">*</span>
-                                        </label>
-                                        <textarea
-                                            value={description}
-                                            onChange={e => setDescription(e.target.value)}
-                                            placeholder="Describe what happened in detail. Minimum 20 characters..."
-                                            rows={4}
-                                            maxLength={2000}
-                                            data-lenis-prevent
-                                            className="w-full bg-zinc-50 border-2 border-zinc-200 focus:border-red-400 rounded-xl px-4 py-3 text-zinc-900 text-sm font-medium outline-none resize-none transition-colors placeholder:text-zinc-400"
-                                        />
-                                        <p className={`text-xs font-bold mt-1 ${description.length < 20 && description.length > 0 ? "text-red-400" : "text-zinc-400"}`}>
-                                            {description.length}/2000 {description.length < 20 && description.length > 0 ? `(${20 - description.length} more needed)` : ""}
+                                        <motion.div
+                                            initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                            transition={{ type: "spring", bounce: 0.6, delay: 0.1 }}
+                                            className="w-24 h-24 rounded-[2rem] bg-[#D4F268] flex items-center justify-center mx-auto mb-5 shadow-[0_8px_30px_rgba(212,242,104,0.35)]"
+                                        >
+                                            <CheckCircle size={44} className="text-zinc-900" />
+                                        </motion.div>
+                                        <h3 className="font-black text-zinc-900 text-2xl tracking-tight mb-2">We're on it.</h3>
+                                        <p className="text-zinc-500 text-sm font-medium leading-relaxed mb-7 max-w-xs mx-auto">
+                                            Our team will review your report carefully. Thanks for helping keep Skloop a great place to learn.
                                         </p>
-                                    </div>
+                                        <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                                            onClick={resetAndClose}
+                                            className="w-full h-14 rounded-2xl font-black text-sm bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-zinc-900 transition-all shadow-md"
+                                        >
+                                            Back to video
+                                        </motion.button>
+                                    </motion.div>
+                                )}
 
-                                    {/* Evidence */}
-                                    <div>
-                                        <label className="block text-xs font-black text-zinc-700 uppercase tracking-widest mb-2">
-                                            Evidence <span className="text-zinc-400 font-medium normal-case tracking-normal">(optional but recommended)</span>
-                                        </label>
-
-                                        {/* Mode toggle */}
-                                        <div className="flex gap-2 mb-3">
-                                            <button type="button" onClick={() => { setEvidenceMode("url"); setEvidenceFile(null); setEvidencePreview(null); }}
-                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                                    evidenceMode === "url"
-                                                        ? "border-zinc-400 bg-zinc-900 text-white"
-                                                        : "border-zinc-200 text-zinc-500 hover:border-zinc-300"
-                                                }`}>
-                                                <Link size={12} /> URL Link
-                                            </button>
-                                            <button type="button" onClick={() => { setEvidenceMode("file"); setEvidenceUrl(""); }}
-                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                                    evidenceMode === "file"
-                                                        ? "border-zinc-400 bg-zinc-900 text-white"
-                                                        : "border-zinc-200 text-zinc-500 hover:border-zinc-300"
-                                                }`}>
-                                                <Upload size={12} /> Upload Screenshot
-                                            </button>
-                                        </div>
-
-                                        {evidenceMode === "url" ? (
-                                            <input
-                                                type="url"
-                                                value={evidenceUrl}
-                                                onChange={e => setEvidenceUrl(e.target.value)}
-                                                placeholder="https://imgur.com/... or any screenshot URL"
-                                                className="w-full bg-zinc-50 border-2 border-zinc-200 focus:border-zinc-400 rounded-xl px-4 py-3 text-zinc-900 text-sm font-medium outline-none transition-colors placeholder:text-zinc-400"
-                                            />
-                                        ) : (
-                                            <div>
-                                                <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
-                                                {evidencePreview ? (
-                                                    <div className="relative rounded-xl overflow-hidden border-2 border-zinc-200">
-                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                        <img src={evidencePreview} alt="Evidence preview" className="w-full max-h-40 object-contain bg-zinc-50" />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setEvidenceFile(null); setEvidencePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                                                            className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 flex items-center justify-center shadow border border-zinc-200 hover:bg-red-50"
-                                                        >
-                                                            <X size={13} className="text-zinc-500" />
-                                                        </button>
-                                                        <div className="absolute bottom-0 left-0 right-0 bg-white/90 px-3 py-1.5">
-                                                            <p className="text-xs font-bold text-zinc-600 truncate">{evidenceFile?.name}</p>
-                                                        </div>
+                                {/* STEP 1 — Pick a reason */}
+                                {!success && step === 1 && (
+                                    <motion.div key="step1"
+                                        initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -30 }}
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                                        className="space-y-2.5"
+                                    >
+                                        <p className="text-zinc-500 text-xs font-bold mb-4">
+                                            Reporting <span className="text-zinc-800 font-black">{mentorName}</span>. Pick what best describes the problem:
+                                        </p>
+                                        {REPORT_REASONS.map((r, i) => (
+                                            <motion.button key={r.value} type="button"
+                                                initial={{ opacity: 0, y: 8 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: i * 0.04 }}
+                                                whileHover={{ scale: 1.02, x: 3 }}
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => { setReason(r.value); setError(""); }}
+                                                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 transition-all text-left ${
+                                                    reason === r.value
+                                                        ? "border-[#D4F268] bg-[#D4F268]/15 shadow-[0_0_0_1px_rgba(212,242,104,0.4)]"
+                                                        : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
+                                                }`}
+                                            >
+                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${reason === r.value ? "bg-zinc-900" : "bg-zinc-100"}`}>
+                                                    <ReasonIcon value={r.value} size={16} className={reason === r.value ? "text-[#D4F268]" : "text-zinc-500"} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`font-black text-sm ${reason === r.value ? "text-zinc-900" : "text-zinc-700"}`}>
+                                                        {r.label}
                                                     </div>
-                                                ) : (
-                                                    <motion.button type="button" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-                                                        onClick={() => fileInputRef.current?.click()}
-                                                        className="w-full border-2 border-dashed border-zinc-300 hover:border-zinc-400 rounded-xl py-8 flex flex-col items-center gap-2 transition-colors group"
+                                                    <div className="text-zinc-400 text-xs font-medium truncate">{r.sub}</div>
+                                                </div>
+                                                {reason === r.value && (
+                                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                                        transition={{ type: "spring", bounce: 0.5 }}
+                                                        className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center shrink-0"
                                                     >
-                                                        <Upload size={22} className="text-zinc-300 group-hover:text-zinc-400 transition-colors" />
-                                                        <span className="text-xs font-bold text-zinc-400 group-hover:text-zinc-500">Click to upload a screenshot</span>
-                                                        <span className="text-[10px] text-zinc-300 font-medium">PNG, JPG, GIF, PDF · max 10 MB</span>
-                                                    </motion.button>
+                                                        <CheckCircle size={14} className="text-[#D4F268] fill-[#D4F268]" />
+                                                    </motion.div>
+                                                )}
+                                            </motion.button>
+                                        ))}
+
+                                        <motion.button
+                                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                                            onClick={() => { if (!reason) { setError("Pick a reason first"); return; } setError(""); setStep(2); }}
+                                            disabled={!reason}
+                                            className="w-full h-14 mt-2 rounded-2xl font-black text-sm bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-zinc-900 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
+                                        >
+                                            Continue →
+                                        </motion.button>
+                                        {error && <p className="text-red-500 text-xs font-bold text-center">{error}</p>}
+                                    </motion.div>
+                                )}
+
+                                {/* STEP 2 — Details + evidence */}
+                                {!success && step === 2 && (
+                                    <motion.div key="step2"
+                                        initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -30 }}
+                                        transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                                        className="space-y-5"
+                                    >
+                                        {/* Selected reason pill */}
+                                        {selectedReason && (
+                                            <button type="button" onClick={() => setStep(1)}
+                                                className="flex items-center gap-2.5 bg-zinc-900 text-white pl-3 pr-4 py-2 rounded-2xl text-xs font-black hover:bg-zinc-800 transition-colors group"
+                                            >
+                                                <ReasonIcon value={selectedReason.value} size={13} className="text-[#D4F268]" />
+                                                {selectedReason.label}
+                                                <span className="text-zinc-500 group-hover:text-zinc-400 ml-0.5">← change</span>
+                                            </button>
+                                        )}
+
+                                        {/* Description */}
+                                        <div>
+                                            <label className="block text-xs font-black text-zinc-800 uppercase tracking-widest mb-2">
+                                                What happened? <span className="text-[#5a6d1a]">*</span>
+                                            </label>
+                                            <textarea
+                                                value={description}
+                                                onChange={e => { setDescription(e.target.value); setError(""); }}
+                                                placeholder="Give us enough detail so we can investigate. Screenshots or timestamps help a lot."
+                                                rows={4}
+                                                maxLength={2000}
+                                                data-lenis-prevent
+                                                className="w-full bg-white border-2 border-zinc-200 focus:border-[#D4F268] rounded-2xl px-4 py-3.5 text-zinc-900 text-sm font-medium outline-none resize-none transition-colors placeholder:text-zinc-300 shadow-sm"
+                                            />
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <p className={`text-xs font-bold ${description.length < 20 && description.length > 0 ? "text-amber-500" : "text-zinc-400"}`}>
+                                                    {description.length < 20 && description.length > 0
+                                                        ? `${20 - description.length} more characters needed`
+                                                        : `${description.length} / 2000`}
+                                                </p>
+                                                {description.length >= 20 && (
+                                                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                                        className="text-[#5a6d1a] text-xs font-black flex items-center gap-1">
+                                                        <CheckCircle size={12} className="text-[#D4F268] fill-[#D4F268]" /> Looks good
+                                                    </motion.span>
                                                 )}
                                             </div>
+                                        </div>
+
+                                        {/* Evidence */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <label className="text-xs font-black text-zinc-800 uppercase tracking-widest">
+                                                    Proof
+                                                </label>
+                                                <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 px-2.5 py-1 rounded-full">
+                                                    optional but helpful
+                                                </span>
+                                            </div>
+
+                                            {/* Mode toggle pill */}
+                                            <div className="flex bg-zinc-100 p-1 rounded-xl mb-3 gap-1">
+                                                {(["url", "file"] as const).map(mode => (
+                                                    <button key={mode} type="button"
+                                                        onClick={() => {
+                                                            setEvidenceMode(mode);
+                                                            if (mode === "url") { setEvidenceFile(null); setEvidencePreview(null); }
+                                                            else setEvidenceUrl("");
+                                                        }}
+                                                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${
+                                                            evidenceMode === mode
+                                                                ? "bg-zinc-900 text-white shadow-sm"
+                                                                : "text-zinc-500 hover:text-zinc-700"
+                                                        }`}
+                                                    >
+                                                        {mode === "url" ? <><Link size={11} /> URL</> : <><Upload size={11} /> Screenshot</>}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {evidenceMode === "url" ? (
+                                                <input type="url" value={evidenceUrl}
+                                                    onChange={e => setEvidenceUrl(e.target.value)}
+                                                    placeholder="https://imgur.com/..."
+                                                    className="w-full bg-white border-2 border-zinc-200 focus:border-[#D4F268] rounded-2xl px-4 py-3 text-zinc-900 text-sm font-medium outline-none transition-colors placeholder:text-zinc-300 shadow-sm"
+                                                />
+                                            ) : (
+                                                <>
+                                                    <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+                                                    {evidencePreview ? (
+                                                        <div className="relative rounded-2xl overflow-hidden border-2 border-[#D4F268] bg-white">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img src={evidencePreview} alt="Evidence preview" className="w-full max-h-36 object-contain bg-zinc-50" />
+                                                            <div className="flex items-center justify-between px-3 py-2 bg-white border-t border-zinc-100">
+                                                                <p className="text-xs font-bold text-zinc-600 truncate flex-1 mr-2">{evidenceFile?.name}</p>
+                                                                <button type="button"
+                                                                    onClick={() => { setEvidenceFile(null); setEvidencePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                                                                    className="shrink-0 w-6 h-6 rounded-lg bg-zinc-100 hover:bg-red-100 flex items-center justify-center transition-colors">
+                                                                    <X size={11} className="text-zinc-500" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <motion.button type="button" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            className="w-full border-2 border-dashed border-zinc-300 hover:border-[#D4F268] bg-white hover:bg-[#D4F268]/5 rounded-2xl py-7 flex flex-col items-center gap-2 transition-all group"
+                                                        >
+                                                            <div className="w-10 h-10 rounded-xl bg-zinc-100 group-hover:bg-[#D4F268]/20 flex items-center justify-center transition-colors">
+                                                                <Upload size={18} className="text-zinc-400 group-hover:text-[#5a6d1a]" />
+                                                            </div>
+                                                            <span className="text-sm font-black text-zinc-500 group-hover:text-zinc-700">Drop a screenshot here</span>
+                                                            <span className="text-[10px] text-zinc-400 font-medium">PNG · JPG · GIF · PDF — max 10 MB</span>
+                                                        </motion.button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {error && (
+                                            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                                                className="text-amber-700 text-xs font-bold bg-amber-50 border-2 border-amber-200 rounded-xl px-4 py-3">
+                                                {error}
+                                            </motion.p>
                                         )}
-                                    </div>
 
-                                    {error && (
-                                        <p className="text-red-500 text-xs font-bold bg-red-50 border border-red-100 rounded-xl px-4 py-3">{error}</p>
-                                    )}
-
-                                    <div className="flex gap-3 pt-1">
-                                        <button onClick={resetAndClose}
-                                            className="flex-1 h-12 rounded-xl font-bold text-sm text-zinc-500 hover:bg-zinc-100 transition-colors border-2 border-zinc-200">
-                                            Cancel
-                                        </button>
-                                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                            onClick={handleSubmit}
-                                            disabled={!reason || description.length < 20 || isSubmitting}
-                                            className="flex-1 h-12 rounded-xl font-black text-sm bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
-                                        >
-                                            {(isSubmitting || uploading) && <Loader2 size={15} className="animate-spin" />}
-                                            {uploading ? "Uploading..." : isSubmitting ? "Submitting..." : "Submit Report"}
-                                        </motion.button>
-                                    </div>
-                                </>
-                            )}
+                                        <div className="flex gap-3">
+                                            <button onClick={() => { setStep(1); setError(""); }}
+                                                className="h-14 px-5 rounded-2xl font-black text-sm text-zinc-500 hover:bg-zinc-200 bg-zinc-100 transition-colors">
+                                                ←
+                                            </button>
+                                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                                                onClick={handleSubmit}
+                                                disabled={description.length < 20 || isSubmitting}
+                                                className="flex-1 h-14 rounded-2xl font-black text-sm bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-zinc-900 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+                                            >
+                                                {(isSubmitting || uploading) && <Loader2 size={15} className="animate-spin" />}
+                                                {uploading ? "Uploading..." : isSubmitting ? "Submitting..." : "Submit report"}
+                                            </motion.button>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </motion.div>
                 </motion.div>

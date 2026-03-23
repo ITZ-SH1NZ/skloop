@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { Lock, Plus, XCircle, CheckCircle, Clock, Calendar, Video, Star, Users, Zap, Award, Copy, Info, Settings, Trash2, Link as LinkIcon, Loader2, ArrowRight, Play, Coins } from "lucide-react";
+import { Lock, Plus, XCircle, CheckCircle, Clock, Calendar, Video, Star, Users, Zap, Award, Copy, Info, Settings, Trash2, Link as LinkIcon, Loader2, ArrowRight, Play, Coins, ListVideo, FolderPlus, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { CurrencyCoin } from "@/components/ui/CurrencyCoin";
@@ -15,8 +15,17 @@ import {
     deleteMentorVideo,
     generateVouchCode,
     getMyVouchCodes,
+    getMyPlaylists,
+    getPlaylistDetails,
+    createPlaylist,
+    deletePlaylist,
+    addVideoToPlaylist,
+    removeVideoFromPlaylist,
+    updatePlaylistThumbnail,
     type MentorSession,
-    type VouchCode
+    type VouchCode,
+    type MentorPlaylist,
+    type PlaylistWithVideos,
 } from "@/actions/mentorship-actions";
 import { useUser } from "@/context/UserContext";
 import { MentorSettingsModal } from "@/components/mentorship/MentorSettingsModal";
@@ -59,10 +68,113 @@ export default function MentorDashboardPage() {
     const [copying, setCopying] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+    // Playlist state
+    const [myPlaylists, setMyPlaylists] = useState<MentorPlaylist[]>([]);
+    const [playlistActionLoading, setPlaylistActionLoading] = useState<string | null>(null);
+    const [editingThumbnailId, setEditingThumbnailId] = useState<string | null>(null);
+    const [newThumbnailUrl, setNewThumbnailUrl] = useState("");
+    const [newVideoPlaylistId, setNewVideoPlaylistId] = useState<string>(""); // "" = none, "new" = create inline
+    const [inlinePlaylistTitle, setInlinePlaylistTitle] = useState("");
+    const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+    const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+    const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+    const [playlistDropdownOpen, setPlaylistDropdownOpen] = useState(false);
+    // For managing which playlist videos are expanded
+    const [expandedPlaylist, setExpandedPlaylist] = useState<string | null>(null);
+    const [playlistDetails, setPlaylistDetails] = useState<Record<string, PlaylistWithVideos>>({});
+    const [newPlaylistThumbnailUrl, setNewPlaylistThumbnailUrl] = useState("");
+    const [inlinePlaylistThumbnailUrl, setInlinePlaylistThumbnailUrl] = useState("");
+    // Which video card has its playlist picker open
+    const [openPlaylistPickerFor, setOpenPlaylistPickerFor] = useState<string | null>(null); // session_id
+
     // Prevent hydration mismatch — SWR isLoading is false on server, true initially on client
     useEffect(() => { setIsMounted(true); }, []);
 
     const loadData = async (uid?: string) => { mutate(); };
+
+    const loadPlaylists = async () => {
+        const p = await getMyPlaylists();
+        setMyPlaylists(p);
+    };
+
+    useEffect(() => {
+        if (status?.isMentor) loadPlaylists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status?.isMentor]);
+
+    const handleCreatePlaylist = async () => {
+        if (!newPlaylistTitle.trim()) return;
+        setPlaylistActionLoading("create");
+        try {
+            await createPlaylist({ 
+                title: newPlaylistTitle.trim(), 
+                description: newPlaylistDesc.trim() || undefined,
+                thumbnailUrl: newPlaylistThumbnailUrl.trim() || undefined,
+                isCustomThumbnail: !!newPlaylistThumbnailUrl.trim()
+            });
+            setNewPlaylistTitle(""); setNewPlaylistDesc(""); setNewPlaylistThumbnailUrl(""); setIsCreatingPlaylist(false);
+            await loadPlaylists();
+        } finally { setPlaylistActionLoading(null); }
+    };
+
+    const handleDeletePlaylist = async (playlistId: string) => {
+        setPlaylistActionLoading(playlistId);
+        try {
+            await deletePlaylist(playlistId);
+            setExpandedPlaylist(prev => prev === playlistId ? null : prev);
+            await loadPlaylists();
+        } finally { setPlaylistActionLoading(null); }
+    };
+
+    const handleAddToPlaylist = async (playlistId: string, sessionId: string) => {
+        setPlaylistActionLoading(`add-${playlistId}-${sessionId}`);
+        try {
+            await addVideoToPlaylist(playlistId, sessionId);
+            setOpenPlaylistPickerFor(null);
+            // Re-fetch counts
+            await loadPlaylists();
+            // Invalidate specific playlist details if loaded
+            if (playlistDetails[playlistId]) {
+                const refreshed = await getPlaylistDetails(playlistId);
+                if (refreshed) {
+                    setPlaylistDetails(prev => ({ ...prev, [playlistId]: refreshed }));
+                }
+            }
+        } finally { setPlaylistActionLoading(null); }
+    };
+
+    const handleRemoveFromPlaylist = async (playlistId: string, sessionId: string) => {
+        setPlaylistActionLoading(`remove-${playlistId}-${sessionId}`);
+        try {
+            await removeVideoFromPlaylist(playlistId, sessionId);
+            // Re-fetch counts
+            await loadPlaylists();
+            // Update specific playlist details
+            if (playlistDetails[playlistId]) {
+                const refreshed = await getPlaylistDetails(playlistId);
+                if (refreshed) {
+                    setPlaylistDetails(prev => ({ ...prev, [playlistId]: refreshed }));
+                }
+            }
+        } finally { setPlaylistActionLoading(null); }
+    };
+
+    const handleUpdateThumbnail = async (playlistId: string, url: string, isCustom: boolean) => {
+        setPlaylistActionLoading(`thumb-${playlistId}`);
+        try {
+            const res = await updatePlaylistThumbnail(playlistId, { thumbnailUrl: url, isCustom });
+            if (res.success) {
+                setEditingThumbnailId(null);
+                setNewThumbnailUrl("");
+                await loadPlaylists();
+                // Update details if open
+                if (playlistDetails[playlistId]) {
+                    const refreshed = await getPlaylistDetails(playlistId);
+                    if (refreshed) setPlaylistDetails(prev => ({ ...prev, [playlistId]: refreshed }));
+                }
+            }
+        } finally { setPlaylistActionLoading(null); }
+    };
 
     const handleAction = async (id: string, action: "accept" | "decline" | "complete" | "delete") => {
         setActionLoading(id);
@@ -86,6 +198,24 @@ export default function MentorDashboardPage() {
             }
         }
 
+        // Resolve playlist: create new one inline if needed
+        let resolvedPlaylistId: string | undefined;
+        if (newVideoPlaylistId === "new" && inlinePlaylistTitle.trim()) {
+            const r = await createPlaylist({ 
+                title: inlinePlaylistTitle.trim(),
+                thumbnailUrl: inlinePlaylistThumbnailUrl.trim() || undefined,
+                isCustomThumbnail: !!inlinePlaylistThumbnailUrl.trim()
+            });
+            if (r.success && r.id) { 
+                resolvedPlaylistId = r.id; 
+                setInlinePlaylistTitle("");
+                setInlinePlaylistThumbnailUrl("");
+                await loadPlaylists(); 
+            }
+        } else if (newVideoPlaylistId && newVideoPlaylistId !== "new") {
+            resolvedPlaylistId = newVideoPlaylistId;
+        }
+
         setActionLoading("publish");
         try {
             await publishMentorVideo({
@@ -94,10 +224,13 @@ export default function MentorDashboardPage() {
                 description: newVideo.description,
                 videoUrl: newVideo.url,
                 thumbnailUrl: finalThumbnail,
-                premiereAt: newVideo.premiereAt
+                premiereAt: newVideo.premiereAt,
+                playlistId: resolvedPlaylistId,
             });
             setIsAddingVideo(false);
             setNewVideo({ title: "", topic: "", description: "", url: "", thumbnail: "", premiereAt: "" });
+            setNewVideoPlaylistId(""); setInlinePlaylistTitle("");
+            await loadPlaylists();
             await loadData();
         } catch { }
         setActionLoading(null);
@@ -283,7 +416,90 @@ export default function MentorDashboardPage() {
                                         </div>
                                         <textarea placeholder="Description..." value={newVideo.description} onChange={e => setNewVideo({ ...newVideo, description: e.target.value })}
                                             className="w-full bg-white border-2 border-zinc-200 rounded-2xl p-5 h-32 text-sm font-bold resize-none outline-none focus:border-[#D4F268] focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm" />
-                                        
+
+                                        {/* Playlist Selector */}
+                                        <div className="space-y-3">
+                                            <div className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Add to Playlist (Optional)</div>
+                                            <div className="relative">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPlaylistDropdownOpen(p => !p)}
+                                                    className="w-full bg-white border-2 border-zinc-200 rounded-2xl px-5 h-14 text-sm font-bold outline-none flex items-center justify-between focus:border-[#D4F268] focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm"
+                                                >
+                                                    <span className={newVideoPlaylistId ? "text-zinc-900" : "text-zinc-400"}>
+                                                        {newVideoPlaylistId === "new"
+                                                            ? "Create New Playlist"
+                                                            : myPlaylists.find(p => p.id === newVideoPlaylistId)?.title || "No Playlist"}
+                                                    </span>
+                                                    <ChevronDown size={16} className={`text-zinc-400 transition-transform ${playlistDropdownOpen ? "rotate-180" : ""}`} />
+                                                </button>
+                                                <AnimatePresence>
+                                                    {playlistDropdownOpen && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                                                            transition={{ duration: 0.15 }}
+                                                             className="absolute z-30 left-0 right-0 mt-2 bg-white border-2 border-zinc-200 rounded-xl shadow-xl overflow-hidden"
+                                                        >
+                                                            <div className="max-h-60 overflow-y-auto custom-scrollbar" data-lenis-prevent>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => { setNewVideoPlaylistId(""); setPlaylistDropdownOpen(false); }}
+                                                                    className="w-full text-left px-5 py-3 text-sm font-bold text-zinc-400 hover:bg-zinc-50 transition-colors"
+                                                                >
+                                                                    No Playlist
+                                                                </button>
+                                                                {myPlaylists.map(p => (
+                                                                    <button
+                                                                        key={p.id}
+                                                                        type="button"
+                                                                        onClick={() => { setNewVideoPlaylistId(p.id); setPlaylistDropdownOpen(false); }}
+                                                                        className="w-full text-left px-5 py-3 text-sm font-bold text-zinc-800 hover:bg-[#D4F268]/10 transition-colors flex items-center justify-between gap-3 border-b border-zinc-50 last:border-0"
+                                                                    >
+                                                                        <span className="flex items-center gap-2"><ListVideo size={14} className="text-zinc-400" />{p.title}</span>
+                                                                        <span className="text-[10px] text-zinc-400 font-bold shrink-0">{p.videoCount}v</span>
+                                                                    </button>
+                                                                ))}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => { setNewVideoPlaylistId("new"); setPlaylistDropdownOpen(false); }}
+                                                                    className="w-full text-left px-5 py-3 text-sm font-black text-[#5a6d1a] hover:bg-[#D4F268]/10 transition-colors flex items-center gap-2 border-t-2 border-zinc-100"
+                                                                >
+                                                                    <FolderPlus size={14} /> Create New Playlist
+                                                                </button>
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                            <AnimatePresence>
+                                                {newVideoPlaylistId === "new" && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="space-y-3 mt-1">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="New playlist name*"
+                                                                value={inlinePlaylistTitle}
+                                                                onChange={e => setInlinePlaylistTitle(e.target.value)}
+                                                                className="w-full bg-white border-2 border-[#D4F268] rounded-2xl px-5 h-12 text-sm font-bold outline-none focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Thumbnail URL (Optional)"
+                                                                value={inlinePlaylistThumbnailUrl}
+                                                                onChange={e => setInlinePlaylistThumbnailUrl(e.target.value)}
+                                                                className="w-full bg-white border-2 border-zinc-100 rounded-2xl px-5 h-12 text-sm font-bold outline-none focus:border-[#D4F268] transition-all"
+                                                            />
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
+
                                         {/* Live Preview Section */}
                                         {(newVideo.title || newVideo.url) && (
                                             <div className="pt-4 border-t-2 border-zinc-200">
@@ -321,7 +537,204 @@ export default function MentorDashboardPage() {
                         ) : (
                             <div className="flex overflow-x-auto gap-6 pb-6 pt-2 px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-2 snap-x relative z-10">
                                 {sessions?.published.map((rec: any) => (
-                                    <VideoItemCard key={rec.id} rec={rec} onAction={handleAction} actionLoading={actionLoading} />
+                                    <VideoItemCard
+                                        key={rec.id}
+                                        rec={rec}
+                                        onAction={handleAction}
+                                        actionLoading={actionLoading}
+                                        playlists={myPlaylists}
+                                        playlistActionLoading={playlistActionLoading}
+                                        onAddToPlaylist={handleAddToPlaylist}
+                                        pickerOpen={openPlaylistPickerFor === rec.id}
+                                        onTogglePicker={(id: string) => setOpenPlaylistPickerFor(prev => prev === id ? null : id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+
+                    {/* My Playlists Section */}
+                    <motion.div variants={itemVariants} className="bg-white rounded-[3rem] p-8 md:p-10 border-2 border-zinc-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group">
+                        <div className="absolute top-[-50px] right-[-50px] w-48 h-48 bg-[#D4F268]/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 relative z-10">
+                            <div>
+                                <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">My Playlists</h2>
+                                <p className="text-zinc-500 font-medium text-sm mt-1">Group your videos into curated series for mentees.</p>
+                            </div>
+                            <motion.button
+                                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                onClick={() => setIsCreatingPlaylist(p => !p)}
+                                className="bg-zinc-900 text-white hover:bg-[#D4F268] hover:text-zinc-900 px-6 h-12 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center transition-colors shadow-lg shrink-0"
+                            >
+                                {isCreatingPlaylist ? <><X size={15} className="mr-2" /> Cancel</> : <><FolderPlus size={15} className="mr-2" /> New Playlist</>}
+                            </motion.button>
+                        </div>
+
+                        <AnimatePresence>
+                            {isCreatingPlaylist && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-8 relative z-10">
+                                    <div className="bg-zinc-50 border-2 border-zinc-200 p-6 rounded-[2rem] space-y-4">
+                                        <input
+                                            type="text" placeholder="Playlist Name*"
+                                            value={newPlaylistTitle} onChange={e => setNewPlaylistTitle(e.target.value)}
+                                            className="w-full bg-white border-2 border-zinc-200 rounded-2xl px-5 h-12 text-sm font-bold outline-none focus:border-[#D4F268] focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm"
+                                        />
+                                        <input
+                                            type="text" placeholder="Description (optional)"
+                                            value={newPlaylistDesc} onChange={e => setNewPlaylistDesc(e.target.value)}
+                                            className="w-full bg-white border-2 border-zinc-200 rounded-2xl px-5 h-12 text-sm font-bold outline-none focus:border-[#D4F268] focus:ring-4 focus:ring-[#D4F268]/20 transition-all shadow-sm"
+                                        />
+                                        <button
+                                            onClick={handleCreatePlaylist}
+                                            disabled={!newPlaylistTitle.trim() || playlistActionLoading === "create"}
+                                            className="h-12 px-8 rounded-2xl bg-[#D4F268] text-zinc-900 font-black uppercase tracking-widest text-xs shadow-lg hover:bg-[#c4ec3e] disabled:opacity-50 transition-all flex items-center gap-2"
+                                        >
+                                            {playlistActionLoading === "create" ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle size={14} /> Create Playlist</>}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {myPlaylists.length === 0 ? (
+                            <div className="bg-zinc-50 border-2 border-zinc-200 border-dashed rounded-[2rem] py-14 flex flex-col items-center justify-center text-center relative z-10">
+                                <ListVideo className="text-zinc-300 w-14 h-14 mb-4" />
+                                <h3 className="text-lg font-black text-zinc-900 mb-1">No playlists yet</h3>
+                                <p className="text-zinc-500 font-medium text-sm">Create a playlist and add your videos to it.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4 relative z-10">
+                                {myPlaylists.map(playlist => (
+                                    <div key={playlist.id} className="border-2 border-zinc-100 rounded-[2rem] overflow-hidden">
+                                        {/* Playlist header row */}
+                                        <div className="flex items-center gap-4 p-5 bg-white hover:bg-zinc-50 transition-colors">
+                                            <div className="w-12 h-12 rounded-2xl bg-[#D4F268]/20 border-2 border-[#D4F268]/40 flex items-center justify-center shrink-0">
+                                                <ListVideo size={18} className="text-[#5a6d1a]" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-black text-zinc-900 text-base leading-tight truncate">{playlist.title}</div>
+                                                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">{playlist.videoCount} video{playlist.videoCount !== 1 ? "s" : ""}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                                    onClick={async () => {
+                                                        if (expandedPlaylist === playlist.id) { setExpandedPlaylist(null); return; }
+                                                        setExpandedPlaylist(playlist.id);
+                                                        if (!playlistDetails[playlist.id]) {
+                                                            const d = await getPlaylistDetails(playlist.id);
+                                                            if (d) setPlaylistDetails(prev => ({ ...prev, [playlist.id]: d }));
+                                                        }
+                                                    }}
+                                                    className="h-9 px-4 rounded-xl text-xs font-black bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors flex items-center gap-1.5"
+                                                >
+                                                    <ChevronDown size={13} className={`transition-transform ${expandedPlaylist === playlist.id ? "rotate-180" : ""}`} />
+                                                    {expandedPlaylist === playlist.id ? "Hide" : "Manage"}
+                                                </motion.button>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                                    onClick={() => handleDeletePlaylist(playlist.id)}
+                                                    disabled={playlistActionLoading === playlist.id}
+                                                    className="h-9 w-9 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-red-100 hover:text-red-600 transition-colors flex items-center justify-center"
+                                                >
+                                                    {playlistActionLoading === playlist.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                                </motion.button>
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded video list */}
+                                        <AnimatePresence>
+                                            {expandedPlaylist === playlist.id && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                                    className="overflow-hidden border-t-2 border-zinc-100"
+                                                >
+                                                    {!playlistDetails[playlist.id] ? (
+                                                        <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[#D4F268]" /></div>
+                                                    ) : playlistDetails[playlist.id].videos.length === 0 ? (
+                                                        <div className="py-8 text-center text-zinc-400 text-sm font-medium">No videos in this playlist</div>
+                                                    ) : (
+                                                        <div className="divide-y divide-zinc-100">
+                                                            <div className="p-5 flex flex-col gap-4">
+                                                                <div className="flex items-center gap-4 flex-wrap">
+                                                                    <div className="bg-zinc-100/80 rounded-xl px-3.5 py-1.5 flex items-center gap-2 border border-zinc-200/50">
+                                                                        <ListVideo size={14} className="text-zinc-500" />
+                                                                        <span className="text-xs font-black text-zinc-900">{playlist.videoCount} Videos</span>
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setEditingThumbnailId(editingThumbnailId === playlist.id ? null : playlist.id);
+                                                                            setNewThumbnailUrl(playlist.thumbnailUrl || "");
+                                                                        }}
+                                                                        className="text-[10px] font-black uppercase tracking-widest text-[#5a6d1a] hover:underline"
+                                                                    >
+                                                                        {playlist.isCustomThumbnail ? "Edit Custom Thumbnail" : "Set Custom Thumbnail"}
+                                                                    </button>
+                                                                    {playlist.isCustomThumbnail && (
+                                                                        <button 
+                                                                            onClick={() => handleUpdateThumbnail(playlist.id, "", false)}
+                                                                            className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-red-500"
+                                                                        >
+                                                                            Reset to Auto
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+
+                                                                {editingThumbnailId === playlist.id && (
+                                                                    <div className="mt-4 p-4 bg-zinc-50 rounded-2xl border-2 border-dashed border-zinc-200 space-y-3">
+                                                                        <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Playlist Thumbnail URL</div>
+                                                                        <div className="flex gap-2">
+                                                                            <input 
+                                                                                type="text" 
+                                                                                value={newThumbnailUrl}
+                                                                                onChange={e => setNewThumbnailUrl(e.target.value)}
+                                                                                placeholder="https://images.unsplash.com/..."
+                                                                                className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:border-[#D4F268]"
+                                                                            />
+                                                                            <Button 
+                                                                                size="sm"
+                                                                                onClick={() => handleUpdateThumbnail(playlist.id, newThumbnailUrl, true)}
+                                                                                disabled={playlistActionLoading === `thumb-${playlist.id}`}
+                                                                                className="bg-zinc-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest px-4"
+                                                                            >
+                                                                                {playlistActionLoading === `thumb-${playlist.id}` ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+                                                                            </Button>
+                                                                        </div>
+                                                                        <div className="text-[9px] text-zinc-400 font-medium">Or select from your latest video thumbnail automatically.</div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {playlistDetails[playlist.id].videos.map((v, i) => (
+                                                                <div key={v.sessionId} className="flex items-center gap-3 px-5 py-3 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
+                                                                    <span className="text-xs font-black text-zinc-300 w-5 text-center shrink-0">{i + 1}</span>
+                                                                    <div className="w-16 aspect-video bg-zinc-100 rounded-xl overflow-hidden shrink-0">
+                                                                        {v.thumbnailUrl
+                                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                                            ? <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+                                                                            : <div className="w-full h-full flex items-center justify-center"><Video size={12} className="text-zinc-400" /></div>
+                                                                        }
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="text-xs font-black text-zinc-900 line-clamp-1">{v.title}</div>
+                                                                        {v.topic && <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide mt-0.5">{v.topic}</div>}
+                                                                    </div>
+                                                                    <motion.button
+                                                                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                                                        onClick={() => handleRemoveFromPlaylist(playlist.id, v.sessionId)}
+                                                                        disabled={playlistActionLoading === `${playlist.id}-${v.sessionId}`}
+                                                                        className="shrink-0 h-8 w-8 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:bg-red-100 hover:text-red-600 hover:border-red-200 flex items-center justify-center transition-colors"
+                                                                    >
+                                                                        {playlistActionLoading === `${playlist.id}-${v.sessionId}` ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+                                                                    </motion.button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -500,7 +913,7 @@ function StatPanel({ label, value, icon, bg }: { label: string, value: string | 
         <motion.div 
             variants={itemVariants}
             whileHover={{ y: -6, scale: 1.05 }}
-            className={`bg-white rounded-[2rem] p-6 border-2 border-zinc-100 shadow-sm hover:shadow-xl hover:border-zinc-200 flex flex-col gap-4 h-[150px] min-w-0 transition-all cursor-default group relative overflow-hidden`}
+            className={`bg-white rounded-3xl p-6 border-2 border-zinc-100 shadow-sm hover:shadow-xl hover:border-zinc-200 flex flex-col gap-4 h-[150px] min-w-0 transition-all cursor-default group relative overflow-hidden`}
         >
             <div className="absolute top-0 right-0 w-24 h-24 bg-zinc-50 rounded-full blur-[20px] -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity" />
             {/* Icon Row */}
@@ -516,11 +929,23 @@ function StatPanel({ label, value, icon, bg }: { label: string, value: string | 
     );
 }
 
-function VideoItemCard({ rec, onAction, actionLoading, isPreview }: any) {
+type DashboardAction = "accept" | "decline" | "complete" | "delete";
+
+function VideoItemCard({ rec, onAction, actionLoading, isPreview, playlists, playlistActionLoading, onAddToPlaylist, pickerOpen, onTogglePicker }: {
+    rec: any;
+    onAction?: (id: string, action: DashboardAction) => void;
+    actionLoading?: string | null;
+    isPreview?: boolean;
+    playlists?: MentorPlaylist[];
+    playlistActionLoading?: string | null;
+    onAddToPlaylist?: (playlistId: string, sessionId: string) => void;
+    pickerOpen?: boolean;
+    onTogglePicker?: (id: string) => void;
+}) {
     return (
-        <motion.div 
+        <motion.div
             whileHover={{ y: -6, scale: 1.02 }}
-            className="min-w-[280px] sm:min-w-[320px] w-[280px] sm:w-[320px] shrink-0 bg-white rounded-[2rem] border-2 border-zinc-100 overflow-hidden flex flex-col snap-start shadow-[0_5px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_15px_40px_rgb(0,0,0,0.08)] transition-all group relative"
+            className="min-w-[280px] sm:min-w-[320px] w-[280px] sm:w-[320px] shrink-0 bg-white rounded-3xl border-2 border-zinc-100 overflow-hidden flex flex-col snap-start shadow-[0_5px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_15px_40px_rgb(0,0,0,0.08)] transition-all group relative"
         >
             <div className="h-40 bg-zinc-900 relative overflow-hidden border-b-2 border-zinc-100">
                 {rec.thumbnailUrl ? (
@@ -535,9 +960,9 @@ function VideoItemCard({ rec, onAction, actionLoading, isPreview }: any) {
                     <Video size={12} /> Published
                 </div>
                 {!isPreview && (
-                    <motion.button 
+                    <motion.button
                         whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                        onClick={() => onAction(rec.id, "delete")} 
+                        onClick={() => onAction?.(rec.id, "delete")}
                         disabled={actionLoading === rec.id}
                         className="absolute top-3 right-3 h-10 w-10 flex items-center justify-center bg-zinc-900/60 hover:bg-red-500 text-white hover:text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm shadow-lg border border-zinc-700 hover:border-red-500"
                     >
@@ -547,7 +972,55 @@ function VideoItemCard({ rec, onAction, actionLoading, isPreview }: any) {
             </div>
             <div className="p-6 flex flex-col flex-1">
                 <h4 className="font-black text-lg text-zinc-900 line-clamp-2 leading-snug mb-2 group-hover:text-[#5a6d1a] transition-colors">{rec.title}</h4>
-                <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-auto pb-4 truncate bg-zinc-50 w-fit px-2.5 py-1 rounded-md">{rec.topic || "General"}</p>
+                <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-auto pb-3 truncate bg-zinc-50 w-fit px-2.5 py-1 rounded-md">{rec.topic || "General"}</p>
+
+                {/* Add to playlist */}
+                {!isPreview && playlists && onAddToPlaylist && onTogglePicker && (
+                    <div className="relative mb-3">
+                        <button
+                            onClick={() => onTogglePicker(rec.id)}
+                            className={`w-full h-9 rounded-xl border-2 text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all
+                                ${pickerOpen
+                                    ? "bg-[#D4F268] text-zinc-900 border-[#D4F268]"
+                                    : "bg-zinc-50 text-zinc-500 border-zinc-200 hover:border-[#D4F268]/60 hover:text-[#5a6d1a]"
+                                }`}
+                        >
+                            <ListVideo size={13} /> Add to Playlist
+                        </button>
+                        <AnimatePresence>
+                            {pickerOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                                    transition={{ duration: 0.15 }}
+                                >
+                                    <div className="max-h-52 overflow-y-auto custom-scrollbar" data-lenis-prevent>
+                                        {playlists.length === 0 ? (
+                                            <div className="px-4 py-3 text-xs text-zinc-400 font-medium text-center">No playlists yet — create one above</div>
+                                        ) : (
+                                            playlists.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => onAddToPlaylist(p.id, rec.id)}
+                                                    disabled={playlistActionLoading === `add-${p.id}-${rec.id}`}
+                                                    className="w-full text-left px-4 py-3 text-xs font-black text-zinc-800 hover:bg-[#D4F268]/10 transition-colors flex items-center justify-between gap-2 border-b border-zinc-100 last:border-0 disabled:opacity-50"
+                                                >
+                                                    <span className="flex items-center gap-2 truncate"><ListVideo size={12} className="text-zinc-400 shrink-0" />{p.title}</span>
+                                                    {playlistActionLoading === `add-${p.id}-${rec.id}`
+                                                        ? <Loader2 size={11} className="animate-spin shrink-0" />
+                                                        : <span className="text-[10px] text-zinc-400 shrink-0">{p.videoCount}v</span>
+                                                    }
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
+
                 <a href={rec.videoUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-black uppercase tracking-widest text-zinc-900 hover:text-[#5a6d1a] hover:bg-[#D4F268]/20 border-t-2 border-zinc-100 pt-4 flex items-center justify-between transition-colors px-2 -mx-2 rounded-b-xl">
                     View Output <LinkIcon size={14} />
                 </a>
@@ -561,7 +1034,7 @@ function SessionListItem({ req, actionLoading, onAction, type }: { req: any, act
     return (
         <motion.div 
             whileHover={{ scale: 1.01, x: 2 }}
-            className={`p-6 rounded-[2rem] border-2 ${isHistory ? 'bg-zinc-50 border-transparent hover:border-zinc-200' : 'bg-white border-zinc-100 hover:shadow-lg'} flex flex-col md:flex-row gap-6 md:items-center transition-all shadow-sm`}
+            className={`p-6 rounded-3xl border-2 ${isHistory ? 'bg-zinc-50 border-transparent hover:border-zinc-200' : 'bg-white border-zinc-100 hover:shadow-lg'} flex flex-col md:flex-row gap-6 md:items-center transition-all shadow-sm`}
         >
             {/* Avatar & Info */}
             <div className="flex items-center gap-5 flex-1 min-w-0">
