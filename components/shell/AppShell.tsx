@@ -13,6 +13,7 @@ import { Button } from "../ui/Button";
 import { Menu, Search, Bell, Zap } from "lucide-react";
 import Logo from "@/components/Logo";
 import { useUser } from "@/context/UserContext";
+import { DSAFloatingButton } from "@/components/dsa/DSAFloatingButton";
 
 // Pages that need fixed full-height layout (no scroll)
 const FULL_HEIGHT_ROUTES = ["/peer/chat", "/messages", "/loopy/chat"];
@@ -121,6 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </AppScrollProvider>
                 </motion.div>
             </main>
+            <DSAFloatingButton />
         </div>
     );
 }

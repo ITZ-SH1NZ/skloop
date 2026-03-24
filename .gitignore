@@ -48,6 +48,7 @@ next-env.d.ts
 .venv*
 venv/
 venv*
+.kiro
 
 # logs
 *.log
