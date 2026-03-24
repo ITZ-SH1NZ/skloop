@@ -133,7 +133,7 @@ export function MathVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
         for (let i = 0; i < steps.length; i++) {
             if (checkStop()) return;
             const s = steps[i];
-            setOperation(`GCD(${s.a}, ${s.b}) → remainder = ${s.rem}`);
+            setOperation(`GCD(${s.a}, ${s.b}) -> remainder = ${s.rem}`);
             setCells(prev => prev.map((c, idx) => ({ ...c, state: idx === i ? 'active' : idx < i ? 'visited' : 'idle' })));
             await sleep(getDelay());
         }

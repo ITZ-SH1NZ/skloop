@@ -51,7 +51,7 @@ export function AlgorithmPreviewCard({ algo }: { algo: any }) {
                             {algo.difficulty}
                         </div>
                         <div className="px-2 py-1 rounded-full text-xs font-mono font-bold bg-zinc-100 text-zinc-700 border border-zinc-200 flex items-center gap-1">
-                            ⏱ {algo.timeComplexity}
+                            T: {algo.timeComplexity}
                         </div>
                     </div>
                     <div className={cn("px-3 py-1 rounded-md text-xs font-semibold shrink-0", categoryColors[algo.category as keyof typeof categoryColors])}>

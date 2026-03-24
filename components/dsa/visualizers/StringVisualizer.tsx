@@ -117,7 +117,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
                     j = lps[j-1];
                 }
             } else {
-                setOperation(`Mismatch → jump using LPS[${j-1}] = ${j > 0 ? lps[j-1] : 0}`);
+                setOperation(`Mismatch -> jump using LPS[${j-1}] = ${j > 0 ? lps[j-1] : 0}`);
                 await sleep(getDelay());
                 j = j > 0 ? lps[j-1] : 0;
                 if (j === 0) i++;

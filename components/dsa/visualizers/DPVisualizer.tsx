@@ -158,7 +158,7 @@ export function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComple
 
     const runEditDistance = async () => {
         const s1 = "KITTEN"; const s2 = "SITTING";
-        setPhase(`Edit Distance: "${s1}" → "${s2}"`);
+        setPhase(`Edit Distance: "${s1}" -> "${s2}"`);
         const m = s1.length, n = s2.length;
         const dp: number[][] = Array.from({length: m+1}, (_, i) => Array(n+1).fill(0).map((_,j) => i===0?j:j===0?i:0));
         const grid = [
