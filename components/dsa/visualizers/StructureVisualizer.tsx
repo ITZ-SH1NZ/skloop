@@ -236,7 +236,7 @@ export function StructureVisualizer({ algorithmId, isPlaying, speed, onSimulatio
                                     exit={{ opacity: 0, scale: 0.5 }}
                                     className="text-zinc-400 font-bold mx-1 text-xl"
                                 >
-                                    {algorithmId.includes('doubly') ? '⇄' : '→'}
+                                    {algorithmId.includes('doubly') ? '<->' : '->'}
                                 </motion.div>
                             )}
                             {idx === items.length - 1 && algorithmId === 'circular-linked-list' && items.length > 1 && (

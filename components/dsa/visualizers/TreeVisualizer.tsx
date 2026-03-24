@@ -150,7 +150,7 @@ export function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
         }
 
         setActiveNode(null);
-        setOperation("Complete ✓");
+        setOperation("Complete");
         if (isSortingRef.current && isMounted.current) {
             isSortingRef.current = false;
             if (onSimulationComplete) onSimulationComplete();

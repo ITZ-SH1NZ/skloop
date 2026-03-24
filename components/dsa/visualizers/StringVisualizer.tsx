@@ -112,7 +112,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
                     const start = i - j;
                     found.push(...Array.from({length: PATTERN.length}, (_,k) => start+k));
                     setMatchIndices([...found]);
-                    setOperation(`✓ Match at index ${start}!`);
+                    setOperation(`Match at index ${start}!`);
                     await sleep(getDelay() * 1.5);
                     j = lps[j-1];
                 }
@@ -164,7 +164,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
                     const f = Array.from({length: m}, (_,k) => i+k);
                     found.push(...f);
                     setMatchIndices([...found]);
-                    setOperation(`✓ Match at ${i}!`);
+                    setOperation(`Match at ${i}!`);
                     await sleep(getDelay() * 1.5);
                 }
             }
@@ -201,7 +201,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
             if (match) {
                 found.push(...Array.from({length: PATTERN.length}, (_,k) => i+k));
                 setMatchIndices([...found]);
-                setOperation(`✓ Match at ${i}!`);
+                setOperation(`Match at ${i}!`);
                 await sleep(getDelay());
             }
         }

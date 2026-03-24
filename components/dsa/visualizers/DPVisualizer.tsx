@@ -95,7 +95,7 @@ export function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComple
             await sleep(getDelay());
         }
         setActiveCell(null);
-        setOperation("Complete ✓");
+        setOperation("Complete");
         complete();
     };
 
@@ -118,7 +118,7 @@ export function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComple
                 if (checkStop()) return;
                 dp[i][j] = s1[i-1] === s2[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j], dp[i][j-1]);
                 setActiveCell([i+1, j+1]);
-                setOperation(`Match? ${s1[i-1]} == ${s2[j-1]}: ${s1[i-1]===s2[j-1] ? '✓ +1' : '✗ take max'} = ${dp[i][j]}`);
+                setOperation(`Match? ${s1[i-1]} == ${s2[j-1]}: ${s1[i-1]===s2[j-1] ? 'yes +1' : 'no, take max'} = ${dp[i][j]}`);
                 const updated = [['', '', ...s2.split('')], ...dp.map((row, ri) => [ri===0?'':s1[ri-1], ...row])];
                 setCells(updated);
                 setVisitedCells(v => new Set([...v, `${i+1}-${j+1}`]));
