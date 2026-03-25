@@ -444,13 +444,20 @@ const SlimeMascot = memo(({ dailyDeals, coins, hoveredPrice }: { dailyDeals: Sho
                 setTimeout(() => setShowWakeAlert(false), 1500);
             }
             if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-            // Reduced to 12s for easier user verification
             idleTimeoutRef.current = setTimeout(() => setIsSleeping(true), 12000);
         };
 
+        // Throttle with rAF so Framer Motion springs don't recalculate every pixel
+        let framePending = false;
         const handleMouseMove = (e: MouseEvent) => {
-            mouseX.set(e.clientX);
-            mouseY.set(e.clientY);
+            if (!framePending) {
+                framePending = true;
+                requestAnimationFrame(() => {
+                    mouseX.set(e.clientX);
+                    mouseY.set(e.clientY);
+                    framePending = false;
+                });
+            }
             resetIdle();
         };
         window.addEventListener("mousemove", handleMouseMove);

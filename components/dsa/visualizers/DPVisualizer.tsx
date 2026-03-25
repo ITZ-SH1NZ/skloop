@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface DPVisualizerProps {
@@ -12,7 +12,7 @@ interface DPVisualizerProps {
     isThumbnail?: boolean;
 }
 
-export function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: DPVisualizerProps) {
+export const DPVisualizer = memo(function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: DPVisualizerProps) {
     const [cells, setCells] = useState<(number | string)[][]>([]);
     const [activeCell, setActiveCell] = useState<[number, number] | null>(null);
     const [visitedCells, setVisitedCells] = useState<Set<string>>(new Set());
@@ -285,4 +285,4 @@ export function DPVisualizer({ algorithmId, isPlaying, speed, onSimulationComple
             )}
         </div>
     );
-}
+});

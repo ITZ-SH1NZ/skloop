@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,14 +11,24 @@ import { DPVisualizer } from "./visualizers/DPVisualizer";
 import { StringVisualizer } from "./visualizers/StringVisualizer";
 import { MathVisualizer } from "./visualizers/MathVisualizer";
 
-export function AlgorithmPreviewCard({ algo }: { algo: any }) {
-    const [isHovered, setIsHovered] = useState(false);
+export const AlgorithmPreviewCard = memo(function AlgorithmPreviewCard({ algo }: { algo: any }) {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsPlaying(entry.isIntersecting),
+            { threshold: 0.1 }
+        );
+        if (containerRef.current) observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const renderPreview = () => {
         const props = {
             algorithmId: algo.id,
-            isPlaying: true, // Always play for continuous animation effect
-            speed: 50,
+            isPlaying: isPlaying, // Only play when in view
+            speed: 30, // Slower for thumbnails
             isThumbnail: true
         };
 
@@ -40,10 +48,8 @@ export function AlgorithmPreviewCard({ algo }: { algo: any }) {
         <Link 
             href={`/dsa/${algo.id}`} 
             className="block h-full outline-none group"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="card-float h-full flex flex-col p-6 hover:card-float-hover border border-zinc-100 bg-white">
+            <div className="card-float h-full flex flex-col p-6 hover:card-float-hover border border-zinc-100 bg-white" ref={containerRef}>
                 
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -76,4 +82,4 @@ export function AlgorithmPreviewCard({ algo }: { algo: any }) {
             </div>
         </Link>
     );
-}
+});

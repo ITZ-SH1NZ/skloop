@@ -113,7 +113,7 @@ export default function CoursePage() {
                     completedModules={trackData.completedModules}
                 />
 
-                <motion.div layout={typeof window !== "undefined" && window.innerWidth >= 768} className="space-y-4">
+                <motion.div layout className="space-y-4">
                     <AnimatePresence initial={false}>
                         {modules.map((module: Module) => (
                             <FocusModule

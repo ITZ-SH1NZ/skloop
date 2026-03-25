@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { cn } from "@/lib/utils";
 
 export interface StepInfo {
@@ -23,7 +23,7 @@ interface SortingVisualizerProps {
     isThumbnail?: boolean;
 }
 
-export function SortingVisualizer({
+export const SortingVisualizer = memo(function SortingVisualizer({
     algorithmId, isPlaying, speed, onSimulationComplete,
     onStep, stepSignal, stepMode, soundOn, isThumbnail
 }: SortingVisualizerProps) {
@@ -102,7 +102,7 @@ export function SortingVisualizer({
     }, [isPlaying]);
 
     const resetArray = (customArray?: number[], customRaw?: number[]) => {
-        const length = isThumbnail ? 8 : 15;
+        const length = isThumbnail ? 6 : 15;
         const rawArr = customRaw || Array.from({ length }, () => Math.floor(Math.random() * 80) + 10);
         const newArr = customArray || [...rawArr];
         setArray(newArr);
@@ -171,7 +171,7 @@ export function SortingVisualizer({
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.12);
-        } catch {}
+        } catch { }
     };
 
     const emitStep = (line: number, description: string) => {
@@ -222,7 +222,7 @@ export function SortingVisualizer({
                 comparisonsRef.current++;
                 setComparing([j, j + 1]);
                 playTone(arr[j], "compare");
-                emitStep(1, `Comparing arr[${j}]=${rawValuesRef.current[j]} and arr[${j+1}]=${rawValuesRef.current[j+1]}`);
+                emitStep(1, `Comparing arr[${j}]=${rawValuesRef.current[j]} and arr[${j + 1}]=${rawValuesRef.current[j + 1]}`);
                 await waitForStep();
                 await sleep(getDelay());
                 if (checkShouldStop()) return;
@@ -234,7 +234,7 @@ export function SortingVisualizer({
                     setArray([...arr]);
                     arrayRef.current = [...arr];
                     snapshot(arr);
-                    emitStep(3, `Swapped arr[${j}] and arr[${j+1}]`);
+                    emitStep(3, `Swapped arr[${j}] and arr[${j + 1}]`);
                     await waitForStep();
                     await sleep(getDelay());
                     if (checkShouldStop()) return;
@@ -434,7 +434,7 @@ export function SortingVisualizer({
                     comparisonsRef.current++;
                     setComparing([j, j - gap]);
                     playTone(arr[j], "compare");
-                    emitStep(3, `Comparing arr[${j-gap}]=${rawValuesRef.current[j-gap]} with arr[${j}]=${rawValuesRef.current[j]}`);
+                    emitStep(3, `Comparing arr[${j - gap}]=${rawValuesRef.current[j - gap]} with arr[${j}]=${rawValuesRef.current[j]}`);
                     await waitForStep(); await sleep(getDelay());
                     swapsRef.current++;
                     arr[j] = arr[j - gap];
@@ -513,14 +513,14 @@ export function SortingVisualizer({
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.8 }}
                             className={cn(
-                                "flex-1 rounded-t-lg sm:rounded-t-xl transition-colors duration-200 relative group cursor-default",
+                                "flex-1 rounded-t-lg sm:rounded-t-xl transition-colors duration-200 relative group cursor-default will-change-transform",
                                 !isThumbnail && "shadow-sm",
                                 isSwapping ? "bg-red-500" :
-                                isComparing ? "bg-blue-400" :
-                                isSorted ? "bg-primary" :
-                                "bg-zinc-200"
+                                    isComparing ? "bg-blue-400" :
+                                        isSorted ? "bg-primary" :
+                                            "bg-zinc-200"
                             )}
-                            style={{ height: `${value}%` }}
+                            style={{ height: `${value}%`, transform: 'translateZ(0)' }}
                         >
                             {!isThumbnail && (
                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black text-white text-xs font-bold py-1 px-2 rounded-md pointer-events-none transition-opacity whitespace-nowrap">
@@ -553,11 +553,11 @@ export function SortingVisualizer({
             {/* Legend */}
             {!isThumbnail && (
                 <div className="flex flex-wrap justify-center gap-4 mt-4">
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400"/><span className="text-xs font-semibold text-zinc-500">Comparing</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"/><span className="text-xs font-semibold text-zinc-500">Swapping</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary"/><span className="text-xs font-semibold text-zinc-500">Sorted</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400" /><span className="text-xs font-semibold text-zinc-500">Comparing</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /><span className="text-xs font-semibold text-zinc-500">Swapping</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary" /><span className="text-xs font-semibold text-zinc-500">Sorted</span></div>
                 </div>
             )}
         </div>
     );
-}
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface StringVisualizerProps {
@@ -12,7 +12,7 @@ interface StringVisualizerProps {
     isThumbnail?: boolean;
 }
 
-export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: StringVisualizerProps) {
+export const StringVisualizer = memo(function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: StringVisualizerProps) {
     const [operation, setOperation] = useState<string>("");
     const [textChars, setTextChars] = useState<string[]>([]);
     const [patternChars, setPatternChars] = useState<string[]>([]);
@@ -27,8 +27,8 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
     const isSortingRef = useRef(false);
     const isMounted = useRef(false);
 
-    const TEXT    = isThumbnail ? "AABAAC" : "AABAACAADAAB";
-    const PATTERN = isThumbnail ? "ABA"    : "AABA";
+    const TEXT = isThumbnail ? "AABAAC" : "AABAACAADAAB";
+    const PATTERN = isThumbnail ? "ABA" : "AABA";
 
     useEffect(() => {
         isMounted.current = true;
@@ -79,7 +79,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
         const lps = Array(pat.length).fill(0);
         let j = 0;
         for (let i = 1; i < pat.length; i++) {
-            while (j > 0 && pat[i] !== pat[j]) j = lps[j-1];
+            while (j > 0 && pat[i] !== pat[j]) j = lps[j - 1];
             if (pat[i] === pat[j]) j++;
             lps[i] = j;
         }
@@ -110,16 +110,16 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
                 i++; j++;
                 if (j === PATTERN.length) {
                     const start = i - j;
-                    found.push(...Array.from({length: PATTERN.length}, (_,k) => start+k));
+                    found.push(...Array.from({ length: PATTERN.length }, (_, k) => start + k));
                     setMatchIndices([...found]);
                     setOperation(`Match at index ${start}!`);
                     await sleep(getDelay() * 1.5);
-                    j = lps[j-1];
+                    j = lps[j - 1];
                 }
             } else {
-                setOperation(`Mismatch -> jump using LPS[${j-1}] = ${j > 0 ? lps[j-1] : 0}`);
+                setOperation(`Mismatch -> jump using LPS[${j - 1}] = ${j > 0 ? lps[j - 1] : 0}`);
                 await sleep(getDelay());
-                j = j > 0 ? lps[j-1] : 0;
+                j = j > 0 ? lps[j - 1] : 0;
                 if (j === 0) i++;
             }
         }
@@ -138,7 +138,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
         let ph = 0, th = 0, h = 1;
         const found: number[] = [];
 
-        for (let i = 0; i < m-1; i++) h = (h * d) % q;
+        for (let i = 0; i < m - 1; i++) h = (h * d) % q;
         for (let i = 0; i < m; i++) {
             ph = (d * ph + PATTERN.charCodeAt(i)) % q;
             th = (d * th + TEXT.charCodeAt(i)) % q;
@@ -149,8 +149,8 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
         for (let i = 0; i <= n - m; i++) {
             if (checkStop()) return;
             setWindowStart(i);
-            setTextHighlight(Array.from({length: m}, (_,k) => i+k));
-            setOperation(`Window [${i}..${i+m-1}] hash=${th} ${th === ph ? '== pattern hash!' : '≠ pattern hash'}`);
+            setTextHighlight(Array.from({ length: m }, (_, k) => i + k));
+            setOperation(`Window [${i}..${i + m - 1}] hash=${th} ${th === ph ? '== pattern hash!' : '≠ pattern hash'}`);
             await sleep(getDelay());
 
             if (ph === th) {
@@ -158,10 +158,10 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
                 let match = true;
                 for (let j = 0; j < m; j++) {
                     setPatHighlight([j]);
-                    if (TEXT[i+j] !== PATTERN[j]) { match = false; break; }
+                    if (TEXT[i + j] !== PATTERN[j]) { match = false; break; }
                 }
                 if (match) {
-                    const f = Array.from({length: m}, (_,k) => i+k);
+                    const f = Array.from({ length: m }, (_, k) => i + k);
                     found.push(...f);
                     setMatchIndices([...found]);
                     setOperation(`Match at ${i}!`);
@@ -188,7 +188,7 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
         for (let i = 0; i <= TEXT.length - PATTERN.length; i++) {
             if (checkStop()) return;
             setWindowStart(i);
-            setTextHighlight(Array.from({length: PATTERN.length}, (_,k) => i+k));
+            setTextHighlight(Array.from({ length: PATTERN.length }, (_, k) => i + k));
             setOperation(`Checking prefix at index ${i}...`);
             await sleep(getDelay() / 2);
 
@@ -196,10 +196,10 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
             for (let j = 0; j < PATTERN.length; j++) {
                 if (checkStop()) return;
                 setPatHighlight([j]);
-                if (TEXT[i+j] !== PATTERN[j]) { match = false; break; }
+                if (TEXT[i + j] !== PATTERN[j]) { match = false; break; }
             }
             if (match) {
-                found.push(...Array.from({length: PATTERN.length}, (_,k) => i+k));
+                found.push(...Array.from({ length: PATTERN.length }, (_, k) => i + k));
                 setMatchIndices([...found]);
                 setOperation(`Match at ${i}!`);
                 await sleep(getDelay());
@@ -282,11 +282,11 @@ export function StringVisualizer({ algorithmId, isPlaying, speed, onSimulationCo
 
             {!isThumbnail && (
                 <div className="flex gap-6 mt-2">
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400"/><span className="text-xs text-zinc-400">Active window</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary"/><span className="text-xs text-zinc-400">Match found</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-400"/><span className="text-xs text-zinc-400">Pattern char</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400" /><span className="text-xs text-zinc-400">Active window</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary" /><span className="text-xs text-zinc-400">Match found</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-400" /><span className="text-xs text-zinc-400">Pattern char</span></div>
                 </div>
             )}
         </div>
     );
-}
+});

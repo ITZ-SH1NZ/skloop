@@ -5,24 +5,9 @@ import { motion, useAnimation } from "framer-motion";
 
 export type LoopyMood = "happy" | "surprised" | "annoyed" | "thinking" | "celebrating" | "screaming" | "huddled" | "awakened" | "warrior";
 
-export const LoopyMascot = memo(({
-    size = 80,
-    mood = "happy",
-    hasCrown = false,
-    hasCape = false,
-    hasSword = false,
-    direction = "center",
-    isStatic = false
-}: {
-    size?: number | string,
-    mood?: LoopyMood,
-    hasCrown?: boolean,
-    hasCape?: boolean,
-    hasSword?: boolean,
-    direction?: "left" | "right" | "center",
-    isStatic?: boolean
-}) => {
-    const moodConfigs: Record<LoopyMood, any> = {
+// Defined at module scope so the object is stable across renders.
+// Previously inside the component, causing Framer Motion to see "new" targets on every re-render.
+const MOOD_CONFIGS: Record<LoopyMood, any> = {
         happy: {
             colorTop: "#d9f99d", colorMid: "#a3e635", colorBottom: "#4d7c0f",
             glow: "rgba(163, 230, 53, 0.3)",
@@ -81,9 +66,26 @@ export const LoopyMascot = memo(({
             mouthD: "M43 71 Q50 68 57 71",
             shake: 0
         }
-    };
+};
 
-    const config = moodConfigs[mood] || moodConfigs.happy;
+export const LoopyMascot = memo(({
+    size = 80,
+    mood = "happy",
+    hasCrown = false,
+    hasCape = false,
+    hasSword = false,
+    direction = "center",
+    isStatic = false
+}: {
+    size?: number | string,
+    mood?: LoopyMood,
+    hasCrown?: boolean,
+    hasCape?: boolean,
+    hasSword?: boolean,
+    direction?: "left" | "right" | "center",
+    isStatic?: boolean
+}) => {
+    const config = MOOD_CONFIGS[mood] || MOOD_CONFIGS.happy;
 
     const rotation = direction === "left" ? -15 : direction === "right" ? 15 : 0;
     const eyeXOffset = direction === "left" ? -5 : direction === "right" ? 5 : 0;

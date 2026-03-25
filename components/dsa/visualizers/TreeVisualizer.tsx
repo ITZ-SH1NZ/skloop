@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface TreeVisualizerProps {
@@ -27,14 +27,14 @@ const BST_NODES_THUMB = [
     { id: 1, val: 30, x: 25, y: 50 },
     { id: 2, val: 70, x: 75, y: 50 },
 ];
-const BST_EDGES = [[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]];
-const BST_EDGES_THUMB = [[0,1],[0,2]];
+const BST_EDGES = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+const BST_EDGES_THUMB = [[0, 1], [0, 2]];
 
 // Inorder: 3,1,4,0,5,2,6 -> indices
-const INORDER  = [3,1,4,0,5,2,6];
-const PREORDER = [0,1,3,4,2,5,6];
-const POSTORDER= [3,4,1,5,6,2,0];
-const BFS_ORDER= [0,1,2,3,4,5,6];
+const INORDER = [3, 1, 4, 0, 5, 2, 6];
+const PREORDER = [0, 1, 3, 4, 2, 5, 6];
+const POSTORDER = [3, 4, 1, 5, 6, 2, 0];
+const BFS_ORDER = [0, 1, 2, 3, 4, 5, 6];
 
 function getTraversalOrder(id: string): number[] {
     if (id.includes('breadth') || id.includes('bfs') || id === 'binary-heap') return BFS_ORDER;
@@ -53,7 +53,7 @@ const HEAP_NODES = [
     { id: 5, val: 60, x: 62, y: 70 },
     { id: 6, val: 70, x: 88, y: 70 },
 ];
-const HEAP_EDGES = [[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]];
+const HEAP_EDGES = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
 
 // --- Trie layout ---
 const TRIE_NODES = [
@@ -67,9 +67,9 @@ const TRIE_NODES = [
     { id: 7, val: "t", x: 15, y: 80 },
     { id: 8, val: "de", x: 65, y: 80 },
 ];
-const TRIE_EDGES = [[0,1],[0,2],[1,3],[1,4],[2,5],[2,6],[3,7],[5,8]];
+const TRIE_EDGES = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6], [3, 7], [5, 8]];
 
-export function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: TreeVisualizerProps) {
+export const TreeVisualizer = memo(function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: TreeVisualizerProps) {
     const [visitedNodes, setVisitedNodes] = useState<number[]>([]);
     const [activeNode, setActiveNode] = useState<number | null>(null);
     const [operation, setOperation] = useState<string>("");
@@ -82,7 +82,7 @@ export function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
     // Select dataset based on algo
     const isTrie = algorithmId === 'trie';
     const isHeap = algorithmId === 'binary-heap';
-    
+
     const nodes = isTrie ? TRIE_NODES : isHeap ? HEAP_NODES : (isThumbnail ? BST_NODES_THUMB : BST_NODES_FULL);
     const edges = isTrie ? TRIE_EDGES : isHeap ? HEAP_EDGES : (isThumbnail ? BST_EDGES_THUMB : BST_EDGES);
 
@@ -136,8 +136,8 @@ export function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
             const order = getTraversalOrder(algorithmId);
             const validOrder = order.filter(i => i < nodes.length);
             const name = algorithmId.includes('bfs') || algorithmId.includes('breadth') ? 'BFS' :
-                         algorithmId.includes('post') ? 'Postorder' :
-                         algorithmId.includes('pre') ? 'Preorder' : 'Inorder';
+                algorithmId.includes('post') ? 'Postorder' :
+                    algorithmId.includes('pre') ? 'Preorder' : 'Inorder';
 
             for (const nodeId of validOrder) {
                 if (checkStop()) return;
@@ -222,10 +222,10 @@ export function TreeVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
 
             {!isThumbnail && (
                 <div className="mt-6 flex gap-6">
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400"/><span className="text-xs font-semibold text-zinc-400">Active</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary"/><span className="text-xs font-semibold text-zinc-400">Visited</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-400" /><span className="text-xs font-semibold text-zinc-400">Active</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary" /><span className="text-xs font-semibold text-zinc-400">Visited</span></div>
                 </div>
             )}
         </div>
     );
-}
+});

@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@codesandbox/sandpack-react": "^2.20.0",
+    "@codesandbox/sandpack-themes": "^2.0.21",
     "@dotlottie/react-player": "^1.6.19",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",

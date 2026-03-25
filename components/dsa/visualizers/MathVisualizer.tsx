@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface MathVisualizerProps {
@@ -12,7 +12,7 @@ interface MathVisualizerProps {
     isThumbnail?: boolean;
 }
 
-export function MathVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: MathVisualizerProps) {
+export const MathVisualizer = memo(function MathVisualizer({ algorithmId, isPlaying, speed, onSimulationComplete, isThumbnail }: MathVisualizerProps) {
     const [cells, setCells] = useState<{ value: number | string; state: 'idle' | 'active' | 'prime' | 'composite' | 'visited' }[]>([]);
     const [operation, setOperation] = useState<string>("");
     const [phase, setPhase] = useState<string>("");
@@ -243,4 +243,4 @@ export function MathVisualizer({ algorithmId, isPlaying, speed, onSimulationComp
             )}
         </div>
     );
-}
+});
