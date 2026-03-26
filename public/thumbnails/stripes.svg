@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+  <rect width="400" height="200" fill="#fff1f2"/>
+  <defs>
+    <pattern id="stripe" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+      <rect x="0" y="0" width="20" height="40" fill="#FB7185" opacity="0.25"/>
+    </pattern>
+  </defs>
+  <rect width="400" height="200" fill="url(#stripe)"/>
+  <!-- overlay gradient to fade stripes at edges -->
+  <defs>
+    <linearGradient id="sfade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fff1f2" stop-opacity="0.5"/>
+      <stop offset="30%" stop-color="#fff1f2" stop-opacity="0"/>
+      <stop offset="70%" stop-color="#fff1f2" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#fff1f2" stop-opacity="0.5"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="200" fill="url(#sfade)"/>
+  <!-- accent line -->
+  <line x1="0" y1="100" x2="400" y2="100" stroke="#FB7185" stroke-width="1.5" opacity="0.35"/>
+</svg>

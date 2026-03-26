@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
+  <rect width="400" height="200" fill="#fffbeb"/>
+  <!-- triangle grid -->
+  <polygon points="0,0 80,0 40,70" fill="#FCD34D" opacity="0.4"/>
+  <polygon points="80,0 160,0 120,70" fill="#f59e0b" opacity="0.35"/>
+  <polygon points="160,0 240,0 200,70" fill="#FCD34D" opacity="0.4"/>
+  <polygon points="240,0 320,0 280,70" fill="#f59e0b" opacity="0.3"/>
+  <polygon points="320,0 400,0 360,70" fill="#FCD34D" opacity="0.4"/>
+
+  <polygon points="40,70 120,70 80,140" fill="#fbbf24" opacity="0.5"/>
+  <polygon points="120,70 200,70 160,140" fill="#FCD34D" opacity="0.45"/>
+  <polygon points="200,70 280,70 240,140" fill="#fbbf24" opacity="0.5"/>
+  <polygon points="280,70 360,70 320,140" fill="#FCD34D" opacity="0.4"/>
+
+  <polygon points="0,70 80,70 40,140" fill="#f59e0b" opacity="0.3"/>
+  <polygon points="360,70 400,70 400,140" fill="#f59e0b" opacity="0.3"/>
+
+  <polygon points="40,140 120,140 80,200" fill="#FCD34D" opacity="0.5"/>
+  <polygon points="120,140 200,140 160,200" fill="#fbbf24" opacity="0.45"/>
+  <polygon points="200,140 280,140 240,200" fill="#FCD34D" opacity="0.5"/>
+  <polygon points="280,140 360,140 320,200" fill="#fbbf24" opacity="0.4"/>
+
+  <polygon points="0,140 80,140 0,200" fill="#f59e0b" opacity="0.3"/>
+  <polygon points="360,140 400,140 400,200" fill="#f59e0b" opacity="0.3"/>
+</svg>

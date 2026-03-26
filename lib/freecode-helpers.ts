@@ -1,16 +1,72 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
+export interface FileNode {
+  id: string;
+  name: string;
+  type: "file" | "folder";
+  content?: string;
+  language?: string;
+  parentId: string | null;
+  isExpanded?: boolean;
+}
+
 export interface FreeCodeProject {
   id: string;
   user_id: string;
   name: string;
   description: string;
   slug: string;
-  files: Record<string, any>;
+  files: FileNode[];
   template: string;
+  color: string;
+  thumbnail_url: string | null;
   is_published: boolean;
   created_at: string;
   updated_at: string;
+}
+
+const DEFAULT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Project</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <h1>Hello, World!</h1>
+
+  <script src="script.js"></script>
+</body>
+</html>`;
+
+const DEFAULT_CSS = `* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #fff;
+  color: #111;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 2rem;
+}`;
+
+const DEFAULT_JS = `// Your JavaScript goes here
+console.log('Hello from script.js');`;
+
+export function getDefaultFiles(): FileNode[] {
+  return [
+    { id: 'index.html', name: 'index.html', type: 'file', content: DEFAULT_HTML, language: 'html', parentId: null },
+    { id: 'style.css',  name: 'style.css',  type: 'file', content: DEFAULT_CSS,  language: 'css',  parentId: null },
+    { id: 'script.js',  name: 'script.js',  type: 'file', content: DEFAULT_JS,   language: 'javascript', parentId: null },
+  ];
 }
 
 // Slugify helper
@@ -48,14 +104,11 @@ export async function createProject(
   userId: string,
   name: string,
   description: string = "",
-  template: 'vanilla' | 'react' | 'nextjs' = 'react'
+  color: string = '#A3E635',
+  thumbnail_url: string | null = null
 ) {
   const slug = generateSlug(name);
-  
-  // Provide basic default files based on template if Sandpack needs them
-  // Standard Sandpack handles default files for templates automatically if we don't supply them,
-  // but we initialize an empty files object to allow saving changes.
-  const files = {};
+  const files = getDefaultFiles();
 
   const { data, error } = await supabase
     .from("freecode_projects")
@@ -65,8 +118,10 @@ export async function createProject(
         name,
         description,
         slug,
-        template,
-        files
+        template: 'vanilla',
+        files,
+        color,
+        thumbnail_url
       }
     ])
     .select()
@@ -76,10 +131,10 @@ export async function createProject(
   return data as FreeCodeProject;
 }
 
-export async function updateProjectFiles(supabase: SupabaseClient, projectId: string, files: any) {
+export async function updateProjectFiles(supabase: SupabaseClient, projectId: string, files: FileNode[]) {
   const { data, error } = await supabase
     .from("freecode_projects")
-    .update({ 
+    .update({
       files,
       updated_at: new Date().toISOString()
     })
@@ -94,8 +149,27 @@ export async function updateProjectFiles(supabase: SupabaseClient, projectId: st
 export async function updateProjectName(supabase: SupabaseClient, projectId: string, name: string) {
   const { data, error } = await supabase
     .from("freecode_projects")
-    .update({ 
+    .update({
       name,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", projectId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as FreeCodeProject;
+}
+
+export async function updateProjectMeta(
+  supabase: SupabaseClient,
+  projectId: string,
+  meta: { name?: string; color?: string; thumbnail_url?: string | null }
+) {
+  const { data, error } = await supabase
+    .from("freecode_projects")
+    .update({
+      ...meta,
       updated_at: new Date().toISOString()
     })
     .eq("id", projectId)
@@ -109,7 +183,7 @@ export async function updateProjectName(supabase: SupabaseClient, projectId: str
 export async function publishProject(supabase: SupabaseClient, projectId: string, is_published: boolean) {
   const { data, error } = await supabase
     .from("freecode_projects")
-    .update({ 
+    .update({
       is_published,
       updated_at: new Date().toISOString()
     })
@@ -131,8 +205,6 @@ export async function deleteProject(supabase: SupabaseClient, projectId: string)
   return true;
 }
 
-// Note: Requires a join with auth.users or profiles if we search purely by handle/username. 
-// For now, we fetch the userId first in the server component.
 export async function getPublishedProjectByUserIdAndSlug(supabase: SupabaseClient, userId: string, slug: string) {
   const { data, error } = await supabase
     .from("freecode_projects")
@@ -148,17 +220,17 @@ export async function getPublishedProjectByUserIdAndSlug(supabase: SupabaseClien
 
 export async function deployToArsenal(supabase: SupabaseClient, projectId: string, userId: string, username: string) {
   const project = await getProject(supabase, projectId);
-  
+
   if (!project.is_published) {
     await publishProject(supabase, projectId, true);
   }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("user_projects")
     .insert([{
       user_id: userId,
       title: project.name,
-      description: project.description || `A ${project.template} project built with FreeCode Sandbox.`,
+      description: project.description || `A vanilla HTML/CSS/JS project built with FreeCode Sandbox.`,
       website_url: `https://skloop.app/${username}/${project.slug}`,
       is_pinned: false
     }]);
