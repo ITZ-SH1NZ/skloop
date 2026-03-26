@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, RefreshCw, Code, Monitor, Maximize2, Minimize2, RotateCcw, Info, X, ListChecks, Lightbulb, Trash2, CheckCircle, Smartphone, Tablet, Laptop, Settings, Wand2, FileText, ChevronLeft, ChevronRight, Save, Layout, FolderPlus, FilePlus, MoreVertical, Edit2, Trash, Folder, FolderOpen, Check, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import { createClient } from "@/utils/supabase/client";
 import { logValidationProgress } from "@/actions/validation-actions";
+import { cn } from "@/lib/utils";
 
 // Register Emmet for Monaco
 import { emmetHTML, emmetCSS } from "emmet-monaco-es";
@@ -131,6 +132,16 @@ export default function ChallengeView({
     const [isCreating, setIsCreating] = useState<{ type: 'file' | 'folder', parentId: string | null } | null>(null);
     const [newItemName, setNewItemName] = useState("");
     const [editingId, setEditingId] = useState<string | null>(null);
+    // Explorer context: selected folder for new items
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    // Drag and drop
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | 'root' | null>(null);
+    // Resizable split
+    const [dividerPosition, setDividerPosition] = useState(50);
+    const [isResizing, setIsResizing] = useState(false);
+    // Autosave indicator
+    const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
     const addFile = (type: 'file' | 'folder', parentId: string | null = null, name?: string) => {
         const id = Math.random().toString(36).substr(2, 9);
@@ -217,6 +228,43 @@ export default function ChallengeView({
         setFiles(prev => prev.map(f => f.id === id ? { ...f, isExpanded: !f.isExpanded } : f));
     };
 
+    const moveFile = (sourceId: string, targetFolderId: string | null) => {
+        if (targetFolderId) {
+            let cur: string | null = targetFolderId;
+            while (cur) {
+                if (cur === sourceId) return;
+                cur = files.find(f => f.id === cur)?.parentId ?? null;
+            }
+        }
+        setFiles(prev => prev.map(f => f.id === sourceId ? { ...f, parentId: targetFolderId } : f));
+        if (targetFolderId) {
+            setFiles(prev => prev.map(f => f.id === targetFolderId ? { ...f, isExpanded: true } : f));
+        }
+    };
+
+    // Resize handlers
+    const startResizing = useCallback(() => setIsResizing(true), []);
+    const stopResizing = useCallback(() => setIsResizing(false), []);
+    const resize = useCallback((e: any) => {
+        if (!isResizing) return;
+        const newPosition = (e.clientX / window.innerWidth) * 100;
+        if (newPosition > 20 && newPosition < 80) setDividerPosition(newPosition);
+    }, [isResizing]);
+
+    useEffect(() => {
+        if (isResizing) {
+            window.addEventListener('mousemove', resize);
+            window.addEventListener('mouseup', stopResizing);
+        } else {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        }
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [isResizing, resize, stopResizing]);
+
     // Initialize state based on props if they change
     useEffect(() => {
         const loadSavedCode = async () => {
@@ -257,10 +305,13 @@ export default function ChallengeView({
 
     // Local Auto-Sync Logic (Debounced)
     useEffect(() => {
+        setAutoSaveStatus("saving");
         const syncTimeout = setTimeout(() => {
             const storageKey = `skloop_challenge_${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
             const codeToSave = mode === 'web' ? files : textCode;
             localStorage.setItem(storageKey, JSON.stringify(codeToSave));
+            setAutoSaveStatus("saved");
+            setTimeout(() => setAutoSaveStatus("idle"), 1500);
         }, 1000);
 
         return () => clearTimeout(syncTimeout);
@@ -838,53 +889,77 @@ export default function ChallengeView({
                     {showSidebar && mode === 'web' && (
                         <motion.div
                             initial={{ width: 0, opacity: 0 }}
-                            animate={{ width: 200, opacity: 1 }}
+                            animate={{ width: 210, opacity: 1 }}
                             exit={{ width: 0, opacity: 0 }}
-                            className="bg-zinc-50 border-r border-zinc-100 flex flex-col h-full overflow-hidden"
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="bg-zinc-50 border-r border-zinc-100 flex flex-col h-full overflow-hidden shrink-0"
                         >
-                            <div className="p-3 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Explorer</span>
-                                <div className="flex items-center gap-1">
+                            <div className="px-3 py-2.5 border-b border-zinc-100 flex items-center justify-between shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Explorer</span>
+                                    {selectedFolderId && (
+                                        <span className="text-[9px] font-bold text-lime-600 bg-lime-50 border border-lime-200 px-1.5 py-0.5 rounded-full truncate max-w-[70px]">
+                                            {files.find(f => f.id === selectedFolderId)?.name}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-0.5">
                                     <button
-                                        onClick={() => setIsCreating({ type: 'file', parentId: null })}
-                                        className="p-1 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors"
-                                        title="New File"
-                                    >
-                                        <FilePlus size={14} />
-                                    </button>
+                                        onClick={() => setIsCreating({ type: 'file', parentId: selectedFolderId })}
+                                        className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
+                                        title={selectedFolderId ? `New file in ${files.find(f => f.id === selectedFolderId)?.name}` : "New file"}
+                                    ><FilePlus size={13} /></button>
                                     <button
-                                        onClick={() => setIsCreating({ type: 'folder', parentId: null })}
-                                        className="p-1 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors"
-                                        title="New Folder"
-                                    >
-                                        <FolderPlus size={14} />
-                                    </button>
-                                    <button onClick={() => setShowSidebar(false)} className="p-1 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded transition-colors">
-                                        <ChevronLeft size={14} />
-                                    </button>
+                                        onClick={() => setIsCreating({ type: 'folder', parentId: selectedFolderId })}
+                                        className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"
+                                        title={selectedFolderId ? `New folder in ${files.find(f => f.id === selectedFolderId)?.name}` : "New folder"}
+                                    ><FolderPlus size={13} /></button>
+                                    <button onClick={() => setShowSidebar(false)} className="p-1.5 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"><ChevronLeft size={13} /></button>
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-                                {/* Creation Input at Root */}
-                                {isCreating && isCreating.parentId === null && (
-                                    <div className="mb-2 px-2 flex items-center gap-2">
-                                        {isCreating.type === 'file' ? <FileText size={14} className="text-zinc-400" /> : <Folder size={14} className="text-zinc-400" />}
-                                        <input
-                                            autoFocus
-                                            className="bg-white border border-zinc-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-zinc-900"
-                                            value={newItemName}
-                                            onChange={(e) => setNewItemName(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') addFile(isCreating.type, null, newItemName);
-                                                if (e.key === 'Escape') setIsCreating(null);
-                                            }}
-                                            onBlur={() => setIsCreating(null)}
-                                            placeholder={isCreating.type === 'file' ? "Filename..." : "Folder name..."}
-                                        />
-                                    </div>
+                            {/* Root drop zone */}
+                            <div
+                                className={cn(
+                                    "flex-1 overflow-y-auto p-2 no-scrollbar transition-colors",
+                                    dragOverId === 'root' && "bg-lime-50"
                                 )}
-
+                                onDragOver={(e) => { e.preventDefault(); setDragOverId('root'); }}
+                                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null); }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (draggingId) moveFile(draggingId, null);
+                                    setDraggingId(null);
+                                    setDragOverId(null);
+                                }}
+                                onClick={() => setSelectedFolderId(null)}
+                            >
+                                <AnimatePresence initial={false}>
+                                    {isCreating && isCreating.parentId === null && (
+                                        <motion.div
+                                            key="root-input"
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="mb-1 overflow-hidden"
+                                        >
+                                            <div className="px-1 py-1">
+                                                <input
+                                                    autoFocus
+                                                    className="bg-white border-2 border-lime-400 rounded-lg px-2 py-1.5 text-xs w-full outline-none font-bold"
+                                                    value={newItemName}
+                                                    onChange={(e) => setNewItemName(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && newItemName.trim()) addFile(isCreating.type, null, newItemName.trim());
+                                                        if (e.key === 'Escape') { setIsCreating(null); setNewItemName(""); }
+                                                    }}
+                                                    onBlur={() => { setIsCreating(null); setNewItemName(""); }}
+                                                    placeholder={isCreating.type === 'file' ? "filename.html" : "folder-name"}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                                 <div className="space-y-0.5">
                                     {files.filter(f => f.parentId === null).map(node => (
                                         <FileTreeItem
@@ -903,6 +978,13 @@ export default function ChallengeView({
                                             isCreating={isCreating}
                                             setIsCreating={setIsCreating}
                                             addFile={addFile}
+                                            selectedFolderId={selectedFolderId}
+                                            setSelectedFolderId={setSelectedFolderId}
+                                            draggingId={draggingId}
+                                            setDraggingId={setDraggingId}
+                                            dragOverId={dragOverId}
+                                            setDragOverId={setDragOverId}
+                                            moveFile={moveFile}
                                         />
                                     ))}
                                 </div>
@@ -915,22 +997,28 @@ export default function ChallengeView({
                 {!showSidebar && mode === 'web' && (
                     <button
                         onClick={() => setShowSidebar(true)}
-                        className="w-8 bg-zinc-50 border-r border-zinc-100 flex items-start justify-center pt-4 text-zinc-400 hover:text-zinc-900 transition-colors"
+                        className="w-8 bg-zinc-50 border-r border-zinc-100 flex items-start justify-center pt-4 text-zinc-400 hover:text-zinc-900 transition-colors shrink-0"
                     >
                         <ChevronRight size={14} />
                     </button>
                 )}
 
                 {/* Code Editor Pane */}
-                <div className={`
-                    flex flex-col flex-1 bg-white border-r border-zinc-100 overflow-hidden transition-all duration-300 ease-in-out
-                    ${fullscreen === 'preview' ? 'hidden' : 'flex'}
-                    ${fullscreen === 'code' || isSinglePane ? 'w-full' : 'flex-1'}
-                    ${!isSinglePane && viewMode === 'preview' ? 'hidden md:flex' : 'flex'}
-                `}>
+                <motion.div
+                    animate={{
+                        width: isSinglePane ? '100%' : fullscreen === 'code' ? '100%' : fullscreen === 'preview' ? '0%' : `${dividerPosition}%`,
+                        opacity: fullscreen === 'preview' ? 0 : 1,
+                        pointerEvents: fullscreen === 'preview' ? 'none' : 'auto',
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className={cn(
+                        "flex flex-col bg-white border-r border-zinc-100 overflow-hidden",
+                        !isSinglePane && viewMode === 'preview' ? 'hidden md:flex' : 'flex'
+                    )}
+                >
                     <div className="bg-zinc-50 border-b border-zinc-100 px-4 py-2 flex items-center justify-between shadow-sm z-10 w-full">
                         {/* Current File Indicator */}
-                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
                             {mode === 'web' ? (
                                 <div className="flex items-center gap-2 text-zinc-500">
                                     <FileText size={14} className={files.find(f => f.id === activeTab)?.name.endsWith('.html') ? "text-orange-500" : files.find(f => f.id === activeTab)?.name.endsWith('.css') ? "text-blue-500" : "text-yellow-500"} />
@@ -946,6 +1034,32 @@ export default function ChallengeView({
                                     </span>
                                 </div>
                             )}
+
+                            {/* Autosave indicator */}
+                            <AnimatePresence mode="wait">
+                                {autoSaveStatus === "saving" && (
+                                    <motion.span
+                                        key="saving"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1"
+                                    >
+                                        <RefreshCw size={10} className="animate-spin" /> Saving...
+                                    </motion.span>
+                                )}
+                                {autoSaveStatus === "saved" && (
+                                    <motion.span
+                                        key="saved"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1"
+                                    >
+                                        <Check size={10} /> Saved
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         {/* Actions */}
@@ -1148,16 +1262,38 @@ export default function ChallengeView({
                             </button>
                         </div>
                     </div>
-                </div>
+                </motion.div>
+
+                {/* Resize Handle (desktop only, web mode only) */}
+                {!isSinglePane && fullscreen === 'none' && (
+                    <div
+                        onMouseDown={startResizing}
+                        className={cn(
+                            "hidden md:block w-1 hover:w-2 bg-transparent hover:bg-lime-400/50 absolute top-0 bottom-0 z-50 cursor-col-resize transition-all duration-150 group/resizer",
+                            isResizing && "w-2 bg-lime-400"
+                        )}
+                        style={{ left: `calc(${dividerPosition}% - 2px)` }}
+                    >
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-8 bg-white border border-zinc-200 rounded-full flex items-center justify-center opacity-0 group-hover/resizer:opacity-100 transition-opacity">
+                            <div className="w-0.5 h-3 bg-zinc-300 rounded-full" />
+                        </div>
+                    </div>
+                )}
 
                 {/* PREVIEW PANE (Only for Web Mode) */}
                 {!isSinglePane && (
-                    <div className={`
-                    bg-white relative flex flex-col h-full transition-all duration-300 ease-in-out
-                    ${fullscreen === 'code' ? 'hidden' : 'flex'}
-                    ${fullscreen === 'preview' ? 'w-full' : 'flex-1'}
-                    ${viewMode === 'code' ? 'hidden md:flex' : 'flex'}
-                `}>
+                    <motion.div
+                        animate={{
+                            width: fullscreen === 'preview' ? '100%' : fullscreen === 'code' ? '0%' : `${100 - dividerPosition}%`,
+                            opacity: fullscreen === 'code' ? 0 : 1,
+                            pointerEvents: fullscreen === 'code' ? 'none' : 'auto',
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className={cn(
+                            "bg-white relative flex flex-col h-full overflow-hidden",
+                            viewMode === 'code' ? 'hidden md:flex' : 'flex'
+                        )}
+                    >
                         <div className="bg-white border-b border-zinc-100 px-4 py-2.5 flex items-center justify-between shadow-sm z-10">
                             <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
                                 <Monitor size={14} /> Live Preview
@@ -1223,7 +1359,7 @@ export default function ChallengeView({
                                 />
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 )}
             </div>
 
@@ -1266,92 +1402,218 @@ export default function ChallengeView({
 function FileTreeItem({
     node, files, activeTab, setActiveTab, toggleFolder,
     editingId, setEditingId, newItemName, setNewItemName,
-    renameFile, deleteFile, isCreating, setIsCreating, addFile
+    renameFile, deleteFile, isCreating, setIsCreating, addFile,
+    selectedFolderId, setSelectedFolderId,
+    draggingId, setDraggingId, dragOverId, setDragOverId, moveFile,
 }: any) {
     const children = files.filter((f: any) => f.parentId === node.id);
+    const isFolder = node.type === 'folder';
+    const isActive = activeTab === node.id;
+    const isSelectedFolder = selectedFolderId === node.id;
+    const isDraggingThis = draggingId === node.id;
+    const isDragTarget = dragOverId === node.id;
+
+    const fileColor = node.name.endsWith('.html')
+        ? 'text-orange-400'
+        : node.name.endsWith('.css')
+        ? 'text-sky-400'
+        : node.name.endsWith('.js')
+        ? 'text-yellow-400'
+        : 'text-zinc-400';
+
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isFolder) {
+            toggleFolder(node.id);
+            setSelectedFolderId(node.id === selectedFolderId ? null : node.id);
+        } else {
+            setActiveTab(node.id);
+            setSelectedFolderId(null);
+        }
+    };
 
     return (
         <div className="w-full">
-            <div
-                className={`
-                    group flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all
-                    ${activeTab === node.id ? "bg-zinc-200 text-zinc-900 shadow-sm" : "text-zinc-500 hover:bg-zinc-100"}
-                `}
-                onClick={() => node.type === 'file' ? setActiveTab(node.id) : toggleFolder(node.id)}
+            <motion.div
+                layout
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: isDraggingThis ? 0.35 : 1, x: 0 }}
+                exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.15 }}
+                draggable
+                onDragStart={(e) => {
+                    e.stopPropagation();
+                    setDraggingId(node.id);
+                    (e as any).dataTransfer.effectAllowed = 'move';
+                }}
+                onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (isFolder && draggingId !== node.id) setDragOverId(node.id);
+                }}
+                onDragLeave={(e) => {
+                    e.stopPropagation();
+                    if (dragOverId === node.id) setDragOverId(null);
+                }}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (draggingId && draggingId !== node.id && isFolder) moveFile(draggingId, node.id);
+                    setDraggingId(null);
+                    setDragOverId(null);
+                }}
+                onClick={handleClick}
+                className={cn(
+                    "group flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none",
+                    isActive && !isFolder
+                        ? "bg-[#D4F268] text-zinc-900 shadow-sm"
+                        : isSelectedFolder
+                        ? "bg-lime-100 text-zinc-900 border border-lime-300"
+                        : isDragTarget
+                        ? "bg-lime-50 border border-lime-400 border-dashed"
+                        : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+                )}
             >
-                {node.type === 'folder' ? (
-                    node.isExpanded ? <FolderOpen size={14} className="text-zinc-400" /> : <Folder size={14} className="text-zinc-400" />
+                {/* Animated chevron for folders */}
+                {isFolder ? (
+                    <motion.div
+                        animate={{ rotate: node.isExpanded ? 90 : 0 }}
+                        transition={{ duration: 0.18, ease: 'easeInOut' }}
+                        className="shrink-0 text-zinc-400"
+                    >
+                        <ChevronRight size={13} />
+                    </motion.div>
                 ) : (
-                    <FileText size={14} className={node.name.endsWith('.html') ? "text-orange-500" : node.name.endsWith('.css') ? "text-blue-500" : "text-yellow-500"} />
+                    <span className="w-[13px] shrink-0" />
+                )}
+
+                {isFolder ? (
+                    <span className="shrink-0">
+                        {node.isExpanded
+                            ? <FolderOpen size={14} className="text-amber-400" />
+                            : <Folder size={14} className="text-amber-400" />
+                        }
+                    </span>
+                ) : (
+                    <FileText size={13} className={cn("shrink-0", fileColor)} />
                 )}
 
                 {editingId === node.id ? (
                     <input
                         autoFocus
-                        className="bg-white border border-zinc-300 rounded px-1 py-0.5 text-xs w-full focus:outline-none"
+                        className="bg-white border-2 border-lime-400 rounded px-1 outline-none w-full text-xs font-bold text-black"
                         value={newItemName}
                         onChange={(e) => setNewItemName(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') renameFile(node.id, newItemName);
-                            if (e.key === 'Escape') setEditingId(null);
+                            if (e.key === 'Enter' && newItemName.trim()) renameFile(node.id, newItemName.trim());
+                            if (e.key === 'Escape') { setEditingId(null); setNewItemName(""); }
                         }}
-                        onBlur={() => setEditingId(null)}
+                        onBlur={() => { setEditingId(null); setNewItemName(""); }}
                         onClick={(e) => e.stopPropagation()}
                     />
                 ) : (
                     <span className="flex-1 truncate">{node.name}</span>
                 )}
 
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 text-zinc-400">
-                    {node.type === 'folder' && (
+                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
+                    {isFolder && (
                         <>
-                            <button onClick={(e) => { e.stopPropagation(); setIsCreating({ type: 'file', parentId: node.id }); }} className="p-0.5 hover:bg-zinc-200 rounded hover:text-zinc-900"><FilePlus size={10} /></button>
-                            <button onClick={(e) => { e.stopPropagation(); setIsCreating({ type: 'folder', parentId: node.id }); }} className="p-0.5 hover:bg-zinc-200 rounded hover:text-zinc-900"><FolderPlus size={10} /></button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsCreating({ type: 'file', parentId: node.id }); setSelectedFolderId(node.id); if (!node.isExpanded) toggleFolder(node.id); }}
+                                className="p-0.5 hover:bg-zinc-200 rounded text-zinc-400 hover:text-zinc-900"
+                                title="New file here"
+                            ><FilePlus size={11} /></button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsCreating({ type: 'folder', parentId: node.id }); setSelectedFolderId(node.id); if (!node.isExpanded) toggleFolder(node.id); }}
+                                className="p-0.5 hover:bg-zinc-200 rounded text-zinc-400 hover:text-zinc-900"
+                                title="New folder here"
+                            ><FolderPlus size={11} /></button>
                         </>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); setEditingId(node.id); setNewItemName(node.name); }} className="p-0.5 hover:bg-zinc-200 rounded hover:text-zinc-900"><Edit2 size={10} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); deleteFile(node.id); }} className="p-0.5 hover:bg-zinc-200 rounded hover:text-red-500"><Trash size={10} /></button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setEditingId(node.id); setNewItemName(node.name); }}
+                        className="p-0.5 hover:bg-zinc-200 rounded text-zinc-400 hover:text-zinc-900"
+                    ><Edit2 size={11} /></button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteFile(node.id); }}
+                        className="p-0.5 hover:bg-red-100 rounded text-zinc-300 hover:text-red-500"
+                    ><Trash size={11} /></button>
                 </div>
-            </div>
+            </motion.div>
 
-            {node.type === 'folder' && node.isExpanded && (
-                <div className="ml-4 border-l border-zinc-200 pl-1">
-                    {isCreating && isCreating.parentId === node.id && (
-                        <div className="px-2 py-1 flex items-center gap-2">
-                            {isCreating.type === 'file' ? <FileText size={12} className="text-zinc-400" /> : <Folder size={12} className="text-zinc-400" />}
-                            <input
-                                autoFocus
-                                className="bg-white border border-zinc-300 rounded px-1 py-0.5 text-[10px] w-full focus:outline-none"
-                                value={newItemName}
-                                onChange={(e) => setNewItemName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') addFile(isCreating.type, node.id, newItemName);
-                                    if (e.key === 'Escape') setIsCreating(null);
-                                }}
-                                onBlur={() => setIsCreating(null)}
-                            />
-                        </div>
+            {isFolder && (
+                <AnimatePresence initial={false}>
+                    {node.isExpanded && (
+                        <motion.div
+                            key="children"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                        >
+                            <div className="ml-3 pl-2 border-l-2 border-zinc-100 mt-0.5 space-y-0.5">
+                                <AnimatePresence initial={false}>
+                                    {isCreating && isCreating.parentId === node.id && (
+                                        <motion.div
+                                            key="folder-input"
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="overflow-hidden py-1 pr-1"
+                                        >
+                                            <input
+                                                autoFocus
+                                                className="bg-white border-2 border-lime-400 rounded-lg px-2 py-1 text-xs w-full outline-none font-bold"
+                                                value={newItemName}
+                                                onChange={(e) => setNewItemName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newItemName.trim()) addFile(isCreating.type, node.id, newItemName.trim());
+                                                    if (e.key === 'Escape') { setIsCreating(null); setNewItemName(""); }
+                                                }}
+                                                onBlur={() => { setIsCreating(null); setNewItemName(""); }}
+                                                placeholder={isCreating.type === 'file' ? "filename.html" : "folder-name"}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {children.length === 0 && !isCreating && (
+                                    <p className="text-[10px] text-zinc-300 px-2 py-1 italic">Empty folder</p>
+                                )}
+
+                                {children.map((child: any) => (
+                                    <FileTreeItem
+                                        key={child.id}
+                                        node={child}
+                                        files={files}
+                                        activeTab={activeTab}
+                                        setActiveTab={setActiveTab}
+                                        toggleFolder={toggleFolder}
+                                        editingId={editingId}
+                                        setEditingId={setEditingId}
+                                        newItemName={newItemName}
+                                        setNewItemName={setNewItemName}
+                                        renameFile={renameFile}
+                                        deleteFile={deleteFile}
+                                        isCreating={isCreating}
+                                        setIsCreating={setIsCreating}
+                                        addFile={addFile}
+                                        selectedFolderId={selectedFolderId}
+                                        setSelectedFolderId={setSelectedFolderId}
+                                        draggingId={draggingId}
+                                        setDraggingId={setDraggingId}
+                                        dragOverId={dragOverId}
+                                        setDragOverId={setDragOverId}
+                                        moveFile={moveFile}
+                                    />
+                                ))}
+                            </div>
+                        </motion.div>
                     )}
-                    {children.map((child: any) => (
-                        <FileTreeItem
-                            key={child.id}
-                            node={child}
-                            files={files}
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
-                            toggleFolder={toggleFolder}
-                            editingId={editingId}
-                            setEditingId={setEditingId}
-                            newItemName={newItemName}
-                            setNewItemName={setNewItemName}
-                            renameFile={renameFile}
-                            deleteFile={deleteFile}
-                            isCreating={isCreating}
-                            setIsCreating={setIsCreating}
-                            addFile={addFile}
-                        />
-                    ))}
-                </div>
+                </AnimatePresence>
             )}
         </div>
     );
