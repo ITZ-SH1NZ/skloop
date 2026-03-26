@@ -232,7 +232,7 @@ export async function deployToArsenal(supabase: SupabaseClient, projectId: strin
       user_id: userId,
       title: project.name,
       description: project.description || `A vanilla HTML/CSS/JS project built with FreeCode Sandbox.`,
-      website_url: `https://skloop.app/${username}/${project.slug}`,
+      website_url: `https://skloop.online/${username}/${project.slug}`,
       is_pinned: false
     }]);
 

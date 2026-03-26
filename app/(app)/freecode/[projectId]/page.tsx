@@ -27,6 +27,7 @@ export default function FreeCodeIDEPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isDeployedToArsenal, setIsDeployedToArsenal] = useState(false);
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,6 +50,17 @@ export default function FreeCodeIDEPage() {
 
         setProject(data);
         setProjectName(data.name);
+
+        // Check if already deployed to arsenal
+        if (profile?.username) {
+          const { data: arsenalEntry } = await supabase
+            .from("user_projects")
+            .select("id")
+            .eq("user_id", user?.id)
+            .ilike("website_url", `%/${profile.username}/${data.slug}`)
+            .maybeSingle();
+          setIsDeployedToArsenal(!!arsenalEntry);
+        }
       } catch (err: any) {
         toast("Failed to load project: " + err.message, "error");
         router.push('/freecode');
@@ -122,6 +134,7 @@ export default function FreeCodeIDEPage() {
     try {
       await deployToArsenal(supabase, projectId, user.id, profile.username);
       toast("Deployed to your Arsenal!", "success");
+      setIsDeployedToArsenal(true);
       if (!project.is_published) {
         setProject({ ...project, is_published: true });
       }
@@ -205,14 +218,21 @@ export default function FreeCodeIDEPage() {
             {project.is_published ? "Published" : "Publish"}
           </button>
 
-          <button
-            onClick={handleDeployToArsenal}
-            disabled={isDeploying}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-zinc-900 text-white hover:bg-black transition-colors border-2 border-transparent hover:border-lime-400 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
-          >
-            {isDeploying ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
-            Deploy to Arsenal
-          </button>
+          {isDeployedToArsenal ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-lime-50 text-lime-700 border-2 border-lime-300">
+              <Check size={14} />
+              In Arsenal
+            </div>
+          ) : (
+            <button
+              onClick={handleDeployToArsenal}
+              disabled={isDeploying}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-zinc-900 text-white hover:bg-black transition-colors border-2 border-transparent hover:border-lime-400 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
+            >
+              {isDeploying ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+              Deploy to Arsenal
+            </button>
+          )}
         </div>
       </header>
 
