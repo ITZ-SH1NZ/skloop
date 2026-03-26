@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import {
     RotateCcw, Layout, Eye, Smartphone, Tablet, Laptop,
     FileText, ChevronLeft, ChevronRight,
-    FolderPlus, FilePlus, Folder, FolderOpen, Wand2, Trash, Edit2
+    FolderPlus, FilePlus, Folder, FolderOpen, Wand2, Trash, Edit2,
+    Maximize2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { emmetHTML, emmetCSS } from "emmet-monaco-es";
 import { FreeCodeProject, FileNode, getDefaultFiles } from "@/lib/freecode-helpers";
-
+import { cn } from "@/lib/utils";
 loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min/vs' } });
 
 const skloopTheme = {
@@ -60,7 +61,9 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
     const [previewDevice, setPreviewDevice] = useState<"mobile" | "tablet" | "desktop">("desktop");
     const [previewKey] = useState(0);
     const [showSidebar, setShowSidebar] = useState(true);
-
+    const [fullscreenPane, setFullscreenPane] = useState<"editor" | "preview" | null>(null);
+    const [dividerPosition, setDividerPosition] = useState(50); // percentage
+    const [isResizing, setIsResizing] = useState(false);
     const [isCreating, setIsCreating] = useState<{ type: 'file' | 'folder', parentId: string | null } | null>(null);
     const [newItemName, setNewItemName] = useState("");
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -72,6 +75,31 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
     useEffect(() => {
         onFilesChange(files);
     }, [files]);
+
+    // Resize handlers
+    const startResizing = useCallback(() => setIsResizing(true), []);
+    const stopResizing = useCallback(() => setIsResizing(false), []);
+    const resize = useCallback((e: any) => {
+        if (!isResizing) return;
+        const newPosition = (e.clientX / window.innerWidth) * 100;
+        if (newPosition > 20 && newPosition < 80) {
+            setDividerPosition(newPosition);
+        }
+    }, [isResizing]);
+
+    useEffect(() => {
+        if (isResizing) {
+            window.addEventListener('mousemove', resize);
+            window.addEventListener('mouseup', stopResizing);
+        } else {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        }
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [isResizing, resize, stopResizing]);
 
     // File Management
     const addFile = (type: 'file' | 'folder', parentId: string | null = null, name?: string) => {
@@ -338,65 +366,69 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#FDFCF8] overflow-hidden">
-            <div className="flex-1 flex overflow-hidden">
+        <div className="flex flex-col h-full bg-[#FDFCF8] overflow-hidden select-none">
+            <div className="flex-1 flex overflow-hidden relative">
                 {/* File Sidebar */}
-                {showSidebar && (
-                    <motion.div
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 220, opacity: 1 }}
-                        className="bg-zinc-50 border-r border-zinc-200 flex flex-col h-full overflow-hidden shrink-0"
-                    >
-                        <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
-                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Explorer</span>
-                            <div className="flex items-center gap-1">
-                                <button onClick={() => setIsCreating({ type: 'file', parentId: null })} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors" title="New file"><FilePlus size={14} /></button>
-                                <button onClick={() => setIsCreating({ type: 'folder', parentId: null })} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors" title="New folder"><FolderPlus size={14} /></button>
-                                <button onClick={() => setShowSidebar(false)} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"><ChevronLeft size={14} /></button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
-                            {isCreating && isCreating.parentId === null && (
-                                <div className="mb-2 px-2">
-                                    <input
-                                        autoFocus
-                                        className="bg-white border border-zinc-200 rounded-lg px-2 py-1.5 text-xs w-full outline-none shadow-sm font-bold"
-                                        value={newItemName}
-                                        onChange={(e) => setNewItemName(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') addFile(isCreating.type, null, newItemName);
-                                            if (e.key === 'Escape') setIsCreating(null);
-                                        }}
-                                        onBlur={() => setIsCreating(null)}
-                                        placeholder={isCreating.type === 'file' ? "file.html" : "folder..."}
-                                    />
+                <AnimatePresence>
+                    {showSidebar && (
+                        <motion.div
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 220, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="bg-zinc-50 border-r border-zinc-200 flex flex-col h-full overflow-hidden shrink-0"
+                        >
+                            <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
+                                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Explorer</span>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => setIsCreating({ type: 'file', parentId: null })} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors" title="New file"><FilePlus size={14} /></button>
+                                    <button onClick={() => setIsCreating({ type: 'folder', parentId: null })} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors" title="New folder"><FolderPlus size={14} /></button>
+                                    <button onClick={() => setShowSidebar(false)} className="p-1 text-zinc-400 hover:text-zinc-900 transition-colors"><ChevronLeft size={14} /></button>
                                 </div>
-                            )}
-                            <div className="space-y-0.5">
-                                {files.filter(f => f.parentId === null).map(node => (
-                                    <FileTreeItem
-                                        key={node.id}
-                                        node={node}
-                                        files={files}
-                                        activeTab={activeTab}
-                                        setActiveTab={setActiveTab}
-                                        toggleFolder={toggleFolder}
-                                        editingId={editingId}
-                                        setEditingId={setEditingId}
-                                        newItemName={newItemName}
-                                        setNewItemName={setNewItemName}
-                                        renameFile={renameFile}
-                                        deleteFile={deleteFile}
-                                        isCreating={isCreating}
-                                        setIsCreating={setIsCreating}
-                                        addFile={addFile}
-                                    />
-                                ))}
                             </div>
-                        </div>
-                    </motion.div>
-                )}
+
+                            <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+                                {isCreating && isCreating.parentId === null && (
+                                    <div className="mb-2 px-2">
+                                        <input
+                                            autoFocus
+                                            className="bg-white border border-zinc-200 rounded-lg px-2 py-1.5 text-xs w-full outline-none shadow-sm font-bold"
+                                            value={newItemName}
+                                            onChange={(e) => setNewItemName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') addFile(isCreating.type, null, newItemName);
+                                                if (e.key === 'Escape') setIsCreating(null);
+                                            }}
+                                            onBlur={() => setIsCreating(null)}
+                                            placeholder={isCreating.type === 'file' ? "file.html" : "folder..."}
+                                        />
+                                    </div>
+                                )}
+                                <div className="space-y-0.5 text-zinc-500">
+                                    {files.filter(f => f.parentId === null).map(node => (
+                                        <FileTreeItem
+                                            key={node.id}
+                                            node={node}
+                                            files={files}
+                                            activeTab={activeTab}
+                                            setActiveTab={setActiveTab}
+                                            toggleFolder={toggleFolder}
+                                            editingId={editingId}
+                                            setEditingId={setEditingId}
+                                            newItemName={newItemName}
+                                            setNewItemName={setNewItemName}
+                                            renameFile={renameFile}
+                                            deleteFile={deleteFile}
+                                            isCreating={isCreating}
+                                            setIsCreating={setIsCreating}
+                                            addFile={addFile}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {!showSidebar && (
                     <button
@@ -407,22 +439,37 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
                     </button>
                 )}
 
-                {/* Editor + Preview */}
-                <div className="flex-1 flex min-w-0">
-                    {/* Monaco Editor */}
-                    <div className="flex-1 flex flex-col bg-white overflow-hidden border-r border-zinc-200 min-w-0">
+                {/* Editor + Preview Container */}
+                <div className="flex-1 flex min-w-0 relative">
+                    {/* Monaco Editor Pane */}
+                    <motion.div 
+                        animate={{ 
+                            width: fullscreenPane === 'editor' ? '100%' : fullscreenPane === 'preview' ? '0%' : `${dividerPosition}%`,
+                            opacity: fullscreenPane === 'preview' ? 0 : 1,
+                            pointerEvents: fullscreenPane === 'preview' ? 'none' : 'auto'
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="flex flex-col bg-white overflow-hidden border-r border-zinc-200 group relative"
+                    >
                         <div className="bg-zinc-50 border-b border-zinc-100 px-4 py-2 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText size={14} className="text-zinc-400" />
-                                <span className="text-[10px] font-black text-zinc-900 uppercase tracking-widest">
+                                <span className="text-[10px] font-black text-zinc-900 uppercase tracking-widest truncate">
                                     {files.find(f => f.id === activeTab)?.name || 'Editor'}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={handleFormat} className="p-1.5 text-zinc-400 hover:text-zinc-900 transition-colors" title="Format Code"><Wand2 size={14} /></button>
                                 <button
+                                    onClick={() => setFullscreenPane(fullscreenPane === 'editor' ? null : 'editor')}
+                                    className={cn("p-1.5 rounded-lg transition-all", fullscreenPane === 'editor' ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-200')}
+                                    title="Fullscreen Editor"
+                                >
+                                    <Maximize2 size={14} />
+                                </button>
+                                <button
                                     onClick={() => setShowLogs(!showLogs)}
-                                    className={`p-1.5 rounded-lg transition-all ${showLogs ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-200'}`}
+                                    className={cn("p-1.5 rounded-lg transition-all", showLogs ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-200')}
                                     title="Toggle console"
                                 >
                                     <Layout size={14} />
@@ -457,29 +504,65 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
                                 }}
                             />
                         </div>
-                    </div>
+                    </motion.div>
+
+                    {/* Resize Handle */}
+                    {!fullscreenPane && (
+                        <div
+                            onMouseDown={startResizing}
+                            className={cn(
+                                "w-1 hover:w-2 bg-transparent hover:bg-lime-400/50 absolute top-0 bottom-0 z-50 cursor-col-resize transition-all duration-300 group/resizer",
+                                isResizing && "w-2 bg-lime-400 bg-opacity-100"
+                            )}
+                            style={{ left: `calc(${dividerPosition}% - 2px)` }}
+                        >
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-8 bg-white border border-zinc-200 rounded-full flex items-center justify-center opacity-0 group-hover/resizer:opacity-100 transition-opacity">
+                                <div className="w-0.5 h-3 bg-zinc-300 rounded-full" />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Preview Pane */}
-                    <div className="flex-1 flex flex-col bg-[#F8F9FA] overflow-hidden min-w-0">
+                    <motion.div 
+                        animate={{ 
+                            width: fullscreenPane === 'preview' ? '100%' : fullscreenPane === 'editor' ? '0%' : `${100 - dividerPosition}%`,
+                            opacity: fullscreenPane === 'editor' ? 0 : 1,
+                            pointerEvents: fullscreenPane === 'editor' ? 'none' : 'auto'
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="flex flex-col bg-[#F8F9FA] overflow-hidden group"
+                    >
                         <div className="bg-white border-b border-zinc-100 px-4 py-2 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2 bg-zinc-50 px-3 py-1 rounded-full border border-zinc-200">
                                 <Eye size={12} className="text-zinc-400" />
                                 <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Live View</span>
                             </div>
-                            <div className="flex items-center bg-zinc-50 p-1 rounded-xl border border-zinc-100">
-                                <button onClick={() => setPreviewDevice("mobile")} className={`p-1.5 rounded-lg transition-all ${previewDevice === 'mobile' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400"}`} title="Mobile"><Smartphone size={13} /></button>
-                                <button onClick={() => setPreviewDevice("tablet")} className={`p-1.5 rounded-lg transition-all ${previewDevice === 'tablet' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400"}`} title="Tablet"><Tablet size={13} /></button>
-                                <button onClick={() => setPreviewDevice("desktop")} className={`p-1.5 rounded-lg transition-all ${previewDevice === 'desktop' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400"}`} title="Desktop"><Laptop size={13} /></button>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center bg-zinc-50 p-1 rounded-xl border border-zinc-100">
+                                    <button onClick={() => setPreviewDevice("mobile")} className={cn("p-1.5 rounded-lg transition-all", previewDevice === 'mobile' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")} title="Mobile"><Smartphone size={13} /></button>
+                                    <button onClick={() => setPreviewDevice("tablet")} className={cn("p-1.5 rounded-lg transition-all", previewDevice === 'tablet' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")} title="Tablet"><Tablet size={13} /></button>
+                                    <button onClick={() => setPreviewDevice("desktop")} className={cn("p-1.5 rounded-lg transition-all", previewDevice === 'desktop' ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-400")} title="Desktop"><Laptop size={13} /></button>
+                                </div>
+                                <button
+                                    onClick={() => setFullscreenPane(fullscreenPane === 'preview' ? null : 'preview')}
+                                    className={cn("p-1.5 rounded-lg transition-all", fullscreenPane === 'preview' ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-200')}
+                                    title="Fullscreen Preview"
+                                >
+                                    <Maximize2 size={14} />
+                                </button>
                             </div>
                         </div>
-                        <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+                        <div className="flex-1 flex items-center justify-center p-4 overflow-hidden bg-zinc-100/50">
                             <motion.div
                                 animate={{
                                     width: previewDevice === 'mobile' ? 375 : previewDevice === 'tablet' ? 768 : '100%',
                                     height: previewDevice === 'mobile' ? 667 : '100%',
                                 }}
                                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                className={`bg-white overflow-hidden ${previewDevice === 'desktop' ? 'rounded-none border-none shadow-none w-full h-full' : 'rounded-3xl shadow-2xl border-8 border-zinc-900'}`}
+                                className={cn(
+                                    "bg-white overflow-hidden shadow-2xl transition-all duration-500",
+                                    previewDevice === 'desktop' ? 'rounded-none border-none shadow-none w-full h-full' : 'rounded-[2rem] border-8 border-zinc-900'
+                                )}
                             >
                                 <iframe
                                     key={previewKey}
@@ -491,7 +574,7 @@ export default function FreeCodeIDE({ project, onFilesChange }: FreeCodeIDEProps
                                 />
                             </motion.div>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
 

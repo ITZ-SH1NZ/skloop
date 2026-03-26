@@ -21,6 +21,7 @@ export interface FreeCodeProject {
   color: string;
   thumbnail_url: string | null;
   is_published: boolean;
+  likes_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -237,4 +238,53 @@ export async function deployToArsenal(supabase: SupabaseClient, projectId: strin
 
   if (error) throw error;
   return true;
+}
+
+export async function toggleLikeProject(supabase: SupabaseClient, projectId: string, userId: string): Promise<{ liked: boolean; count: number }> {
+  // Check if liked
+  const { data: existingLike, error: fetchError } = await supabase
+    .from("freecode_project_likes")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  if (existingLike) {
+    // Unlike
+    const { error: deleteError } = await supabase
+      .from("freecode_project_likes")
+      .delete()
+      .eq("id", existingLike.id);
+    if (deleteError) throw deleteError;
+  } else {
+    // Like
+    const { error: insertError } = await supabase
+      .from("freecode_project_likes")
+      .insert([{ project_id: projectId, user_id: userId }]);
+    if (insertError) throw insertError;
+  }
+
+  // Fetch updated count
+  const { data: project, error: pError } = await supabase
+    .from("freecode_projects")
+    .select("likes_count")
+    .eq("id", projectId)
+    .single();
+  if (pError) throw pError;
+
+  return { liked: !existingLike, count: project.likes_count };
+}
+
+export async function getProjectLikeStatus(supabase: SupabaseClient, projectId: string, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("freecode_project_likes")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data;
 }
