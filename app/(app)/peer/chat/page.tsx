@@ -380,6 +380,8 @@ function ChatPageContent() {
     const selectedPeer = allChats.find(c => c.id === selectedPeerId) || null;
 
     const totalUnread = allChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    const dmsUnreadCount = dms.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    const groupsUnreadCount = groups.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
     // Optimistically clear unread count when opening a conversation
     const handleSelectConversation = (chatId: string) => {
@@ -521,9 +523,16 @@ function ChatPageContent() {
                                 {/* Direct Messages */}
                                 {filteredDms.length > 0 && (
                                     <div>
-                                        <div className={`flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-                                            <UserCircle2 size={14} />
-                                            {!isSidebarCollapsed && <span>Direct Messages</span>}
+                                        <div className={`flex items-center justify-between px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                                            <div className="flex items-center gap-2">
+                                                <UserCircle2 size={14} />
+                                                {!isSidebarCollapsed && <span>Direct Messages</span>}
+                                            </div>
+                                            {!isSidebarCollapsed && dmsUnreadCount > 0 && (
+                                                <span className="bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded-md text-[10px] font-bold">
+                                                    {dmsUnreadCount}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="space-y-[2px]">
                                             <AnimatePresence mode="popLayout">
@@ -598,9 +607,16 @@ function ChatPageContent() {
                                 {/* Study Circles */}
                                 {filteredGroups.length > 0 && (
                                     <div>
-                                        <div className={`flex items-center gap-2 px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-                                            <Users size={14} />
-                                            {!isSidebarCollapsed && <span>Study Circles</span>}
+                                        <div className={`flex items-center justify-between px-2 mb-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                                            <div className="flex items-center gap-2">
+                                                <Users size={14} />
+                                                {!isSidebarCollapsed && <span>Study Circles</span>}
+                                            </div>
+                                            {!isSidebarCollapsed && groupsUnreadCount > 0 && (
+                                                <span className="bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded-md text-[10px] font-bold">
+                                                    {groupsUnreadCount}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="space-y-[2px]">
                                             <AnimatePresence mode="popLayout">

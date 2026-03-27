@@ -21,7 +21,7 @@ import dynamic from 'next/dynamic';
 import { createClient } from "@/utils/supabase/client";
 import {
     getConversationMessages, sendMessage, MessageRow,
-    markMessagesAsRead, markMessagesAsDelivered, deleteMessage, toggleReaction,
+    markMessagesAsRead, markMessagesAsDelivered, markMessageAsPlayed, deleteMessage, toggleReaction,
     pinMessage, unpinMessage, getPinnedMessage,
     createPoll, getPoll, votePoll,
     scheduleMessage, getOverdueScheduledMessages, markScheduledMessageSent,
@@ -283,8 +283,9 @@ const SnippetRenderer = ({ message }: { message: MessageRow }) => {
 /**
  * Premium Voice Note Player with Waveform and Speed Control
  */
-const VoicePlayer = ({ url }: { url: string }) => {
+const VoicePlayer = ({ url, messageId, onPlayed, isPlayed: initiallyPlayed }: { url: string; messageId?: string; onPlayed?: (id: string) => void; isPlayed?: boolean }) => {
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isPlayed, setIsPlayed] = useState(initiallyPlayed || false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -303,6 +304,10 @@ const VoicePlayer = ({ url }: { url: string }) => {
         } else {
             audioRef.current.play();
             soundManager.playClick(0.6);
+            if (!isPlayed && messageId && onPlayed) {
+                onPlayed(messageId);
+                setIsPlayed(true);
+            }
         }
         setIsPlaying(!isPlaying);
     };
@@ -526,6 +531,18 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [lastReadId, setLastReadId] = useState<string | null>(null);
+    const [firstUnreadId, setFirstUnreadId] = useState<string | null>(null);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+    const scrollToMessage = useCallback((messageId: string) => {
+        const el = document.getElementById(`msg-${messageId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setHighlightedId(messageId);
+            setTimeout(() => setHighlightedId(null), 2000);
+        }
+    }, []);
 
     // --- NEW FEATURE STATES ---
     const [pinnedMsg, setPinnedMsg] = useState<{ messageId: string; text: string; senderName: string } | null>(null);
@@ -588,11 +605,6 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
         setIsAtBottom(isNearBottom);
 
-        // If at bottom, mark last message as read locally
-        if (isNearBottom && messages.length > 0) {
-            setLastReadId(messages[messages.length - 1].id);
-        }
-
         // Load older messages when scrolled near the top
         if (scrollTop < 200 && hasMore && !isLoadingMore) {
             loadMoreMessages();
@@ -603,15 +615,17 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         if (initialLoadRef.current && messages.length > 0) {
             // Use requestAnimationFrame to ensure DOM is ready
             requestAnimationFrame(() => {
-                scrollToBottom("auto");
+                if (firstUnreadId) {
+                    scrollToMessage(firstUnreadId);
+                } else {
+                    scrollToBottom("auto");
+                }
                 initialLoadRef.current = false;
-                if (messages.length > 0) setLastReadId(messages[messages.length - 1].id);
             });
         } else if (isAtBottom) {
             scrollToBottom();
-            if (messages.length > 0) setLastReadId(messages[messages.length - 1].id);
         }
-    }, [messages, isAtBottom]);
+    }, [messages, isAtBottom, firstUnreadId, scrollToMessage]);
 
 
     useEffect(() => {
@@ -625,6 +639,15 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             setPinnedMsg(pinned);
             if (history.length > 0) {
                 oldestTimestampRef.current = history[0].timestamp.toISOString();
+
+                // Find the first unread message from the peer to set the "New Messages" divider
+                const firstUnread = history.find(m => m.senderId !== currentUserId && m.status !== 'read');
+                if (firstUnread) {
+                    const idx = history.indexOf(firstUnread);
+                    setLastReadId(idx === 0 ? 'START_OF_CONVO' : history[idx - 1].id);
+                    setFirstUnreadId(firstUnread.id);
+                    setUnreadCount(history.filter(m => m.senderId !== currentUserId && m.status !== 'read').length);
+                }
             }
             setHasMore(history.length >= 50);
 
@@ -710,7 +733,10 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             attachments: newMessage.attachments || [],
                             isDeleted: newMessage.is_deleted,
                             pollId: newMessage.poll_id,
-                            snippetId: newMessage.snippet_id
+                            snippetId: newMessage.snippet_id,
+                            deliveredAt: newMessage.delivered_at ? new Date(newMessage.delivered_at) : undefined,
+                            readAt: newMessage.read_at ? new Date(newMessage.read_at) : undefined,
+                            playedAt: newMessage.played_at ? new Date(newMessage.played_at) : undefined
                         };
                         return [...prev, mapped];
                     });
@@ -722,6 +748,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                     if (newMessage.sender_id !== currentUserId) {
                         await markMessagesAsDelivered(peer.id);
                     }
+
+                    // Reset unread state when a new message arrives (satisfies persistent divider condition)
+                    setUnreadCount(0);
+                    setFirstUnreadId(null);
+                    setLastReadId(null);
+
                     // Ensure auto-bottom on new messages (including polls)
                     if (isAtBottom || newMessage.sender_id === currentUserId) {
                         setTimeout(() => scrollToBottom("smooth"), 100);
@@ -736,6 +768,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         isEdited: updated.is_edited,
                         pollId: updated.poll_id,
                         snippetId: updated.snippet_id,
+                        deliveredAt: updated.delivered_at ? new Date(updated.delivered_at) : m.deliveredAt,
+                        readAt: updated.read_at ? new Date(updated.read_at) : m.readAt,
+                        playedAt: updated.played_at ? new Date(updated.played_at) : m.playedAt,
                         // Preserve snippetData if it already exists and isn't in payload
                         snippetData: updated.code_snippets ? (Array.isArray(updated.code_snippets) ? updated.code_snippets[0] : updated.code_snippets) : m.snippetData
                     } : m));
@@ -1316,16 +1351,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         }
     };
 
-    const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-    const scrollToMessage = useCallback((messageId: string) => {
-        const el = document.getElementById(`msg-${messageId}`);
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setHighlightedId(messageId);
-            setTimeout(() => setHighlightedId(null), 2000);
-        }
-    }, []);
+
+
 
     const compressImage = async (file: File): Promise<File> => {
         return new Promise((resolve) => {
@@ -1863,7 +1891,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                             const isSameAuthorAsNext = nextMsg?.senderId === msg.senderId;
 
                                             // Check for unread line
-                                            const isFirstUnread = lastReadId && group.messages[msgIndex - 1]?.id === lastReadId;
+                                            const isFirstUnread = (lastReadId === 'START_OF_CONVO' && msgIndex === 0 && groupIdx === 0) || 
+                                                                 (lastReadId && group.messages[msgIndex - 1]?.id === lastReadId);
 
                                             const isHighlighted = msg.id === highlightedId;
 
@@ -1873,10 +1902,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                     id={`msg-${msg.id}`}
                                                     className="rounded-xl transition-all duration-500"
                                                 >
-                                                    {isFirstUnread && (
+                                                    {isFirstUnread && unreadCount > 0 && (
                                                         <div className="flex items-center gap-4 my-8">
                                                             <div className="h-px flex-1 bg-gradient-to-r from-transparent to-red-100" />
-                                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest px-3 py-1 bg-red-50 rounded-full border border-red-100 shadow-sm">New Messages</span>
+                                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest px-3 py-1 bg-red-50 rounded-full border border-red-100 shadow-sm">
+                                                                {unreadCount} New {unreadCount === 1 ? 'Message' : 'Messages'}
+                                                            </span>
                                                             <div className="h-px flex-1 bg-gradient-to-l from-transparent to-red-100" />
                                                         </div>
                                                     )}
@@ -2010,7 +2041,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                                         ? <MuxVideoPlayer url={att.url} className="w-full" />
                                                                                                         : <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />
                                                                                                 )}
-                                                                                                {att.type === 'audio' && <VoicePlayer url={att.url} />}
+                                                                                                {att.type === 'audio' && <VoicePlayer url={att.url} messageId={msg.id} onPlayed={markMessageAsPlayed} isPlayed={!!msg.playedAt} />}
                                                                                                 {att.type === 'file' && (
                                                                                                     <button
                                                                                                         type="button"
@@ -2071,19 +2102,33 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                     ))}
                                                                 </div>
                                                             )}
-                                                            <div className={`flex items-center gap-1.5 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                            <div className={`flex items-center gap-2 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                                                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                {isMe && (
-                                                                    <div className="flex text-zinc-300">
-                                                                        {msg.status === 'read' ? (
-                                                                            <><Check size={10} className="text-[#3b82f6]" /><Check size={10} className="text-[#3b82f6] -ml-1" /></>
-                                                                        ) : msg.status === 'delivered' ? (
-                                                                            <><Check size={10} className="text-zinc-400" /><Check size={10} className="text-zinc-400 -ml-1" /></>
-                                                                        ) : (
-                                                                            <Check size={10} />
-                                                                        )}
-                                                                    </div>
-                                                                )}
+                                                                
+                                                                <div className="flex items-center gap-1 group/status">
+                                                                    <motion.div 
+                                                                        initial={false}
+                                                                        animate={{ 
+                                                                            backgroundColor: msg.status === 'read' ? '#3b82f6' : '#a1a1aa',
+                                                                            scale: msg.status === 'read' ? [1, 1.2, 1] : 1,
+                                                                            boxShadow: msg.status === 'read' ? '0 0 8px rgba(59, 130, 246, 0.5)' : '0 0 0px rgba(0,0,0,0)'
+                                                                        }}
+                                                                        className="w-1.5 h-1.5 rounded-full shadow-sm"
+                                                                        title={`Read: ${msg.readAt ? msg.readAt.toLocaleTimeString() : 'N/A'}`}
+                                                                    />
+                                                                    {(msg.type === 'audio' || msg.attachments?.some(a => a.type === 'audio')) && (
+                                                                        <motion.div 
+                                                                            initial={false}
+                                                                            animate={{ 
+                                                                                backgroundColor: msg.playedAt ? '#84cc16' : '#a1a1aa',
+                                                                                scale: msg.playedAt ? [1, 1.2, 1] : 1,
+                                                                                boxShadow: msg.playedAt ? '0 0 8px rgba(132, 204, 22, 0.5)' : '0 0 0px rgba(0,0,0,0)'
+                                                                            }}
+                                                                            className="w-1.5 h-1.5 rounded-full shadow-sm"
+                                                                            title={`Played: ${msg.playedAt ? msg.playedAt.toLocaleTimeString() : 'N/A'}`}
+                                                                        />
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </motion.div>

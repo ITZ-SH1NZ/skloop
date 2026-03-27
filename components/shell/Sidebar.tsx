@@ -12,8 +12,9 @@ import {
     ShoppingBag,
     Settings,
 } from "lucide-react";
-import { useState, memo } from "react";
+import { useState, memo, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { usePathname } from "next/navigation";
 import { Button } from "../ui/Button";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,8 @@ import { fetchUserTasks,
     fetchUserProfile,
     fetchShopData,
     fetchDailyQuests,
-    fetchHeroCourse
+    fetchHeroCourse,
+    fetchConversations
 } from "@/lib/swr-fetchers";
 import { useUser } from "@/context/UserContext";
 
@@ -121,10 +123,10 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
                     {item.subItems && <ChevronRight size={16} className={cn("transition-transform duration-200", isOpen ? "rotate-90" : "")} />}
                 </>
             )}
-            {showLabel && item.badge && !item.subItems && (
+            {showLabel && item.badge && (
                 <span className={cn(
                     "ml-auto text-[10px] xl:text-[10px] font-bold px-2 py-0.5 rounded-full z-10",
-                    isActive ? "bg-white/50 text-black" : "bg-gray-100 text-gray-600"
+                    isActive ? "bg-white/50 text-black" : "bg-primary/10 text-primary"
                 )}>
                     {item.badge}
                 </span>
@@ -230,6 +232,18 @@ interface SidebarContentProps {
 const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIsCollapsed }: SidebarContentProps) => {
     const { user } = useUser();
     
+    // Fetch conversations for unread counts
+    const { data: convos } = useSWR(
+        user?.id ? ['conversations', user.id] : null,
+        fetchConversations,
+        { refreshInterval: 30000 } // Poll every 30s as fallback, though realtime triggers mutation
+    );
+
+    const totalUnread = useMemo(() => {
+        if (!convos) return 0;
+        return [...convos.dms, ...convos.groups].reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+    }, [convos]);
+    
     const navItems = [
         { icon: Home, label: "Home", href: "/dashboard" },
         {
@@ -268,6 +282,7 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             icon: Users,
             label: "Peers",
             href: "#",
+            badge: totalUnread > 0 ? totalUnread : undefined,
             subItems: [
                 { label: "My Peers", href: "/peer/my-peers" },
                 { label: "Chat", href: "/peer/chat" },

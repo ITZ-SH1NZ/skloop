@@ -765,3 +765,8 @@ export const fetchSealedChests = async ([key, userId]: [string, string]) => {
     const { getSealedChests } = await import("@/actions/quest-actions");
     return await getSealedChests(userId);
 };
+
+export const fetchConversations = async ([key, userId]: [string, string]) => {
+    const { getUserConversations } = await import("@/actions/chat-actions");
+    return await getUserConversations();
+};

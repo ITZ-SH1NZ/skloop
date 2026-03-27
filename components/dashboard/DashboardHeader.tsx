@@ -41,6 +41,7 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
             .from('notifications')
             .select('id, title, content, type, is_read, metadata, created_at')
             .eq('user_id', user.id)
+            .eq('is_read', false)
             .order('created_at', { ascending: false })
             .limit(20);
 
@@ -53,10 +54,29 @@ export default function DashboardHeader({ initialUser }: { initialUser?: any }) 
     useEffect(() => {
         fetchNotifications();
 
-        // The real-time listening is now handled globally by NotificationListener.
-        // We just need to ensure the local unread count stays updated.
-        // In a more advanced version, we'd use SWR mutation or a shared state.
-    }, [fetchNotifications]);
+        if (!userProfile?.id) return;
+
+        // Realtime subscription to keep the notification list and count in sync
+        const channel = supabase
+            .channel(`header_notifications_${userProfile.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${userProfile.id}`
+                },
+                () => {
+                    fetchNotifications();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [fetchNotifications, userProfile?.id, supabase]);
 
     const handleMarkAllRead = async () => {
         const { data: { user } } = await supabase.auth.getUser();

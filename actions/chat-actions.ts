@@ -19,6 +19,9 @@ export interface MessageRow {
     attachments?: MessageAttachment[];
     type: "text" | "image" | "video" | "audio" | "sticker" | "gif" | "file" | "poll" | "code";
     status?: 'sent' | 'delivered' | 'read';
+    deliveredAt?: Date;
+    readAt?: Date;
+    playedAt?: Date;
     replyToId?: string;
     isEdited?: boolean;
     editedAt?: Date;
@@ -56,6 +59,9 @@ export async function getConversationMessages(
             is_deleted,
             poll_id,
             snippet_id,
+            delivered_at,
+            read_at,
+            played_at,
             created_at,
             profiles (
                 id,
@@ -121,6 +127,9 @@ export async function getConversationMessages(
             pollId: m.poll_id || undefined,
             snippetId: m.snippet_id || undefined,
             snippetData: m.code_snippets ? (Array.isArray(m.code_snippets) ? m.code_snippets[0] : m.code_snippets) : undefined,
+            deliveredAt: m.delivered_at ? new Date(m.delivered_at) : undefined,
+            readAt: m.read_at ? new Date(m.read_at) : undefined,
+            playedAt: m.played_at ? new Date(m.played_at) : undefined,
             reactions: m.message_reactions ? (m.message_reactions as any[]).reduce((acc: any[], r) => {
                 const existing = acc.find(a => a.emoji === r.emoji);
                 if (existing) {
@@ -587,13 +596,30 @@ export async function markMessagesAsRead(conversationId: string) {
 
     const { error } = await supabase
         .from('messages')
-        .update({ status: 'read' })
+        .update({ status: 'read', read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .neq('status', 'read');
 
     if (error) throw new Error(error.message);
     return { success: true };
+}
+
+/**
+ * Marks a specific (voice) message as played.
+ */
+export async function markMessageAsPlayed(messageId: string) {
+    const supabase = await createClient();
+    const { error } = await supabase
+        .from('messages')
+        .update({ played_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .is('played_at', null);
+
+    if (error) {
+        console.error("Error marking message as played:", error);
+        throw error;
+    }
 }
 
 /**
@@ -606,7 +632,7 @@ export async function markMessagesAsDelivered(conversationId: string) {
 
     const { error } = await supabase
         .from('messages')
-        .update({ status: 'delivered' })
+        .update({ status: 'delivered', delivered_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .eq('status', 'sent');
