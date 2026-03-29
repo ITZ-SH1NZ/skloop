@@ -123,7 +123,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
                                             className={cn(
                                                 "relative flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all",
                                                 isActive
-                                                    ? "bg-zinc-900 text-[#D4F268]" // Instant CSS background swap
+                                                    ? "bg-primary text-primary-foreground" // Instant CSS background swap
                                                     : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/50"
                                             )}
                                         >
@@ -173,7 +173,7 @@ export function SettingsShell({ children }: { children: React.ReactNode }) {
                                 className={cn(
                                     "relative shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all snap-start",
                                     isActive
-                                        ? "bg-zinc-900 text-[#D4F268]"
+                                        ? "bg-primary text-primary-foreground"
                                         : "text-zinc-500 hover:text-zinc-900 bg-zinc-100/80 hover:bg-zinc-200/80"
                                 )}
                             >

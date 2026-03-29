@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { CurrencyCoin } from "./CurrencyCoin";
@@ -25,6 +25,8 @@ export const RewardBurst = ({
   origin?: { x: number; y: number };
 }) => {
   const [particles, setParticles] = useState<Particle[]>([]);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     if (trigger) {
@@ -49,12 +51,12 @@ export const RewardBurst = ({
       // Cleanup after animation
       const timer = setTimeout(() => {
         setParticles([]);
-        onComplete();
+        onCompleteRef.current();
       }, 2000);
 
       return () => clearTimeout(timer);
     }
-  }, [trigger, origin, count, onComplete]);
+  }, [trigger, origin, count]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-[101]">

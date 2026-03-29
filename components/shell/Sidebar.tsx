@@ -12,7 +12,7 @@ import {
     ShoppingBag,
     Settings,
 } from "lucide-react";
-import { useState, memo, useMemo } from "react";
+import { useState, useRef, memo, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { usePathname } from "next/navigation";
@@ -74,8 +74,12 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
         // For now, let's just keep manual toggle unless active.
     }
 
+    const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handlePrefetch = (href: string) => {
         if (!user) return;
+        if (prefetchTimerRef.current) clearTimeout(prefetchTimerRef.current);
+        prefetchTimerRef.current = setTimeout(() => {
         if (href === '/dashboard') {
             preload(['userTasks', user.id], fetchUserTasks as any);
             preload(['dailyQuests', user.id], fetchDailyQuests as any);
@@ -106,6 +110,7 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
         } else if (href === '/shop') {
             preload(['shopData', user.id], fetchShopData as any);
         }
+        }, 150);
     };
 
     const [mounted, setMounted] = useState(false);

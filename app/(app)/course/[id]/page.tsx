@@ -43,7 +43,7 @@ export default function CoursePage() {
     const courseId = params.id as string;
 
     const { user } = useUser();
-    
+
     // Fetch Course Track mapping via centralized SWR fetcher
     const { data: swrData, isLoading: isSwrLoading } = useSWR(
         user && courseId ? ['course', courseId, user.id] : null,
@@ -51,6 +51,11 @@ export default function CoursePage() {
     );
 
     const [activeModuleId, setActiveModuleId] = useState<number>(0);
+    // hasMounted prevents hydration mismatch: SWRProvider restores localStorage cache on
+    // the client instantly, so the client may render full content while the server rendered
+    // a spinner. By gating on hasMounted, both server and client initial renders are identical.
+    const [hasMounted, setHasMounted] = useState(false);
+    useEffect(() => setHasMounted(true), []);
 
     // Sync initial activeModuleId into local state for manual toggling
     useEffect(() => {
@@ -61,7 +66,7 @@ export default function CoursePage() {
 
     const trackData = swrData?.trackData || null;
     const modules = swrData?.modules || [];
-    const isLoading = isSwrLoading || (courseId && user && !swrData);
+    const isLoading = !hasMounted || isSwrLoading || (!!courseId && !!user && !swrData);
 
     const handleModuleClick = (id: number) => {
         setActiveModuleId((prev) => (prev === id ? 0 : id));

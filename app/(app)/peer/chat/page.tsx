@@ -378,7 +378,10 @@ function ChatPageContent() {
     }, [initialUserId, initialCircleId, convosData?.dms?.length]);
 
     const allChats = [...dms, ...groups];
-    const selectedPeer = allChats.find(c => c.id === selectedPeerId) || null;
+    // Gate on mounted: SWRProvider restores localStorage cache on the client instantly,
+    // so allChats may be populated before the server's empty-state render is hydrated.
+    // Without this, server renders the empty state while client renders the chat window → hydration mismatch.
+    const selectedPeer = mounted ? (allChats.find(c => c.id === selectedPeerId) || null) : null;
 
     const totalUnread = allChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
     const dmsUnreadCount = dms.reduce((sum, c) => sum + (c.unreadCount || 0), 0);

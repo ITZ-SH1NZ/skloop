@@ -62,32 +62,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-[100dvh] bg-background p-0 md:p-4 gap-4 overflow-hidden items-stretch">
             <NotificationListener />
             <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+            <div
+                className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 z-[80]"
+                style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+            >
+                <div className="h-16 flex items-center justify-between px-4">
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen(true)}
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity active:scale-95"
+                        >
+                            <Logo className="w-8 h-8" />
+                            <span className="font-black text-lg tracking-tight text-zinc-900">skloop</span>
+                        </button>
+                    </div>
 
-            <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh]">
-                {/* Mobile header — expands to sit below notch/Dynamic Island */}
-                <div
-                    className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 z-[40]"
-                    style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-                >
-                    <div className="h-16 flex items-center justify-between px-4">
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => setMobileOpen(true)}
-                                className="flex items-center gap-2 hover:opacity-80 transition-opacity active:scale-95"
-                            >
-                                <Logo className="w-8 h-8" />
-                                <span className="font-black text-lg tracking-tight text-zinc-900">skloop</span>
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <button className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden shadow-sm active:scale-90 transition-transform">
-                                <div className="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 opacity-20" />
-                            </button>
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <button className="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden shadow-sm active:scale-90 transition-transform">
+                            <div className="w-full h-full bg-gradient-to-br from-lime-400 to-lime-600 opacity-20" />
+                        </button>
                     </div>
                 </div>
+            </div>
 
+            <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh]">
                 <motion.div
                     key={pathname}
                     initial={hasLoadedRef.current ? false : { opacity: 0, y: 10 }}

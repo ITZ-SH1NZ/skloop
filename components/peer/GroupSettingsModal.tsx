@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { PeerProfile } from "./PeerCard";
 import { createClient } from "@/utils/supabase/client";
 import { uploadChatFile } from "@/actions/chat-actions";
+import { mutate } from "swr";
 
 interface GroupSettingsModalProps {
     peer: PeerProfile;
@@ -26,6 +27,8 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
     const [avatarUrl, setAvatarUrl] = useState(peer.avatarUrl || "");
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [isUploadedFile, setIsUploadedFile] = useState(!!peer.avatarUrl?.startsWith('http'));
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +45,8 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
             setName(peer.name);
             setDescription(peer.description || "");
             setAvatarUrl(peer.avatarUrl || "");
+            setIsUploadedFile(!!peer.avatarUrl?.startsWith('http'));
+            setUploadError(null);
 
             // Fetch group privacy and members if opened
             const fetchDetails = async () => {
@@ -105,6 +110,9 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
         setIsSaving(false);
         if (!error && data) {
             onUpdate?.({ name, description, avatarUrl, privacy });
+            // Revalidate both the study circles list and any conversations cache
+            // so the updated avatar propagates everywhere without a manual refresh.
+            mutate((key: any) => Array.isArray(key) && (key[0] === 'studyCircles' || key[0] === 'conversations'));
             onClose();
         }
     };
@@ -127,6 +135,12 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setUploadError(null);
+        if (file.size > 4 * 1024 * 1024) {
+            setUploadError("Image must be under 4 MB.");
+            return;
+        }
+
         setIsUploading(true);
         try {
             const formData = new FormData();
@@ -134,9 +148,11 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
             const url = await uploadChatFile(formData);
             if (url) {
                 setAvatarUrl(url);
+                setIsUploadedFile(true);
             }
         } catch (error) {
             console.error("Upload failed", error);
+            setUploadError("Upload failed. Please try again.");
         } finally {
             setIsUploading(false);
         }
@@ -221,14 +237,31 @@ export function GroupSettingsModal({ peer, isOpen, onClose, currentUserRole, onU
                                                 />
                                             </div>
                                             <div className="flex-1 space-y-2">
-                                                <input
-                                                    type="text"
-                                                    value={avatarUrl}
-                                                    onChange={(e) => setAvatarUrl(e.target.value)}
-                                                    placeholder="Enter an emoji or image URL"
-                                                    className="w-full px-4 py-3 bg-white border border-[#E5E5E0] rounded-xl text-sm font-medium focus:outline-none focus:border-[#1A1A1A] focus:ring-1 focus:ring-[#1A1A1A] transition-all"
-                                                />
-                                                <p className="text-[10px] text-zinc-400">You can also upload an image using the button</p>
+                                                {isUploadedFile ? (
+                                                    <div className="w-full px-4 py-3 bg-white border border-[#E5E5E0] rounded-xl text-sm font-medium text-zinc-500 flex items-center justify-between">
+                                                        <span>Image uploaded</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setAvatarUrl(""); setIsUploadedFile(false); setUploadError(null); }}
+                                                            className="text-xs text-zinc-400 hover:text-red-500 transition-colors ml-2"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        value={avatarUrl}
+                                                        onChange={(e) => setAvatarUrl(e.target.value)}
+                                                        placeholder="Enter an emoji or image URL"
+                                                        className="w-full px-4 py-3 bg-white border border-[#E5E5E0] rounded-xl text-sm font-medium focus:outline-none focus:border-[#1A1A1A] focus:ring-1 focus:ring-[#1A1A1A] transition-all"
+                                                    />
+                                                )}
+                                                {uploadError ? (
+                                                    <p className="text-[10px] text-red-500 font-medium">{uploadError}</p>
+                                                ) : (
+                                                    <p className="text-[10px] text-zinc-400">You can also upload an image using the button</p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

@@ -95,7 +95,7 @@ export default function DailyQuestsWidget({ refreshKey = 0 }: { refreshKey?: num
                         }
                         return { ...currentData, questsData: updated };
                     },
-                    { revalidate: true }
+                    { revalidate: false }
                 );
                 await refreshProfile();
                 setTimeout(() => setClaimFeedback(null), 3000);
