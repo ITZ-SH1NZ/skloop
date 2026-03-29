@@ -108,6 +108,13 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
         }
     };
 
+    const [mounted, setMounted] = useState(false);
+    
+    // Fix hydration mismatch caused by client-only badge/status values (e.g. from SWR/Zustand)
+    require('react').useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const itemContent = (
         <div className={cn(
             "flex items-center gap-3 xl:gap-4 px-4 xl:px-5 py-3 xl:py-4 rounded-[1.5rem] transition-all duration-300 relative overflow-hidden",
@@ -123,7 +130,7 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
                     {item.subItems && <ChevronRight size={16} className={cn("transition-transform duration-200", isOpen ? "rotate-90" : "")} />}
                 </>
             )}
-            {showLabel && item.badge && (
+            {mounted && showLabel && item.badge && (
                 <span className={cn(
                     "ml-auto text-[10px] xl:text-[10px] font-bold px-2 py-0.5 rounded-full z-10",
                     isActive ? "bg-white/50 text-black" : "bg-primary/10 text-primary"

@@ -5,9 +5,10 @@ import MuxPlayer from "@mux/mux-player-react";
 interface Props {
     url: string; // https://stream.mux.com/{playbackId}
     className?: string;
+    onPlay?: () => void;
 }
 
-export function MuxVideoPlayer({ url, className }: Props) {
+export function MuxVideoPlayer({ url, className, onPlay }: Props) {
     const playbackId = url.replace("https://stream.mux.com/", "");
     return (
         <MuxPlayer
@@ -15,6 +16,7 @@ export function MuxVideoPlayer({ url, className }: Props) {
             streamType="on-demand"
             className={className}
             style={{ aspectRatio: "16/9", width: "100%" }}
+            onPlay={onPlay}
         />
     );
 }

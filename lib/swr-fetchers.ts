@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import { ShopItem } from "./shop-items";
+import { getAvatarUrl } from "./utils";
 
 export const fetchUserTasks = async ([key, userId]: [string, string]) => {
     const { getUserTasks } = await import("@/actions/task-actions");
@@ -356,7 +357,7 @@ export const fetchStudyCircles = async ([key, userId]: [string, string]): Promis
         return {
             id: c.id,
             name: c.title || 'Unnamed Circle',
-            avatarUrl: c.avatar_url || undefined,
+            avatarUrl: getAvatarUrl(c.avatar_url),
             topic: c.tags?.[0] || 'General',
             description: c.description || 'A study circle for eager learners.',
             memberCount: stats.count,

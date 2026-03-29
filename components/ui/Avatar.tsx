@@ -14,6 +14,7 @@ interface AvatarProps {
     className?: string;
     frameId?: string | null;
     glowId?: string | null;
+    onClick?: () => void;
 }
 
 const FRAME_STYLES: Record<string, string> = {
@@ -43,7 +44,7 @@ const RING_GLOWS: Record<string, string> = {
     'q_ring_singularity': 'shadow-[0_0_40px_rgba(88,28,135,1)] border-[2px] border-purple-900',
 };
 
-export function Avatar({ src, fallback, className, frameId, glowId }: AvatarProps) {
+export function Avatar({ src, fallback, className, frameId, glowId, onClick }: AvatarProps) {
     const frameClass = frameId ? FRAME_STYLES[frameId] : "";
     const glowClass = glowId ? RING_GLOWS[glowId] : "";
     const [imgError, setImgError] = useState(false);
@@ -53,7 +54,10 @@ export function Avatar({ src, fallback, className, frameId, glowId }: AvatarProp
     const showImage = validSrc && !imgError;
 
     return (
-        <div className="relative isolate">
+        <div 
+            className={cn("relative isolate", onClick && "cursor-pointer")}
+            onClick={onClick}
+        >
             {/* Glow Ring Effect */}
             {glowId && (
                 <div

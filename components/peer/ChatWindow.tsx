@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { PeerProfile } from "./PeerCard";
 import { CircleInfoPanel } from "./CircleInfoPanel";
+import { MessageInfoPanel } from "./MessageInfoPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/context/UserContext";
 import { LoopyMascot, LoopyMood } from "../loopy/LoopyMascot";
@@ -32,6 +33,7 @@ import { uploadAttachment } from "@/utils/upload";
 import { markNotificationsAsRead } from "@/actions/notification-actions";
 import { soundManager } from "@/lib/sound";
 import { MuxVideoPlayer } from "./MuxVideoPlayer";
+import UserProfileModal from "@/components/profile/UserProfileModal";
 
 const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false });
 
@@ -189,7 +191,7 @@ const PollMessage = ({ pollId, currentUserId, supabase }: { pollId: string; curr
 /**
  * Rich Code Snippet Renderer
  */
-const SnippetRenderer = ({ message }: { message: MessageRow }) => {
+export const SnippetRenderer = ({ message }: { message: MessageRow }) => {
     const [snippet, setSnippet] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
@@ -244,7 +246,7 @@ const SnippetRenderer = ({ message }: { message: MessageRow }) => {
             </div>
         </div>
     );
-    
+
     if (!snippet) return (
         <div className="p-4 bg-red-500/10 rounded-xl border border-red-500/20 my-2 flex items-center gap-3 text-red-400">
             <AlertCircle size={18} />
@@ -264,7 +266,7 @@ const SnippetRenderer = ({ message }: { message: MessageRow }) => {
                         <p className="text-xs font-bold text-zinc-100 truncate max-w-[150px]">{snippet.title}</p>
                     </div>
                 </div>
-                <button 
+                <button
                     onClick={handleCopy}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
                 >
@@ -283,7 +285,7 @@ const SnippetRenderer = ({ message }: { message: MessageRow }) => {
 /**
  * Premium Voice Note Player with Waveform and Speed Control
  */
-const VoicePlayer = ({ url, messageId, onPlayed, isPlayed: initiallyPlayed }: { url: string; messageId?: string; onPlayed?: (id: string) => void; isPlayed?: boolean }) => {
+export const VoicePlayer = ({ url, messageId, onPlayed, isPlayed: initiallyPlayed, compact = false, seamless = false, isMe = false }: { url: string; messageId?: string; onPlayed?: (id: string) => void; isPlayed?: boolean; compact?: boolean; seamless?: boolean; isMe?: boolean }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isPlayed, setIsPlayed] = useState(initiallyPlayed || false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -293,8 +295,9 @@ const VoicePlayer = ({ url, messageId, onPlayed, isPlayed: initiallyPlayed }: { 
 
     const waveform = useMemo(() => {
         const hash = url.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0);
-        return Array.from({ length: 35 }).map((_, i) => 2 + Math.abs(Math.sin(hash + i * 0.5) * 20));
-    }, [url]);
+        const barCount = compact ? 22 : 35;
+        return Array.from({ length: barCount }).map((_, i) => 2 + Math.abs(Math.sin(hash + i * 0.5) * 20));
+    }, [url, compact]);
 
     const togglePlay = () => {
         if (!audioRef.current) return;
@@ -325,33 +328,37 @@ const VoicePlayer = ({ url, messageId, onPlayed, isPlayed: initiallyPlayed }: { 
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const progress = (currentTime / (duration || 1));
+
     return (
-        <div className="flex items-center gap-3 bg-zinc-900/5 backdrop-blur-sm p-3 rounded-xl min-w-[260px] border border-black/5 group/voice">
+        <div className={`flex items-center gap-2 sm:gap-3 group/voice transition-all 
+            ${compact ? 'w-full' : seamless ? 'w-full sm:min-w-[240px]' : 'w-full sm:min-w-[260px]'}
+            ${seamless ? '' : 'bg-zinc-900/5 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-black/5'}
+        `}>
             <audio ref={audioRef} src={url} onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)} onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)} onEnded={() => setIsPlaying(false)} />
-            <button type="button" onClick={togglePlay} className="w-10 h-10 rounded-full bg-[#D4F268] text-[#1A1A1A] flex items-center justify-center shadow-lg shadow-lime-500/20 active:scale-90 transition-all">
+            <button type="button" onClick={togglePlay} className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all shrink-0 
+                ${seamless ? (isMe ? 'bg-black text-[#D4F268] shadow-black/10' : 'bg-[#D4F268] text-[#1A1A1A] shadow-lime-500/20') : 'bg-[#D4F268] text-[#1A1A1A] shadow-lime-500/20'}
+            `}>
                 {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} className="ml-0.5" fill="currentColor" />}
             </button>
-            <div className="flex-1 flex flex-col gap-1.5">
-                <div className="h-8 flex items-end gap-[3px] px-1">
+            <div className="flex-1 flex flex-col justify-center min-w-0">
+                <div className="flex items-end gap-[2px] sm:gap-[3px] px-1 h-8">
                     {waveform.map((h, i) => {
-                        const progress = (currentTime / (duration || 1)) * 100;
-                        const isPlayed = (i / waveform.length) * 100 < progress;
+                        const isPlayedBar = (i / waveform.length) <= progress;
                         return (
                             <motion.div
                                 key={i}
-                                animate={{ height: isPlaying ? [h, h * 1.5, h] : h }}
-                                transition={{ duration: 0.5, repeat: isPlaying ? Infinity : 0, delay: i * 0.05 }}
-                                className={`w-[3px] rounded-full transition-colors duration-300 ${isPlayed ? 'bg-[#84cc16]' : 'bg-zinc-300'}`}
+                                className={`w-0.5 sm:w-[3px] rounded-full transition-colors ${isPlayedBar ? (seamless && isMe ? 'bg-black/80' : 'bg-lime-500') : (seamless && isMe ? 'bg-black/10' : 'bg-zinc-300')}`}
                                 style={{ height: `${h}px` }}
                             />
                         );
                     })}
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-black text-zinc-400 uppercase tracking-widest px-0.5">
-                    <span>{formatTime(currentTime)}</span>
+                <div className="flex justify-between mt-1 px-1">
+                    <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${seamless && isMe ? 'text-black/40' : 'text-zinc-400'}`}>{formatTime(currentTime)}</span>
                     <div className="flex items-center gap-2">
-                        <button type="button" onClick={cycleSpeed} className="hover:text-zinc-900 transition-colors bg-white/50 px-1.5 py-0.5 rounded-md border border-zinc-100">{playbackSpeed}x</button>
-                        <span>{formatTime(duration)}</span>
+                        <button type="button" onClick={cycleSpeed} className={`text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded transition-colors ${seamless && isMe ? 'bg-black/10 text-black/60 hover:bg-black/20' : 'bg-white text-zinc-500 hover:text-zinc-900 shadow-sm'}`}>{playbackSpeed}x</button>
+                        <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${seamless && isMe ? 'text-black/40' : 'text-zinc-400'}`}>{formatTime(duration)}</span>
                     </div>
                 </div>
             </div>
@@ -494,13 +501,14 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [inputValue, setInputValue] = useState("");
     const [showAttachments, setShowAttachments] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showInfoPanel, setShowInfoPanel] = useState(false);
+    const [msgInfoSelected, setMsgInfoSelected] = useState<MessageRow | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [msgSearchTerm, setMsgSearchTerm] = useState("");
     const [showGifPicker, setShowGifPicker] = useState(false);
     const [gifs, setGifs] = useState<any[]>([]);
     const [gifSearch, setGifSearch] = useState("");
     const [isLoadingGifs, setIsLoadingGifs] = useState(false);
-    const [showInfoPanel, setShowInfoPanel] = useState(false);
     const [pendingFiles, setPendingFiles] = useState<{ file: File; previewUrl: string, type: 'image' | 'video' | 'audio' | 'file' }[]>([]);
     const [replyTo, setReplyTo] = useState<MessageRow | null>(null);
     const [forwardMsg, setForwardMsg] = useState<MessageRow | null>(null);
@@ -535,6 +543,17 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [unreadCount, setUnreadCount] = useState(0);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
+    // Auto-clear unread badge after 10s
+    useEffect(() => {
+        if (firstUnreadId) {
+            const timer = setTimeout(() => {
+                setFirstUnreadId(null);
+                setUnreadCount(0);
+            }, 10000);
+            return () => clearTimeout(timer);
+        }
+    }, [firstUnreadId]);
+
     const scrollToMessage = useCallback((messageId: string) => {
         const el = document.getElementById(`msg-${messageId}`);
         if (el) {
@@ -542,6 +561,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             setHighlightedId(messageId);
             setTimeout(() => setHighlightedId(null), 2000);
         }
+    }, []);
+
+    const handleOpenProfile = useCallback((userId: string) => {
+        setSelectedProfileUserId(userId);
+        setIsProfileModalOpen(true);
+        soundManager.playClick(0.6);
     }, []);
 
     // --- NEW FEATURE STATES ---
@@ -559,6 +584,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [pendingScheduledMsgs, setPendingScheduledMsgs] = useState<any[]>([]);
     const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
     // Pagination
     const [hasMore, setHasMore] = useState(true);
@@ -572,7 +599,21 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [mentionResults, setMentionResults] = useState<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
     const [mentionAnchor, setMentionAnchor] = useState(0);
-    const [groupMembers, setGroupMembers] = useState<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
+    const [groupMembers, setGroupMembersState] = useState<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
+    const groupMembersRef = useRef<{ id: string; name: string; username: string; avatarUrl?: string }[]>([]);
+
+    const setGroupMembers = useCallback((val: any) => {
+        if (typeof val === 'function') {
+            setGroupMembersState(prev => {
+                const next = val(prev);
+                groupMembersRef.current = next;
+                return next;
+            });
+        } else {
+            setGroupMembersState(val);
+            groupMembersRef.current = val;
+        }
+    }, []);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -587,7 +628,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const audioCtxRef = useRef<AudioContext | null>(null);
     const animationFrameRef = useRef<number | null>(null);
 
-    const isGroup = peer?.type === 'group';
+    const isGroup = peer?.type === 'group' || (peer as any)?.isGroup === true;
     const initialLoadRef = useRef(true);
 
     const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
@@ -674,72 +715,89 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                 filter: `conversation_id=eq.${peer.id}`
             }, async (payload) => {
                 if (payload.eventType === 'INSERT') {
-                    const newMessage = payload.new as any;
-                    setMessages(prev => {
-                        // 1. Check if the message is already in the list
-                        if (prev.some(m => m.id === newMessage.id)) return prev;
+                        const newMessage = payload.new as any;
 
-                        // 2. Deduplication logic: If it's from me, check for an existing temp message
-                        if (newMessage.sender_id === currentUserId) {
-                            const tempMatch = prev.find(m => 
-                                m.id.startsWith('temp-') && 
-                                m.type === newMessage.type &&
-                                (
-                                    // For text messages
-                                    (m.type === 'text' && m.text === newMessage.content) ||
-                                    // For media messages (check if any attachment matches name or if it's the only temporary media message of this type)
-                                    (m.type !== 'text' && (
-                                        !newMessage.content || // If content is empty (common for media)
-                                        m.text === newMessage.content ||
-                                        (m.attachments && newMessage.attachments && m.attachments.length === newMessage.attachments.length)
-                                    ))
-                                )
-                            );
-                            if (tempMatch) {
-                                // Match found! Swap the ID and update attachments with real URLs
-                                return prev.map(m => m.id === tempMatch.id ? { 
-                                    ...m, 
-                                    id: newMessage.id,
-                                    attachments: newMessage.attachments || m.attachments,
-                                    text: newMessage.content || m.text,
-                                    snippetId: newMessage.snippet_id
-                                } : m);
-                            }
-                        }
-
-                        // Deduplicate: If message already exists (e.g. sender already updated it), don't add again
-                        if (prev.find(m => m.id === newMessage.id)) return prev;
-
+                        // 1. Pre-process message type and metadata
                         const contentTrimmed = typeof newMessage.content === 'string' ? newMessage.content.trim() : "";
                         const isUrl = contentTrimmed.startsWith('https://') || contentTrimmed.startsWith('http://');
                         const isGif = isUrl && (contentTrimmed.includes('giphy.com') || contentTrimmed.includes('tenor.com'));
-                        
-                        // If it's a GIF or a direct image URL, override 'text' type for better rendering
                         let msgType = newMessage.type;
                         if (msgType === 'text' || !msgType) {
                             msgType = isGif ? 'gif' : isUrl ? 'image' : 'text';
                         }
 
-                        const mapped: MessageRow = {
-                            id: newMessage.id,
-                            senderId: newMessage.sender_id,
-                            senderName: newMessage.sender_id === currentUserId ? 'You' : (peer.name || 'User'),
-                            text: newMessage.content,
-                            type: msgType as any,
-                            mediaUrl: isUrl ? newMessage.content : undefined,
-                            timestamp: new Date(newMessage.created_at),
-                            status: newMessage.status,
-                            replyToId: newMessage.reply_to_id,
-                            attachments: newMessage.attachments || [],
-                            isDeleted: newMessage.is_deleted,
-                            pollId: newMessage.poll_id,
-                            snippetId: newMessage.snippet_id,
-                            deliveredAt: newMessage.delivered_at ? new Date(newMessage.delivered_at) : undefined,
-                            readAt: newMessage.read_at ? new Date(newMessage.read_at) : undefined,
-                            playedAt: newMessage.played_at ? new Date(newMessage.played_at) : undefined
-                        };
-                        return [...prev, mapped];
-                    });
+                        // 2. Resolve sender identity ASYNC (outside setMessages)
+                        let resolvedSender = groupMembersRef.current.find(m => m.id === newMessage.sender_id);
+                        if (!resolvedSender && newMessage.sender_id !== currentUserId) {
+                            const { data: profile } = await supabase
+                                .from('profiles')
+                                .select('id, full_name, username, avatar_url')
+                                .eq('id', newMessage.sender_id)
+                                .single();
+
+                            if (profile) {
+                                resolvedSender = {
+                                    id: profile.id,
+                                    name: profile.full_name || profile.username || `User_${profile.id.slice(0, 4)}`,
+                                    avatarUrl: profile.avatar_url
+                                } as any;
+                                setGroupMembers(prev => [...prev, resolvedSender as any]);
+                            }
+                        }
+
+                        // 3. Update messages state synchronously
+                        setMessages(prev => {
+                            // Deduplicate
+                            if (prev.some(m => m.id === newMessage.id)) return prev;
+
+                            // Handle temp message matching for local user
+                            if (newMessage.sender_id === currentUserId) {
+                                const tempMatch = prev.find(m =>
+                                    m.id.startsWith('temp-') &&
+                                    m.type === newMessage.type &&
+                                    (
+                                        (m.type === 'text' && m.text === newMessage.content) ||
+                                        (m.type !== 'text' && (
+                                            !newMessage.content || 
+                                            m.text === newMessage.content ||
+                                            (m.attachments && newMessage.attachments && m.attachments.length === newMessage.attachments.length)
+                                        ))
+                                    )
+                                );
+                                if (tempMatch) {
+                                    return prev.map(m => m.id === tempMatch.id ? {
+                                        ...m,
+                                        id: newMessage.id,
+                                        senderName: m.senderName || 'You',
+                                        attachments: newMessage.attachments || m.attachments,
+                                        text: newMessage.content || m.text,
+                                        snippetId: newMessage.snippet_id
+                                    } : m);
+                                }
+                            }
+
+                            const mapped: MessageRow = {
+                                id: newMessage.id,
+                                senderId: newMessage.sender_id,
+                                senderName: newMessage.sender_id === currentUserId ? 'You' : (resolvedSender?.name || (isGroup ? 'A Member' : peer.name) || 'User'),
+                                senderAvatar: newMessage.sender_id === currentUserId ? undefined : (resolvedSender?.avatarUrl || peer.avatarUrl),
+                                text: newMessage.content,
+                                type: msgType as any,
+                                mediaUrl: isUrl ? newMessage.content : undefined,
+                                timestamp: new Date(newMessage.created_at),
+                                status: newMessage.status,
+                                replyToId: newMessage.reply_to_id,
+                                attachments: newMessage.attachments || [],
+                                isDeleted: newMessage.is_deleted,
+                                pollId: newMessage.poll_id,
+                                snippetId: newMessage.snippet_id,
+                                deliveredAt: newMessage.delivered_at ? new Date(newMessage.delivered_at) : undefined,
+                                readAt: newMessage.read_at ? new Date(newMessage.read_at) : undefined,
+                                playedAt: newMessage.played_at ? new Date(newMessage.played_at) : undefined
+                            };
+
+                            return [...prev, mapped].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+                        });
                     if (newMessage.sender_id !== currentUserId) {
                         await markMessagesAsRead(peer.id);
                         await markNotificationsAsRead(currentUserId, { conversationId: peer.id });
@@ -944,10 +1002,10 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         typingChannelRef.current.send({
             type: 'broadcast',
             event: 'typing',
-            payload: { 
-                userId: currentUserId, 
-                userName: currentUserName || 'Someone',
-                isTyping: true 
+            payload: {
+                userId: currentUserId,
+                userName: currentUserName || `User_${currentUserId?.slice(0, 4) || 'xxxx'}`,
+                isTyping: true
             }
         });
 
@@ -1136,16 +1194,26 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
     // Load group members for @mention autocomplete
     useEffect(() => {
-        if (!peer || peer.type !== 'group') return;
-        getConversationMembers(peer.id).then(members => {
-            setGroupMembers(members.map(m => ({
-                id: m.id,
-                name: m.name,
-                username: m.username,
-                avatarUrl: m.avatarUrl
-            })));
-        });
-    }, [peer?.id, peer?.type]);
+        if (!peer) return;
+        if (peer.type === 'group') {
+            getConversationMembers(peer.id).then(members => {
+                setGroupMembers(members.map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    username: m.username,
+                    avatarUrl: m.avatarUrl
+                })));
+            });
+        } else {
+            // For DMs, the peer themselves is the mentionable user
+            setGroupMembers([{
+                id: peer.peerId || peer.id,
+                name: peer.name,
+                username: peer.username,
+                avatarUrl: peer.avatarUrl
+            }]);
+        }
+    }, [peer?.id, peer?.type, peer?.username, peer?.peerId]);
 
     // Restore draft from localStorage when peer changes
     useEffect(() => {
@@ -1291,7 +1359,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
         };
 
         if (customUrl) optimisticMsg.text = customUrl; // For GIFs
-        
+
         // Ensure mediaUrl is set for optimistic rendering of GIFs and images
         if (customUrl && (type === 'gif' || type === 'image' || type === 'sticker')) {
             optimisticMsg.mediaUrl = customUrl;
@@ -1329,8 +1397,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
             // Link local ID to server ID
             if (savedMsg) {
-                setMessages(prev => prev.map(m => m.id === tempId ? { 
-                    ...m, 
+                setMessages(prev => prev.map(m => m.id === tempId ? {
+                    ...m,
                     id: savedMsg.id,
                     attachments: savedMsg.attachments || m.attachments, // Use server URLs
                     status: savedMsg.status || 'sent'
@@ -1392,9 +1460,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
     const compressVideo = async (file: File): Promise<File> => {
         // Simple size check - if less than 10MB, don't bother compressing too much
         if (file.size < 10 * 1024 * 1024) return file;
-        
+
         console.log(`[Video] Input size: ${(file.size / 1024 / 1024).toFixed(2)}MB. Attempting 20MB target optimization...`);
-        
+
         return new Promise((resolve) => {
             const video = document.createElement('video');
             video.src = URL.createObjectURL(file);
@@ -1404,12 +1472,12 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             video.onloadedmetadata = () => {
                 const targetWidth = video.videoWidth > 1280 ? 1280 : video.videoWidth;
                 const targetHeight = (targetWidth / video.videoWidth) * video.videoHeight;
-                
+
                 const canvas = document.createElement('canvas');
                 canvas.width = targetWidth;
                 canvas.height = targetHeight;
                 const ctx = canvas.getContext('2d');
-                
+
                 if (!ctx) {
                     resolve(file);
                     return;
@@ -1422,7 +1490,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                 const dest = audioCtx.createMediaStreamDestination();
                 source.connect(dest);
                 source.connect(audioCtx.destination);
-                
+
                 dest.stream.getAudioTracks().forEach(track => stream.addTrack(track));
 
                 let recorder: MediaRecorder;
@@ -1515,14 +1583,14 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
             );
 
             if (savedMsg) {
-                setMessages(prev => prev.map(m => m.id === tempId ? { 
-                    ...m, 
+                setMessages(prev => prev.map(m => m.id === tempId ? {
+                    ...m,
                     id: savedMsg.id,
                     snippetId: (savedMsg as any).snippet_id,
                     status: 'sent'
                 } : m));
             }
-            
+
             // Clear inputs
             setSnippetTitle("");
             setSnippetCode("");
@@ -1891,8 +1959,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                             const isSameAuthorAsNext = nextMsg?.senderId === msg.senderId;
 
                                             // Check for unread line
-                                            const isFirstUnread = (lastReadId === 'START_OF_CONVO' && msgIndex === 0 && groupIdx === 0) || 
-                                                                 (lastReadId && group.messages[msgIndex - 1]?.id === lastReadId);
+                                            const isFirstUnread = (lastReadId === 'START_OF_CONVO' && msgIndex === 0 && groupIdx === 0) ||
+                                                (lastReadId && group.messages[msgIndex - 1]?.id === lastReadId);
 
                                             const isHighlighted = msg.id === highlightedId;
 
@@ -1903,12 +1971,15 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                     className="rounded-xl transition-all duration-500"
                                                 >
                                                     {isFirstUnread && unreadCount > 0 && (
-                                                        <div className="flex items-center gap-4 my-8">
-                                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-red-100" />
-                                                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest px-3 py-1 bg-red-50 rounded-full border border-red-100 shadow-sm">
-                                                                {unreadCount} New {unreadCount === 1 ? 'Message' : 'Messages'}
+                                                        <div className="w-full flex items-center gap-4 my-8 relative">
+                                                            <div className="absolute inset-0 bg-zinc-100/80 -mx-4 md:-mx-8 my-auto h-10 border-y border-zinc-200/50 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] -z-10" />
+                                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-zinc-300" />
+                                                            <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest px-4 py-1.5 bg-white backdrop-blur-md rounded-full border border-zinc-200 shadow-sm z-10 flex items-center gap-2">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                                                {unreadCount} Unread {unreadCount === 1 ? 'Message' : 'Messages'}
+                                                                <button onClick={() => { setFirstUnreadId(null); setUnreadCount(0); }} className="hover:bg-zinc-100 p-1 rounded-full text-zinc-400 hover:text-zinc-600 transition-colors ml-1 -mr-2"><X size={12} /></button>
                                                             </span>
-                                                            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-red-100" />
+                                                            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-zinc-300" />
                                                         </div>
                                                     )}
                                                     <motion.div
@@ -1919,15 +1990,24 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                         {!isMe && (
                                                             <div className="w-8 md:w-10 flex-shrink-0 mr-2 flex flex-col justify-start">
                                                                 {(msgIndex === 0 || group.messages[msgIndex - 1]?.senderId !== msg.senderId) && (
-                                                                    <Avatar
-                                                                        src={msg.senderAvatar || peer?.avatarUrl}
-                                                                        fallback={(msg.senderName || peer?.name || 'U').charAt(0)}
-                                                                        className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-zinc-100 shadow-sm"
-                                                                    />
+                                                                        <Avatar
+                                                                            src={msg.senderAvatar || peer?.avatarUrl}
+                                                                            fallback={(msg.senderName || peer?.name || 'U').charAt(0)}
+                                                                            className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-zinc-100 shadow-sm cursor-pointer hover:opacity-80 transition-opacity"
+                                                                            onClick={() => handleOpenProfile(msg.senderId)}
+                                                                        />
                                                                 )}
                                                             </div>
                                                         )}
                                                         <div className={`max-w-[85%] md:max-w-[70%] relative ${isMe ? "items-end ml-auto" : "items-start"} flex flex-col group/msg`}>
+                                                                {!isMe && (msgIndex === 0 || group.messages[msgIndex - 1]?.senderId !== msg.senderId) && (
+                                                                    <button 
+                                                                        onClick={() => handleOpenProfile(msg.senderId)}
+                                                                        className="text-[10px] font-black uppercase tracking-widest text-[#a1a1aa] mb-1 ml-1 block hover:text-zinc-600 transition-colors"
+                                                                    >
+                                                                        {msg.senderName && msg.senderName.trim().toLowerCase() !== peer?.name?.trim().toLowerCase() ? msg.senderName : (isGroup ? 'A Member' : peer?.name)}
+                                                                    </button>
+                                                                )}
                                                             <div className="relative flex items-start group">
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); setActiveMenuId(isMenuOpen ? null : msg.id); }}
@@ -1965,6 +2045,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                     })}
                                                                                 </div>
                                                                                 <button onClick={() => { setReplyTo(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Reply size={16} className="text-zinc-400" /> Reply</button>
+                                                                                <button onClick={() => { setMsgInfoSelected(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Info size={16} className="text-zinc-400" /> Info</button>
                                                                                 {isMe && !msg.isDeleted && <button onClick={() => { setEditingMsg(msg); setInputValue(msg.text || ""); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><FileText size={16} className="text-blue-400" /> Edit</button>}
                                                                                 <button onClick={() => { handlePinMessage(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-amber-600 transition-colors text-left"><Pin size={16} className="fill-current" /> Pin Message</button>
                                                                                 <button onClick={() => { setForwardMsg(msg); setActiveMenuId(null); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-zinc-50 rounded-xl text-sm font-semibold text-zinc-700 transition-colors text-left"><Share2 size={16} className="text-zinc-400" /> Forward</button>
@@ -2015,11 +2096,22 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                     <div className="relative">
                                                                                         {msg.text.includes('https://') && <LinkPreview url={msg.text.match(/https?:\/\/[^\s]+/)?.[0] || ""} isMe={isMe} />}
                                                                                         <p className="font-semibold leading-snug whitespace-pre-wrap text-sm">
-                                                                                            {msg.text.split(/(@\w+)/).map((part, i) =>
-                                                                                                part.startsWith('@') ? (
-                                                                                                    <span key={i} className={`font-black px-0.5 rounded ${isMe ? 'text-black/70 bg-black/10' : 'text-[#4d7c0f] bg-lime-100'}`}>{part}</span>
-                                                                                                ) : part
-                                                                                            )}
+                                                                                            {msg.text.split(/(@\w+)/).map((part, i) => {
+                                                                                                if (part.startsWith('@')) {
+                                                                                                    const username = part.slice(1);
+                                                                                                    const member = groupMembers.find(m => m.username === username);
+                                                                                                    return (
+                                                                                                        <button 
+                                                                                                            key={i} 
+                                                                                                            onClick={() => member && handleOpenProfile(member.id)}
+                                                                                                            className={`font-black px-0.5 rounded transition-all inline-block ${member ? 'hover:scale-105 active:scale-95 cursor-pointer shadow-sm' : 'opacity-70'} ${isMe ? 'text-black/80 bg-black/10 hover:bg-black/20' : 'text-[#4d7c0f] bg-lime-100 hover:bg-lime-200'}`}
+                                                                                                        >
+                                                                                                            {part}
+                                                                                                        </button>
+                                                                                                    );
+                                                                                                }
+                                                                                                return part;
+                                                                                            })}
                                                                                         </p>
                                                                                         {msg.isEdited && (
                                                                                             <span className="text-[8px] font-bold uppercase tracking-tighter opacity-40 mt-0.5 block">Edited</span>
@@ -2029,19 +2121,29 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                                                 {(msg.mediaUrl || (msg.attachments && msg.attachments.length > 0)) && (
                                                                                     <div className={`mt-1.5 grid gap-1 ${(msg.attachments?.length || 1) === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                                                                         {msg.mediaUrl && (!msg.attachments || msg.attachments.length === 0) && (
-                                                                                            <button key="legacy-media" type="button" className="relative rounded-lg overflow-hidden bg-zinc-100" onClick={() => setLightboxUrl(msg.mediaUrl!)}>
-                                                                                                <img src={msg.mediaUrl} alt="" loading="lazy" className="w-full h-auto max-h-72 object-cover cursor-zoom-in" />
-                                                                                            </button>
+                                                                                            <div className={`relative rounded-lg ${msg.type !== 'audio' ? 'overflow-hidden bg-zinc-100' : ''}`}>
+                                                                                                {['image', 'gif', 'sticker'].includes(msg.type) && (
+                                                                                                    <button type="button" className="w-full text-left" onClick={() => setLightboxUrl(msg.mediaUrl!)}>
+                                                                                                        <img src={msg.mediaUrl} alt="" loading="lazy" className="w-full h-auto max-h-72 object-cover cursor-zoom-in" />
+                                                                                                    </button>
+                                                                                                )}
+                                                                                                {msg.type === 'video' && (
+                                                                                                    msg.mediaUrl!.startsWith('https://stream.mux.com/')
+                                                                                                        ? <MuxVideoPlayer url={msg.mediaUrl!} className="w-full h-48 object-cover" onPlay={() => markMessageAsPlayed(msg.id)} />
+                                                                                                        : <video src={msg.mediaUrl} controls className="w-full h-48 object-cover" preload="metadata" onPlay={() => markMessageAsPlayed(msg.id)} />
+                                                                                                )}
+                                                                                                {msg.type === 'audio' && <div className={msg.text ? "mt-2" : ""}><VoicePlayer url={msg.mediaUrl} messageId={msg.id} onPlayed={markMessageAsPlayed} isPlayed={!!msg.playedAt} seamless={true} isMe={isMe} /></div>}
+                                                                                            </div>
                                                                                         )}
                                                                                         {msg.attachments?.map((att, i) => (
-                                                                                            <div key={`att-${i}-${att.url}`} className="rounded-lg overflow-hidden bg-zinc-100 relative">
-                                                                                                {att.type === 'image' && <img src={att.url} alt="" loading="lazy" className="w-full h-48 object-cover cursor-zoom-in" onClick={() => setLightboxUrl(att.url)} />}
+                                                                                            <div key={`att-${i}-${att.url}`} className={`rounded-lg relative ${['image', 'video'].includes(att.type) ? 'overflow-hidden bg-zinc-100' : ''}`}>
+                                                                                                {att.type === 'image' && <img src={att.url} alt="" loading="lazy" className="w-full h-48 object-cover cursor-zoom-in block" onClick={() => setLightboxUrl(att.url)} />}
                                                                                                 {att.type === 'video' && (
                                                                                                     att.url.startsWith('https://stream.mux.com/')
-                                                                                                        ? <MuxVideoPlayer url={att.url} className="w-full" />
-                                                                                                        : <video src={att.url} controls className="w-full h-48 object-cover" preload="metadata" />
+                                                                                                        ? <MuxVideoPlayer url={att.url} className="w-full" onPlay={() => markMessageAsPlayed(msg.id)} />
+                                                                                                        : <video src={att.url} controls className="w-full h-48 object-cover block" preload="metadata" onPlay={() => markMessageAsPlayed(msg.id)} />
                                                                                                 )}
-                                                                                                {att.type === 'audio' && <VoicePlayer url={att.url} messageId={msg.id} onPlayed={markMessageAsPlayed} isPlayed={!!msg.playedAt} />}
+                                                                                                {att.type === 'audio' && <div className={msg.text ? "mt-2" : ""}><VoicePlayer url={att.url} messageId={msg.id} onPlayed={markMessageAsPlayed} isPlayed={!!msg.playedAt} seamless={true} isMe={isMe} /></div>}
                                                                                                 {att.type === 'file' && (
                                                                                                     <button
                                                                                                         type="button"
@@ -2104,28 +2206,26 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                             )}
                                                             <div className={`flex items-center gap-2 mt-1 px-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                                                 <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                                
+
                                                                 <div className="flex items-center gap-1 group/status">
-                                                                    <motion.div 
+                                                                    <motion.div
                                                                         initial={false}
-                                                                        animate={{ 
+                                                                        animate={{
                                                                             backgroundColor: msg.status === 'read' ? '#3b82f6' : '#a1a1aa',
                                                                             scale: msg.status === 'read' ? [1, 1.2, 1] : 1,
                                                                             boxShadow: msg.status === 'read' ? '0 0 8px rgba(59, 130, 246, 0.5)' : '0 0 0px rgba(0,0,0,0)'
                                                                         }}
                                                                         className="w-1.5 h-1.5 rounded-full shadow-sm"
-                                                                        title={`Read: ${msg.readAt ? msg.readAt.toLocaleTimeString() : 'N/A'}`}
                                                                     />
-                                                                    {(msg.type === 'audio' || msg.attachments?.some(a => a.type === 'audio')) && (
-                                                                        <motion.div 
+                                                                    {(['audio', 'video'].includes(msg.type) || msg.attachments?.some(a => ['audio', 'video'].includes(a.type))) && (
+                                                                        <motion.div
                                                                             initial={false}
-                                                                            animate={{ 
+                                                                            animate={{
                                                                                 backgroundColor: msg.playedAt ? '#84cc16' : '#a1a1aa',
                                                                                 scale: msg.playedAt ? [1, 1.2, 1] : 1,
                                                                                 boxShadow: msg.playedAt ? '0 0 8px rgba(132, 204, 22, 0.5)' : '0 0 0px rgba(0,0,0,0)'
                                                                             }}
                                                                             className="w-1.5 h-1.5 rounded-full shadow-sm"
-                                                                            title={`Played: ${msg.playedAt ? msg.playedAt.toLocaleTimeString() : 'N/A'}`}
                                                                         />
                                                                     )}
                                                                 </div>
@@ -2145,7 +2245,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                     </div>
 
                     {/* Input Area */}
-                    <div className="w-full bg-white/95 backdrop-blur-xl border-t border-zinc-200 z-40 shrink-0 transition-all duration-300 md:static fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-[env(safe-area-inset-bottom)] md:pb-6">
+                    <div className="w-full bg-white/95 backdrop-blur-xl border-t border-zinc-200 z-40 shrink-0 transition-all duration-300 md:relative fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-[env(safe-area-inset-bottom)] md:pb-6">
                         <AnimatePresence mode="popLayout">
                             {showEmojiPicker && (
                                 <motion.div
@@ -2153,7 +2253,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 20 }}
-                                    className="absolute bottom-full right-4 mb-4 z-50 shadow-2xl rounded-xl overflow-hidden border border-zinc-200 max-h-[80vh] flex flex-col"
+                                    className="absolute bottom-full right-4 mb-2 md:-mb-3 z-50 shadow-2xl rounded-xl overflow-hidden border border-zinc-200 max-h-[80vh] flex flex-col"
                                 >
                                     <div className="overflow-auto">
                                         <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="light" previewPosition="none" skinTonePosition="none" />
@@ -2167,7 +2267,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                    className="absolute bottom-full left-4 mb-4 z-50 bg-white/90 backdrop-blur-2xl rounded-xl shadow-2xl border border-zinc-200/50 p-2 w-52 overflow-hidden"
+                                    className="absolute bottom-full left-4 mb-2 md:-mb-3 z-50 bg-white/90 backdrop-blur-2xl rounded-xl shadow-2xl border border-zinc-200/50 p-2 w-52 overflow-hidden"
                                 >
                                     <button key="att-photo" type="button" onClick={() => {
                                         if (fileInputRef.current) {
@@ -2190,7 +2290,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         Video
                                     </button>
                                     <button key="att-code" type="button" onClick={() => { setShowCodeModal(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
-                                        <Code size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" /> 
+                                        <Code size={18} className="text-[#84cc16] group-hover/att:scale-110 transition-transform" />
                                         Code Snippet
                                     </button>
                                     <button key="att-gif" type="button" onClick={() => { setShowGifPicker(true); setShowAttachments(false); }} className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#84cc16]/10 rounded-xl text-sm font-semibold text-zinc-700 transition-colors group/att">
@@ -2210,7 +2310,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 20 }}
-                                    className="absolute bottom-full left-4 right-4 mb-4 z-50 bg-white rounded-xl border border-zinc-200 shadow-2xl flex flex-col max-h-[400px] overflow-hidden"
+                                    className="absolute bottom-full left-4 right-4 mb-2 md:-mb-3 z-50 bg-white rounded-xl border border-zinc-200 shadow-2xl flex flex-col max-h-[400px] overflow-hidden"
                                 >
                                     <div className="p-3 border-b flex gap-2 items-center bg-zinc-50">
                                         <div className="relative flex-1">
@@ -2423,6 +2523,15 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                 )}
             </div>
 
+            {/* Message Info Panel */}
+            {msgInfoSelected && (
+                <MessageInfoPanel 
+                    message={msgInfoSelected} 
+                    isOpen={!!msgInfoSelected} 
+                    onClose={() => setMsgInfoSelected(null)} 
+                />
+            )}
+
             {/* Forward Modal */}
             <AnimatePresence>
                 {forwardMsg && (
@@ -2468,13 +2577,13 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
                         {/* Tabs */}
                         <div className="flex gap-8 px-8 py-4 border-b border-zinc-50 bg-white/50 sticky top-0">
-                            <button 
+                            <button
                                 onClick={() => setGalleryTab('media')}
                                 className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${galleryTab === 'media' ? 'border-[#84cc16] text-[#84cc16]' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
                             >
                                 Photos & Audio
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setGalleryTab('code')}
                                 className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${galleryTab === 'code' ? 'border-[#84cc16] text-[#84cc16]' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
                             >
@@ -2587,8 +2696,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Snippet Title</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={snippetTitle}
                                         onChange={(e) => setSnippetTitle(e.target.value)}
                                         placeholder="e.g. Auth Middleware for Next.js"
@@ -2599,7 +2708,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Language</label>
-                                        <select 
+                                        <select
                                             value={snippetLang}
                                             onChange={(e) => setSnippetLang(e.target.value)}
                                             className="w-full bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-[#84cc16]/20 appearance-none"
@@ -2618,7 +2727,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Source Code</label>
-                                    <textarea 
+                                    <textarea
                                         rows={10}
                                         value={snippetCode}
                                         onChange={(e) => setSnippetCode(e.target.value)}
@@ -2629,7 +2738,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             </div>
 
                             <div className="p-6 bg-zinc-50 border-t border-zinc-100">
-                                <Button 
+                                <Button
                                     onClick={handleSendSnippet}
                                     disabled={!snippetCode.trim() || isSendingSnippet}
                                     className="w-full bg-zinc-900 hover:bg-black text-white py-6 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-zinc-900/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
@@ -2678,8 +2787,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2 block">Question</label>
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={pollQuestion}
                                         onChange={(e) => setPollQuestion(e.target.value)}
                                         placeholder="What are we deciding?"
@@ -2691,8 +2800,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1 block">Options</label>
                                     {pollOptions.map((opt, i) => (
                                         <div key={i} className="flex gap-2">
-                                            <input 
-                                                type="text" 
+                                            <input
+                                                type="text"
                                                 value={opt}
                                                 onChange={(e) => {
                                                     const newOpts = [...pollOptions];
@@ -2703,7 +2812,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                 className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 text-sm font-bold text-zinc-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
                                             />
                                             {pollOptions.length > 2 && (
-                                                <button 
+                                                <button
                                                     onClick={() => setPollOptions(prev => prev.filter((_, idx) => idx !== i))}
                                                     className="p-2 text-zinc-300 hover:text-red-500 transition-colors"
                                                 >
@@ -2713,7 +2822,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                         </div>
                                     ))}
                                     {pollOptions.length < 5 && (
-                                        <button 
+                                        <button
                                             onClick={() => setPollOptions(prev => [...prev, ""])}
                                             className="w-full py-3 border-2 border-dashed border-zinc-100 rounded-xl text-xs font-black uppercase tracking-widest text-zinc-400 hover:border-sky-200 hover:text-sky-500 hover:bg-sky-50 transition-all flex items-center justify-center gap-2"
                                         >
@@ -2724,7 +2833,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                             </div>
 
                             <div className="p-6 bg-zinc-50 border-t border-zinc-100">
-                                <Button 
+                                <Button
                                     onClick={handleCreatePollAction}
                                     disabled={!pollQuestion.trim() || pollOptions.some(o => !o.trim())}
                                     className="w-full bg-zinc-900 hover:bg-black text-white py-6 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-zinc-900/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
@@ -2827,9 +2936,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                 </div>
                                 <button onClick={() => setShowSchedulePicker(false)} className="p-2 hover:bg-zinc-50 rounded-full transition-colors text-zinc-400 hover:text-zinc-600"><X size={24} /></button>
                             </div>
-                            
+
                             <div className="overflow-hidden">
-                                <SchedulePicker 
+                                <SchedulePicker
                                     onSelect={(iso) => handleScheduleAction(iso)}
                                     onCancel={() => setShowSchedulePicker(false)}
                                 />
@@ -2854,7 +2963,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                         {/* Fixed Header */}
                         <div className="px-6 md:px-8 pt-6 pb-2 shrink-0 flex flex-col items-center border-b border-zinc-100/50">
                             <div className="w-12 h-1.5 bg-zinc-200 rounded-full mb-6 cursor-pointer hover:bg-zinc-300 transition-colors" onClick={() => setShowLoopyPanel(false)} />
-                            
+
                             <div className="flex w-full items-start gap-4 md:gap-6 mb-4">
                                 <div className="relative flex-shrink-0">
                                     <div className="md:hidden">
@@ -2863,7 +2972,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     <div className="hidden md:block">
                                         <LoopyMascot size={80} mood={isLoopyTyping ? "thinking" : loopyResponse ? "happy" : "surprised"} />
                                     </div>
-                                    <motion.div 
+                                    <motion.div
                                         animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
                                         transition={{ repeat: Infinity, duration: 2 }}
                                         className="absolute -top-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-[#84cc16] rounded-full border-2 border-white shadow-sm"
@@ -2884,11 +2993,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     <div className="flex flex-col items-center justify-center gap-4 py-8">
                                         <div className="flex gap-2">
                                             {[0, 1, 2].map((i) => (
-                                                <motion.div 
+                                                <motion.div
                                                     key={i}
-                                                    animate={{ y: [0, -8, 0], opacity: [0.3, 1, 0.3] }} 
-                                                    transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }} 
-                                                    className="w-2.5 h-2.5 bg-[#84cc16] rounded-full shadow-[0_0_10px_rgba(132,204,22,0.3)]" 
+                                                    animate={{ y: [0, -8, 0], opacity: [0.3, 1, 0.3] }}
+                                                    transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.15 }}
+                                                    className="w-2.5 h-2.5 bg-[#84cc16] rounded-full shadow-[0_0_10px_rgba(132,204,22,0.3)]"
                                                 />
                                             ))}
                                         </div>
@@ -2910,11 +3019,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                             <div className="space-y-6">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                                                     {loopyResponse.highlights?.map((h: any, i: number) => (
-                                                        <motion.div 
+                                                        <motion.div
                                                             initial={{ opacity: 0, y: 10 }}
                                                             animate={{ opacity: 1, y: 0 }}
                                                             transition={{ delay: i * 0.1 }}
-                                                            key={i} 
+                                                            key={i}
                                                             className="flex items-center gap-2.5 md:gap-3.5 p-3 md:p-4 bg-white rounded-2xl border border-zinc-100 shadow-sm hover:border-lime-200 transition-all group"
                                                         >
                                                             <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-lime-50 flex items-center justify-center text-lg md:text-xl group-hover:scale-110 transition-transform">{h.icon}</div>
@@ -2947,7 +3056,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                     </div>
                                                     <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Scientific Breakdown</div>
                                                 </div>
-                                                
+
                                                 <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-100 relative group">
                                                     <Quote size={24} className="absolute -top-3 -left-2 text-lime-400 opacity-30 group-hover:opacity-100 transition-opacity" />
                                                     <p className="text-[15px] font-semibold text-zinc-800 leading-relaxed">
@@ -2958,7 +3067,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                 {loopyResponse.code && (
                                                     <div className="relative group">
                                                         <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => {
                                                                     navigator.clipboard.writeText(loopyResponse.code);
                                                                     soundManager.playClick(0.5);
@@ -2983,7 +3092,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                         </div>
                                                     </div>
                                                 )}
-                                                                <motion.div 
+                                                <motion.div
                                                     whileHover={{ scale: 1.02 }}
                                                     className="p-4 md:p-5 bg-lime-400/10 rounded-3xl border-2 border-lime-400/20 flex gap-4 md:gap-5 items-center group/quest shadow-sm"
                                                 >
@@ -3006,9 +3115,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     </motion.div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <Button 
-                                            variant="outline" 
-                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group" 
+                                        <Button
+                                            variant="outline"
+                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group"
                                             onClick={() => handleLoopyAction('explain')}
                                         >
                                             <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
@@ -3019,9 +3128,9 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                                 <span className="block text-[10px] text-zinc-400 font-bold mt-1">Deep dives into patterns</span>
                                             </div>
                                         </Button>
-                                        <Button 
-                                            variant="outline" 
-                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group" 
+                                        <Button
+                                            variant="outline"
+                                            className="h-auto flex-row sm:flex-col p-6 border-2 border-zinc-100 hover:border-[#84cc16] hover:bg-lime-50/50 gap-4 rounded-3xl transition-all shadow-sm hover:shadow-xl hover:-translate-y-1 group"
                                             onClick={() => handleLoopyAction('summarize')}
                                         >
                                             <div className="w-12 h-12 bg-lime-50 rounded-2xl flex items-center justify-center group-hover:bg-lime-100 transition-colors">
@@ -3039,8 +3148,8 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
 
                         {/* Fixed Footer Action */}
                         <div className="px-6 pb-8 pt-4 bg-white flex justify-center shrink-0 border-t border-zinc-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-20">
-                            <Button 
-                                className="w-full max-w-sm bg-zinc-900 hover:bg-black text-white rounded-3xl py-6 md:py-7 font-black uppercase tracking-[0.2em] text-[10px] md:text-[11px] shadow-2xl shadow-zinc-950/20 active:scale-95 transition-all shrink-0" 
+                            <Button
+                                className="w-full max-w-sm bg-zinc-900 hover:bg-black text-white rounded-3xl py-6 md:py-7 font-black uppercase tracking-[0.2em] text-[10px] md:text-[11px] shadow-2xl shadow-zinc-950/20 active:scale-95 transition-all shrink-0"
                                 onClick={() => { setShowLoopyPanel(false); setLoopyResponse(null); }}
                             >
                                 Wisdom Received
@@ -3049,6 +3158,11 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                     </motion.div>
                 )}
             </AnimatePresence>
+            <UserProfileModal 
+                isOpen={isProfileModalOpen} 
+                onClose={() => setIsProfileModalOpen(false)} 
+                userId={selectedProfileUserId} 
+            />
         </div>
     );
 }

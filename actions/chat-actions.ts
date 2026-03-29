@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { getAvatarUrl } from "@/lib/utils";
 
 export interface MessageAttachment {
     url: string;
@@ -42,6 +43,8 @@ export async function getConversationMessages(
     options?: { before?: string; limit?: number }
 ): Promise<MessageRow[]> {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
 
     let query = supabase
         .from('messages')
@@ -77,6 +80,10 @@ export async function getConversationMessages(
                 title,
                 language,
                 code
+            ),
+            message_status (
+                user_id,
+                read_at
             )
         `)
         .eq('conversation_id', conversationId)
@@ -109,17 +116,21 @@ export async function getConversationMessages(
             msgType = isGif ? 'gif' : isUrl ? 'image' : 'text';
         }
 
+        const personalStatus = Array.isArray(m.message_status) 
+            ? m.message_status.find((s: any) => s.user_id === user.id) 
+            : (m.message_status?.user_id === user.id ? m.message_status : null);
+
         return {
             id: m.id,
             senderId: m.sender_id,
-            senderName: profile?.full_name || profile?.username || 'User',
+            senderName: profile?.full_name || profile?.username || `User_${m.sender_id?.slice(0, 4) || 'xxxx'}`,
             senderAvatar: profile?.avatar_url,
             text: m.content || undefined,
             caption: m.caption || undefined,
             type: msgType as any,
             mediaUrl: isUrl ? m.content : undefined,
             attachments: m.attachments || [],
-            status: m.status || 'sent',
+            status: personalStatus ? 'read' : (m.status || 'sent'),
             replyToId: m.reply_to_id || undefined,
             isEdited: m.is_edited || false,
             editedAt: m.edited_at ? new Date(m.edited_at) : undefined,
@@ -128,7 +139,7 @@ export async function getConversationMessages(
             snippetId: m.snippet_id || undefined,
             snippetData: m.code_snippets ? (Array.isArray(m.code_snippets) ? m.code_snippets[0] : m.code_snippets) : undefined,
             deliveredAt: m.delivered_at ? new Date(m.delivered_at) : undefined,
-            readAt: m.read_at ? new Date(m.read_at) : undefined,
+            readAt: personalStatus?.read_at ? new Date(personalStatus.read_at) : (m.read_at ? new Date(m.read_at) : undefined),
             playedAt: m.played_at ? new Date(m.played_at) : undefined,
             reactions: m.message_reactions ? (m.message_reactions as any[]).reduce((acc: any[], r) => {
                 const existing = acc.find(a => a.emoji === r.emoji);
@@ -198,7 +209,7 @@ export async function sendMessage(
                 .eq('id', senderId)
                 .single();
 
-            const senderName = senderProfile?.full_name || senderProfile?.username || "Someone";
+            const senderName = senderProfile?.full_name || senderProfile?.username || `User_${senderId.slice(0, 4)}`;
             
             // 3. Create notifications for each participant
             const { createNotification } = await import("./notification-actions");
@@ -323,18 +334,35 @@ export async function getUserConversations() {
 
     const convoIds = myConvos.map((mc: any) => mc.conversation_id);
 
-    // Compute unread counts for all conversations in one query
-    const { data: unreadRows } = await supabase
+    // Compute unread counts for all conversations personalized for the user
+    // 1. Get all messages that are NOT globally read AND not sent by me (candidate unreads)
+    const { data: potentialUnreads } = await supabase
         .from('messages')
-        .select('conversation_id')
+        .select('id, conversation_id')
         .in('conversation_id', convoIds)
         .neq('sender_id', user.id)
         .neq('status', 'read')
         .eq('is_deleted', false);
 
     const unreadMap = new Map<string, number>();
-    for (const row of (unreadRows ?? [])) {
-        unreadMap.set(row.conversation_id, (unreadMap.get(row.conversation_id) || 0) + 1);
+
+    if (potentialUnreads && potentialUnreads.length > 0) {
+        // 2. Fetch IDs of messages the CURRENT user has already read (personal receipts)
+        const potentialIds = potentialUnreads.map(m => m.id);
+        const { data: readReceipts } = await supabase
+            .from('message_status')
+            .select('message_id')
+            .in('message_id', potentialIds)
+            .eq('user_id', user.id);
+        
+        const readSent = new Set(readReceipts?.map(r => r.message_id) || []);
+        
+        // 3. Count only those that the user HAS NOT confirmed as read
+        for (const msg of potentialUnreads) {
+            if (!readSent.has(msg.id)) {
+                unreadMap.set(msg.conversation_id, (unreadMap.get(msg.conversation_id) || 0) + 1);
+            }
+        }
     }
 
     // Pull all participants for these convos (to find the 'other' person in DMs)
@@ -382,7 +410,7 @@ export async function getUserConversations() {
                 name: convo.title || 'Study Circle',
                 username: 'group',
                 description: convo.description,
-                avatarUrl: convo.avatar_url,
+                avatarUrl: getAvatarUrl(convo.avatar_url),
                 track: convo.tags?.[0] || 'Study Circle',
                 type: 'group',
                 level: 0, xp: 0, streak: 0, status: 'none',
@@ -398,8 +426,8 @@ export async function getUserConversations() {
                     id: convo.id,
                     peerId: peer.user_id, // actual user ID for presence tracking
                     name: profile?.full_name || profile?.username || 'User',
-                    username: profile?.username || '',
-                    avatarUrl: profile?.avatar_url,
+                    username: profile?.username || `user_${profile?.id.substring(0, 5)}`,
+                    avatarUrl: getAvatarUrl(profile?.avatar_url),
                     track: profile?.role || 'Learner',
                     lastSeen: profile?.last_seen,
                     type: 'direct',
@@ -442,7 +470,7 @@ export async function getConversationMembers(conversationId: string) {
         const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles as any;
         return {
             id: p.user_id,
-            name: profile?.full_name || profile?.username || 'User',
+            name: profile?.full_name || profile?.username || `User_${p.user_id?.slice(0, 4) || 'xxxx'}`,
             username: profile?.username || '',
             avatarUrl: profile?.avatar_url,
             role: p.role,
@@ -594,14 +622,61 @@ export async function markMessagesAsRead(conversationId: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Unauthorized");
 
-    const { error } = await supabase
+    // 1. Fetch total participants in this conversation
+    const { count: participantCount } = await supabase
+        .from('conversation_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId);
+
+    const requiredReaders = (participantCount || 2) - 1; // Default to 1 (1-on-1) if count fails
+
+    // 2. Fetch IDs of all unread messages from others
+    const { data: unreadMsgs } = await supabase
         .from('messages')
-        .update({ status: 'read', read_at: new Date().toISOString() })
+        .select('id')
         .eq('conversation_id', conversationId)
         .neq('sender_id', user.id)
         .neq('status', 'read');
 
-    if (error) throw new Error(error.message);
+    if (!unreadMsgs || unreadMsgs.length === 0) return { success: true };
+
+    const messageIds = unreadMsgs.map(m => m.id);
+
+    // 3. Insert per-user status for each unread message
+    const statusRows = messageIds.map(id => ({
+        message_id: id,
+        user_id: user.id,
+        read_at: new Date().toISOString()
+    }));
+
+    await supabase.from('message_status').upsert(statusRows, { onConflict: 'message_id,user_id' });
+
+    // 4. Update the main message ONLY if all participants have read it
+    if (requiredReaders <= 1) {
+        // 1-on-1: current user reading it means it's fully read
+        await supabase.from('messages').update({ status: 'read', read_at: new Date().toISOString() }).in('id', messageIds);
+    } else {
+        // Group: fetch read counts for these messages
+        const { data: allStatuses } = await supabase
+            .from('message_status')
+            .select('message_id')
+            .in('message_id', messageIds)
+            .not('read_at', 'is', null);
+
+        if (allStatuses) {
+            const counts: Record<string, number> = {};
+            allStatuses.forEach(s => counts[s.message_id] = (counts[s.message_id] || 0) + 1);
+            
+            const fullyReadMessageIds = Object.entries(counts)
+                .filter(([_, count]) => count >= requiredReaders)
+                .map(([id, _]) => id);
+
+            if (fullyReadMessageIds.length > 0) {
+                await supabase.from('messages').update({ status: 'read', read_at: new Date().toISOString() }).in('id', fullyReadMessageIds);
+            }
+        }
+    }
+
     return { success: true };
 }
 
@@ -610,16 +685,93 @@ export async function markMessagesAsRead(conversationId: string) {
  */
 export async function markMessageAsPlayed(messageId: string) {
     const supabase = await createClient();
-    const { error } = await supabase
-        .from('messages')
-        .update({ played_at: new Date().toISOString() })
-        .eq('id', messageId)
-        .is('played_at', null);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    if (error) {
-        console.error("Error marking message as played:", error);
-        throw error;
+    // 1. Get the message's conversation_id to know participant count
+    const { data: msg } = await supabase.from('messages').select('conversation_id').eq('id', messageId).single();
+    if (!msg) return;
+
+    const { count: participantCount } = await supabase
+        .from('conversation_participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', msg.conversation_id);
+
+    const requiredPlayers = (participantCount || 2) - 1; 
+
+    // 2. Insert into message_status for current user
+    await supabase.from('message_status').upsert({
+        message_id: messageId,
+        user_id: user.id,
+        played_at: new Date().toISOString()
+    }, { onConflict: 'message_id,user_id' });
+
+    // 3. Update the main message ONLY if all participants have played it
+    if (requiredPlayers <= 1) {
+        await supabase.from('messages').update({ played_at: new Date().toISOString() }).eq('id', messageId).is('played_at', null);
+    } else {
+        // Count played_at statuses for this message
+        const { count: playedCount } = await supabase
+            .from('message_status')
+            .select('*', { count: 'exact', head: true })
+            .eq('message_id', messageId)
+            .not('played_at', 'is', null);
+
+        if (playedCount && playedCount >= requiredPlayers) {
+            await supabase.from('messages').update({ played_at: new Date().toISOString() }).eq('id', messageId).is('played_at', null);
+        }
     }
+}
+
+/**
+ * Fetches individual read/played statuses for a message (including those who haven't read it).
+ */
+export async function getMessageStatuses(messageId: string) {
+    const supabase = await createClient();
+
+    // 1. Get the message's conversation_id and sender_id
+    const { data: msg, error: msgError } = await supabase
+        .from('messages')
+        .select('conversation_id, sender_id')
+        .eq('id', messageId)
+        .single();
+        
+    if (msgError || !msg) return [];
+
+    // 2. Fetch all participants in the conversation (except the sender)
+    const { data: participants } = await supabase
+        .from('conversation_participants')
+        .select(`
+            user_id,
+            profiles (
+                id,
+                full_name,
+                username,
+                avatar_url
+            )
+        `)
+        .eq('conversation_id', msg.conversation_id)
+        .neq('user_id', msg.sender_id);
+
+    // 3. Fetch actual statuses
+    const { data: statuses } = await supabase
+        .from('message_status')
+        .select(`
+            user_id,
+            read_at,
+            played_at
+        `)
+        .eq('message_id', messageId);
+
+    // 4. Merge participants with their status
+    return (participants || []).map((p: any) => {
+        const s = statuses?.find((stat: any) => stat.user_id === p.user_id);
+        return {
+            readAt: s?.read_at || null,
+            playedAt: s?.played_at || null,
+            user: p.profiles
+        };
+    });
 }
 
 /**

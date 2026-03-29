@@ -21,6 +21,7 @@ import { getUserConversations, getOrCreateDirectConversation, getFriendsList } f
 import useSWR from "swr";
 import { useUser } from "@/context/UserContext";
 import { useLoading } from "@/components/LoadingProvider";
+import { cn } from "@/lib/utils";
 
 // ============================================================
 // NewChatPicker — Centered Modal
@@ -300,7 +301,7 @@ function ChatPageContent() {
                     const usersMap = { ...(next[id] || {}) };
                     
                     if (isTyping) {
-                        usersMap[userId] = userName || 'Someone';
+                        usersMap[userId] = userName || `User_${userId.slice(0, 4)}`;
                     } else {
                         delete usersMap[userId];
                     }
@@ -637,15 +638,14 @@ function ChatPageContent() {
                                                                 <motion.div layoutId="activeGroupIndicator" className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-lime-500" />
                                                             )}
                                                             <div className={`relative shrink-0 ${isSidebarCollapsed ? 'ml-0' : 'ml-1'}`}>
-                                                                <div className={`w-[46px] h-[46px] rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm overflow-hidden ${isActive ? "bg-lime-400 text-black border border-lime-500/20" : "bg-gradient-to-br from-zinc-100 to-zinc-200 text-zinc-500 border border-zinc-200/60"}`}>
-                                                                    {chat.avatarUrl?.startsWith('http') ? (
-                                                                        <img src={chat.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                                                    ) : chat.avatarUrl ? (
-                                                                        <span>{chat.avatarUrl}</span>
-                                                                    ) : (
-                                                                        chat.name.charAt(0)
+                                                                <Avatar
+                                                                    src={chat.avatarUrl}
+                                                                    fallback={chat.name.charAt(0)}
+                                                                    className={cn(
+                                                                        "w-[46px] h-[46px] rounded-2xl shadow-sm border border-zinc-200/60",
+                                                                        isActive ? "border-lime-500/20" : "border-zinc-200/60"
                                                                     )}
-                                                                </div>
+                                                                />
                                                             </div>
                                                             {!isSidebarCollapsed && (
                                                                 <div className="flex-1 min-w-0 pr-1">
