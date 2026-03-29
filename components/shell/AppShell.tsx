@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <main className="flex-1 md:card-float overflow-hidden relative flex flex-col h-full md:min-h-[90vh]">
                 {/* Mobile header — expands to sit below notch/Dynamic Island */}
                 <div
-                    className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 z-[80]"
+                    className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 z-[40]"
                     style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                 >
                     <div className="h-16 flex items-center justify-between px-4">
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     initial={hasLoadedRef.current ? false : { opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4 }}
-                    className="flex-1 h-full overflow-hidden flex flex-col pt-[calc(4rem+env(safe-area-inset-top,0px))] md:pt-0"
+                    className="flex-1 h-full overflow-hidden flex flex-col pt-[calc(4rem+env(safe-area-inset-top,0px))] md:pt-0 relative z-[50]"
                 >
                     <AppScrollProvider>
                         {isFullHeight ? (

@@ -121,7 +121,7 @@ export function MessageInfoPanel({ message, isOpen, onClose }: MessageInfoPanelP
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="md:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-[60]"
+                        className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-md z-[90]"
                     />
 
                     {/* Panel */}
@@ -130,18 +130,19 @@ export function MessageInfoPanel({ message, isOpen, onClose }: MessageInfoPanelP
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="fixed inset-y-0 right-0 z-[70] w-full md:w-80 bg-white/95 backdrop-blur-2xl border-l border-zinc-200 shadow-2xl flex flex-col"
+                        className="fixed inset-y-0 right-0 z-[100] w-full md:w-80 bg-white/95 backdrop-blur-2xl border-l border-zinc-200 shadow-2xl flex flex-col"
+                        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-white/50">
+                        <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-white shadow-sm sticky top-0 z-10 rounded-t-3xl md:rounded-none">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-500">
                                     <Info size={18} />
                                 </div>
                                 <h3 className="font-bold text-zinc-900">Message Info</h3>
                             </div>
-                            <Button size="icon" variant="ghost" onClick={onClose} className="rounded-full h-8 w-8 hover:bg-zinc-100">
-                                <X size={18} />
+                            <Button size="icon" variant="ghost" onClick={onClose} className="rounded-full h-10 w-10 hover:bg-zinc-100 bg-zinc-50 border border-zinc-100 shadow-sm transition-all active:scale-95">
+                                <X size={20} className="text-zinc-600" />
                             </Button>
                         </div>
 

@@ -125,18 +125,22 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
         )}>
             <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0 z-10 xl:w-[22px] xl:h-[22px]" />
             {showLabel && (
-                <>
-                    <span className="truncate text-sm xl:text-sm z-10 font-medium text-left flex-1">{item.label}</span>
-                    {item.subItems && <ChevronRight size={16} className={cn("transition-transform duration-200", isOpen ? "rotate-90" : "")} />}
-                </>
-            )}
-            {mounted && showLabel && item.badge && (
-                <span className={cn(
-                    "ml-auto text-[10px] xl:text-[10px] font-bold px-2 py-0.5 rounded-full z-10",
-                    isActive ? "bg-white/50 text-black" : "bg-primary/10 text-primary"
-                )}>
-                    {item.badge}
-                </span>
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="truncate text-sm xl:text-sm z-10 font-medium text-left">{item.label}</span>
+                    <div className="flex items-center gap-2">
+                        {mounted && item.badge && (
+                            <span className={cn(
+                                "text-[10px] xl:text-[10px] font-bold px-2 py-0.5 rounded-full z-10",
+                                isActive 
+                                    ? "bg-white/50 text-black" 
+                                    : "bg-[#84cc16] text-white shadow-sm ring-1 ring-white/20 animate-in zoom-in-75 duration-300"
+                            )}>
+                                {item.badge}
+                            </span>
+                        )}
+                        {item.subItems && <ChevronRight size={16} className={cn("transition-transform duration-200 shrink-0", isOpen ? "rotate-90" : "")} />}
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -186,11 +190,20 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
                                         onMouseEnter={() => handlePrefetch(sub.href)}
                                         onClick={() => setMobileOpen?.(false)}
                                         className={cn(
-                                            "block py-2 px-4 rounded-xl text-xs xl:text-sm transition-colors",
+                                            "flex items-center justify-between py-2 px-4 rounded-xl text-xs xl:text-sm transition-colors !no-underline",
                                             isSubActive ? "text-primary font-bold bg-primary/5" : "text-gray-500 hover:text-foreground hover:bg-gray-50"
                                         )}
+                                        style={{ textDecoration: 'none' }}
                                     >
-                                        {sub.label}
+                                        <span>{sub.label}</span>
+                                        {mounted && (sub as any).badge && (
+                                            <span className={cn(
+                                                "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                                isSubActive ? "bg-primary text-primary-foreground" : "bg-[#84cc16] text-white"
+                                            )}>
+                                                {(sub as any).badge}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}
@@ -212,7 +225,8 @@ const NavItem = memo(({ item, isCollapsed, isDesktop, pathname, setMobileOpen, s
                         onClick={() => {
                             setMobileOpen?.(false);
                         }}
-                        className="block group mb-1 outline-none"
+                        className="block group mb-1 outline-none !no-underline"
+                        style={{ textDecoration: 'none' }}
                     >
                         {itemContent}
                     </Link>
@@ -292,7 +306,11 @@ const SidebarContent = ({ isCollapsed, isDesktop, pathname, setMobileOpen, setIs
             badge: totalUnread > 0 ? totalUnread : undefined,
             subItems: [
                 { label: "My Peers", href: "/peer/my-peers" },
-                { label: "Chat", href: "/peer/chat" },
+                { 
+                    label: "Chat", 
+                    href: "/peer/chat",
+                    badge: totalUnread > 0 ? totalUnread : undefined 
+                } as any,
                 { label: "Study Circles", href: "/peer/study-circles" },
                 { label: "Leaderboard", href: "/peer/leaderboard" },
             ]

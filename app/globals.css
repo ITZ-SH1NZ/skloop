@@ -123,6 +123,11 @@ body {
   font-family: var(--font-sans);
 }
 
+a {
+  text-decoration: none !important;
+  color: inherit;
+}
+
 /* Universal Fluid Scaling: Root Baseline Strategy */
 :root {
   /* 
