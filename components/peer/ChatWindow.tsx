@@ -741,7 +741,7 @@ export function ChatWindow({ peer, currentUserId, currentUserName, onBack, onPee
                                     name: profile.full_name || profile.username || `User_${profile.id.slice(0, 4)}`,
                                     avatarUrl: profile.avatar_url
                                 } as any;
-                                setGroupMembers(prev => [...prev, resolvedSender as any]);
+                                setGroupMembers((prev: any[]) => [...prev, resolvedSender as any]);
                             }
                         }
 
